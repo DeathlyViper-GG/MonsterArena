@@ -14,7 +14,29 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-const PORT = 8080;
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Absolute path to client
+const CLIENT_DIR = path.resolve(__dirname, "..", "client");
+
+// Serve static assets
+app.use(express.static(CLIENT_DIR));
+
+// ✅ FORCE root to load the game
+app.get("/", (req, res) => {
+  res.sendFile(path.join(CLIENT_DIR, "indexmonster.html"));
+});
+
+// Root page → game
+app.get("/", (req, res) => {
+  res.sendFile(path.join(__dirname, "..", "client", "indexmonster.html"));
+});
+
+const PORT = process.env.PORT || 8080;
 const TICK_MS = 15; // 100Hz
 const LOBBY_INTERVAL = 10_000;
 const WORLD = { w: 4000, h: 2800 };
