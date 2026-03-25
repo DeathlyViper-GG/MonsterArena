@@ -1,0 +1,178 @@
+
+  :root{ --bg:#0e0f13; --text:#e8eefb; --shadow: rgba(0,0,0,.5); }
+  html,body{ margin:0; padding:0; background:var(--bg); color:var(--text);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, Ubuntu, "Helvetica Neue", Arial; height:100%; overflow:hidden; }
+  #game{ display:block; width:100vw; height:100vh; cursor:crosshair; touch-action:none; }
+
+  .ui{ position:fixed; left:0; right:0; top:0; pointer-events:none; padding:12px; z-index:3; }
+  .bar{ display:flex; gap:12px; align-items:center; pointer-events:auto; }
+  .hud{ display:flex; gap:16px; align-items:center; flex-wrap:wrap;
+    background:linear-gradient(180deg, rgba(20,24,35,.9), rgba(13,17,25,.8));
+    border:1px solid #20263a; border-radius:10px; padding:8px 12px; box-shadow: 0 6px 16px var(--shadow); max-width:min(100%,1100px); }
+  .stat{ display:flex; align-items:center; gap:8px; font-weight:600; }
+  .chip{ padding:3px 8px; border-radius:6px; background:#1b2235; border:1px solid #28314a; font-weight:700; }
+  .hb{ position:relative; width:180px; height:14px; background:#151a29; border-radius:10px; overflow:hidden; border:1px solid #222a42; }
+  .hb>span{ position:absolute; left:0; top:0; height:100%; background:linear-gradient(90deg,#31ffa3,#00d4ff); box-shadow: inset 0 0 8px rgba(255,255,255,.25); }
+  .ammo{ width:160px; height:10px; background:#141824; border:1px solid #222a42; border-radius:8px; position:relative; overflow:hidden;}
+  .ammo>span{ position:absolute; left:0; top:0; height:100%; background:linear-gradient(90deg,#59f,#9cf); }
+  .corner{ position:fixed; right:12px; top:12px; pointer-events:auto; display:flex; gap:10px; align-items:center; }
+  .btn{ background:linear-gradient(180deg,#1b2340,#151b30); border:1px solid #273059; color:var(--text);
+    padding:8px 12px; border-radius:8px; cursor:pointer; box-shadow: 0 4px 10px var(--shadow); font-weight:600; transition: transform .06s ease, background .2s ease; }
+  .btn:hover{ transform: translateY(-1px); } .btn:active{ transform: translateY(1px) scale(.98); }
+
+  .overlay{ position:fixed; inset:0; display:none; place-items:center; background:rgba(5,8,15,.64); backdrop-filter: blur(6px); z-index:5; pointer-events:auto; }
+  .card{ width:min(92vw, 1100px); background:linear-gradient(180deg,#151a29,#0f1422); border:1px solid #223; border-radius:16px; padding:18px 20px; box-shadow: 0 18px 50px rgba(0,0,0,.6); }
+  h1,h2,h3{ margin:.2em 0 .4em; }
+  .grid{ display:grid; grid-template-columns: 1fr 1fr; gap:14px; }
+  .row{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+  .label{opacity:.85;}
+  .select,.range{ background:#0e1322; border:1px solid #273059; color:var(--text); border-radius:8px; padding:8px 10px; min-width:160px; font-weight:600; }
+  .range{ width:220px; }
+
+  .minimap{ position:fixed; right:12px; bottom:12px; width:150px; height:150px; background:#0d111b; border:1px solid #1c2238; border-radius:10px; box-shadow: 0 8px 20px var(--shadow); overflow:hidden; pointer-events:none; z-index:2;}
+  .help{ position:fixed; left:12px; bottom:12px; background:#0f1423; border:1px solid #1f2742; border-radius:10px; padding:10px 12px; pointer-events:auto;
+    max-width:min(92vw, 540px); box-shadow: 0 8px 20px var(--shadow); z-index:2; }
+  code.k{ background:#10162b; border:1px solid #1e2a4a; padding:1px 6px; border-radius:6px; }
+
+  .touch{ position:fixed; inset:0; pointer-events:none; z-index:1; }
+  .stick{ position:absolute; left:20px; bottom:20px; width:120px; height:120px; border-radius:50%; background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.12); pointer-events:auto; }
+  .stick .nub{ position:absolute; left:50%; top:50%; width:56px; height:56px; margin:-28px; border-radius:50%; background:rgba(255,255,255,.2); border:1px solid rgba(255,255,255,.35); }
+  .fire{ position:absolute; right:20px; bottom:36px; width:84px; height:84px; border-radius:50%; background:rgba(255,255,255,.07); border:1px solid rgba(255,255,255,.18); pointer-events:auto; }
+  .kpad{ position:absolute; right:20px; bottom:130px; width:84px; height:84px; border-radius:14px; background:rgba(255,255,255,.07); border:1px solid rgba(255,255,255,.18); pointer-events:auto; display:grid; place-items:center; font-weight:800; }
+
+  /* Home */
+  .levelsGrid{ display:grid; grid-template-columns: repeat(5,1fr); gap:14px; margin-top:12px; }
+  .levelCard{ border-radius:14px; overflow:hidden; border:1px solid #233; background:#0e1322; cursor:pointer; display:grid; grid-template-rows:130px auto;
+     transition: transform .08s ease, box-shadow .2s ease, border-color .2s ease; }
+  .levelCard:hover{ transform: translateY(-2px); box-shadow: 0 10px 26px rgba(0,0,0,.45); border-color:#3a4c77; }
+  .levelPreview{ position:relative; } .levelPreview canvas{ width:100%; height:100%; display:block; }
+  .levelBody{ padding:10px 12px; } .levelName{ font-weight:800; } .levelDesc{ opacity:.85; font-size:.95em; margin-top:4px; }
+  .levelBadge{ position:absolute; right:8px; top:8px; background:#0f1423cc; border:1px solid #1c2a55; padding:2px 6px; border-radius:6px; font-weight:700; }
+  @media (max-width: 900px){ .levelsGrid{ grid-template-columns:1fr 1fr; } }
+
+  /* Customize overlay */
+  .skinGrid{ display:grid; grid-template-columns: repeat(5, 1fr); gap:12px; }
+  .skinCard{ background:#0e1322; border:1px solid #273059; border-radius:12px; padding:10px; text-align:center; cursor:pointer; transition:transform .08s ease; }
+  .skinCard:hover{ transform: translateY(-2px); }
+  .skinCard.locked{ opacity:.45; cursor:not-allowed; }
+  .skinIcon{ width:52px; height:52px; border-radius:50%; margin:0 auto 8px auto; background:#24314f; display:grid; place-items:center; }
+  .colorRow{ display:flex; gap:8px; flex-wrap:wrap; margin-top:8px; justify-content:center; }
+  .colorSwatch{ width:18px; height:18px; border-radius:50%; border:1px solid #334; cursor:pointer; }
+
+
+/* --- Customize Tabs & Gun Skin Grid ---------------------------------- */
+.tabBar{display:flex;gap:10px;margin:10px 0 12px 0}
+.tabBtn{background:#1b2340;border:1px solid #273059;color:#e8eefb;padding:8px 14px;border-radius:8px;cursor:pointer;font-weight:800}
+.tabBtn.active{background:#273059}
+.tabContent{display:none}
+.gunSectionTitle{margin:6px 0 6px 0;font-weight:900;opacity:.95}
+.gunSkinGrid{display:grid;grid-template-columns:repeat(5,1fr);gap:10px}
+.gunSkinCard{background:#0e1322;border:1px solid #273059;border-radius:10px;overflow:hidden;display:grid;place-items:center;cursor:pointer;position:relative;height:86px;transition:transform .08s ease,border-color .15s ease}
+.gunSkinCard:hover{transform:translateY(-2px)}
+.gunSkinCard.selected{border-color:#5ad2ff}
+.gunSkinCard.locked{cursor:not-allowed}
+.gunSkinCard.locked .gunSkinImg{filter:grayscale(1) brightness(0.35); opacity:.6}
+.lockBadge{position:absolute;left:6px;bottom:6px;background:#0f1423cc;border:1px solid #1c274a;border-radius:6px;padding:2px 6px;font-size:.82em}
+.gunSkinImg{max-width:100%;max-height:100%}
+/* Optional: darken small player skin icons when locked */
+.skinCard.locked .skinIcon{filter:grayscale(1) brightness(0.35); opacity:.6}
+
+.defaultCard {
+    background: #0f1423;
+    border-style: dashed;
+}
+.net-status{
+  position: fixed;
+  top: 10px;
+  right: 10px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #666;
+  box-shadow: 0 0 6px #000;
+  z-index: 9999;
+}
+.net-status.offline { background:#666; }
+.net-status.peer    { background:#66a3ff; box-shadow:0 0 8px #66a3ff; }
+.net-status.host    { background:#7dffa3; box-shadow:0 0 8px #7dffa3; }
+/* ===================================================== */
+/* Monster Arena — Boot / Initial Loading Screen         */
+/* ===================================================== */
+
+.boot-overlay {
+  background:
+    radial-gradient(circle at 50% 45%, rgba(90,160,255,.12), transparent 60%),
+    radial-gradient(circle at center, #0e1222 0%, #070a14 70%);
+  z-index: 9998; /* below net-status, above everything else */
+}
+
+.boot-card {
+  background: linear-gradient(180deg, #151a29, #0f1422);
+  border: 1px solid #273059;
+  border-radius: 18px;
+  padding: 28px 36px 30px;
+  box-shadow:
+    0 24px 60px rgba(0,0,0,.65),
+    inset 0 0 0 1px rgba(120,180,255,.05);
+  text-align: center;
+  min-width: 280px;
+}
+
+.boot-title {
+  font-size: 34px;
+  font-weight: 900;
+  letter-spacing: 2.5px;
+  margin-bottom: 18px;
+  color: #9fd2ff;
+  text-shadow:
+    0 0 14px rgba(120,180,255,.45),
+    0 0 30px rgba(80,140,255,.25);
+}
+
+/* Spinner styled like your HUD accents */
+.boot-spinner {
+  width: 56px;
+  height: 56px;
+  margin: 0 auto;
+  border-radius: 50%;
+  border: 3px solid rgba(255,255,255,.12);
+  border-top-color: #66a3ff;
+  box-shadow: 0 0 10px rgba(100,160,255,.25);
+  animation: boot-spin 0.9s linear infinite;
+}
+
+.boot-text {
+  margin-top: 16px;
+  font-size: 13px;
+  letter-spacing: .4px;
+  opacity: .85;
+  color: #e8eefb;
+}
+
+/* Smooth fade-out */
+.boot-overlay.fade-out {
+  opacity: 0;
+  transition: opacity .4s ease;
+}
+
+@keyframes boot-spin {
+  to { transform: rotate(360deg); }
+}
+/* Boot progress bar */
+.boot-progress {
+  margin-top: 18px;
+  width: 240px;
+  height: 10px;
+  background: #0e1322;
+  border: 1px solid #273059;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: inset 0 0 6px rgba(0,0,0,.6);
+}
+
+#bootProgressFill {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, #66a3ff, #7dffa3);
+  transition: width .25s ease;
+}

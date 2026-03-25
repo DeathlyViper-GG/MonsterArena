@@ -1,0 +1,13 @@
+{
+  "name": "arena-server",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "signaling_http.js",
+  "scripts": {
+    "start": "node signaling_http.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5"
+  }
+}

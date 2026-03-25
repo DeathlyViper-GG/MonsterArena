@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
+<title>Monster Arena — Modular</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <!-- BOOT LOADING SCREEN -->
+<div id="overlayBoot" class="overlay boot-overlay" style="display:grid;">
+  <div class="boot-card">
+    <h1 class="boot-title">MONSTER ARENA</h1>
+
+    <div class="boot-spinner"></div>
+
+    <!-- REAL progress bar -->
+    <div class="boot-progress">
+      <div id="bootProgressFill"></div>
+    </div>
+
+    <p id="bootText" class="boot-text">Initializing…</p>
+  </div>
+</div>
+
+<canvas id="game" tabindex="0" aria-label="Monster Arena Game"></canvas>
+
+<div class="ui">
+  <div class="bar">
+    <div class="hud">
+      <div class="stat"><span>HP</span>
+        <div class="hb"><span id="hpFill" style="width:100%"></span></div>
+      </div>
+      <div class="stat">Ammo
+        <div class="ammo"><span id="ammoFill" style="width:100%"></span></div>
+        <span id="ammoText" class="chip">15 / 45</span>
+      </div>
+      <div class="stat">Weapon <span id="weaponName" class="chip">Pistol</span></div>
+      <div class="stat">Wave <span id="wave" class="chip">1</span></div>
+      <div class="stat">Score <span id="score" class="chip">0</span></div>
+      <div class="stat">Best <span id="best" class="chip">0</span></div>
+      <div class="stat">Shield <span id="shield" class="chip">0</span></div>
+      <div class="stat">Speed <span id="spd" class="chip">1.00x</span></div>
+      <div class="stat">Level <span id="lvl" class="chip">—</span></div>
+      <span id="lobbyBadge" class="chip" style="margin-left:8px; display:none;">Lobby —</span>
+    </div>
+    <div class="corner">
+      <button class="btn" id="btnPause">⏸️ Pause</button>
+      <button class="btn" id="btnRestart">🔄 Restart</button>
+      <button class="btn" id="btnHome">🏠 Home</button>
+      <button class="btn" id="btnHelp">❓ Help</button>
+      <button class="btn" id="btnSettings">⚙️ Settings</button>
+    </div>
+  </div>
+</div>
+
+<div class="minimap"><canvas id="mini" width="150" height="150" aria-label="Minimap"></canvas></div>
+<div id="netStatus" class="net-status" title="Network status"></div>
+
+<!-- HOME -->
+<div id="overlayHome" class="overlay" style="display:grid;">
+  <div class="card">
+    <h2>🏠 Monster Arena</h2>
+    <p>Pick a <b>Level</b> to begin. All levels start easy and scale by waves. Later levels add lethal hazards. Some buildings hide chests—you won’t know which until you go inside.</p>
+    <div class="levelsGrid" id="levelsGrid"></div>
+
+    <!-- Multiplayer controls -->
+    <div class="row" style="margin-top:12px;">
+      <select id="modeSelect" class="select">
+        <option value="pve" selected>Co‑op PvE (up to 5)</option>
+        <option value="pvp">PvP FFA (15 players, no respawn)</option>
+      </select>
+
+      <input id="nick" class="input" placeholder="Nickname" style="width:160px;">
+      <button class="btn" id="joinBtn">▶️ Join Lobby</button>
+    </div>
+
+    <div class="row" style="margin-top:12px;">
+      <button class="btn" id="homeCustomize">🎨 Customize</button>
+      <button class="btn" id="homeHelp">❓ Help</button>
+      <button class="btn" id="homeSettings">⚙️ Settings</button>
+    </div>
+  </div>
+</div>
+
+<!-- PAUSE / GAME OVER -->
+<div id="overlayPause" class="overlay">
+  <div class="card">
+    <h2>⏸️ Paused</h2>
+    <p>Take a breather. Enemies pause too.</p>
+    <div class="row" style="margin-top:10px;">
+      <button class="btn" id="resumeBtn">▶️ Resume</button>
+      <button class="btn" id="restartBtn2">🔄 Restart</button>
+      <button class="btn" id="homeBtn2">🏠 Home</button>
+      <button class="btn" id="settingsBtn2">⚙️ Settings</button>
+      <button class="btn" id="helpBtn2">❓ Help</button>
+    </div>
+  </div>
+</div>
+
+<!-- HELP -->
+<div id="overlayHelp" class="overlay">
+  <div class="card">
+    <h2>❓ How to Play</h2>
+    <div class="grid">
+      <div>
+        <h3>Controls</h3>
+        <p><code class="k">W A S D</code> / <code class="k">Arrows</code> to move • Aim with mouse • <code class="k">Click</code> shoot<br/>
+        <code class="k">R</code> reload • <code class="k">Q/E</code> switch weapon • <code class="k">Space</code> dash • <code class="k">Esc</code> pause • <code class="k">H</code> help</p>
+        <p>Mobile: left stick to move • right round button to fire • <b>WPN</b> to switch.</p>
+      </div>
+      <div>
+        <h3>What’s new</h3>
+        <ul>
+          <li>Enter <b>buildings</b> via doorways; some hide <b>chests</b> with ammo/powerups/health/shield.</li>
+          <li>Chests are <b>hidden until you’re inside</b> the building.</li>
+          <li>Enemies act in <b>squads</b> with roles (leader/flanker/support), share <b>alerts</b>, react to <b>gunshots</b>, and <b>chase</b> within a detection radius.</li>
+          <li>Later levels add lethal hazards (sand/chasm/lava/void) that kill <b>everyone</b> on touch.</li>
+        </ul>
+      </div>
+    </div>
+    <div class="row" style="margin-top:10px;">
+      <button class="btn" id="closeHelp">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- SETTINGS -->
+<div id="overlaySettings" class="overlay">
+  <div class="card">
+    <h2>⚙️ Settings</h2>
+    <div class="grid">
+      <div>
+        <div class="row"><span class="label">Base difficulty scaler</span>
+          <select id="selDiff" class="select">
+            <option value="0.9">Easy</option>
+            <option value="1.0" selected>Normal</option>
+            <option value="1.2">Hard</option>
+            <option value="1.5">Insane</option>
+          </select>
+        </div>
+        <div class="row"><span class="label">Sound</span>
+          <select id="selSfx" class="select"><option value="1" selected>On</option><option value="0">Off</option></select>
+        </div>
+        <div class="row"><span class="label">Music</span>
+          <select id="selMusic" class="select"><option value="1" selected>On</option><option value="0">Off</option></select>
+        </div>
+      </div>
+      <div>
+        <div class="row"><span class="label">Sensitivity</span>
+          <input id="rngSens" class="range" type="range" min="0.6" max="1.6" value="1" step="0.05" />
+          <span id="sensVal" class="chip">1.00x</span>
+        </div>
+        <div class="row"><span class="label">Opacity UI</span>
+          <input id="rngUI" class="range" type="range" min="0.4" max="1" value="1" step="0.05" />
+          <span id="uiVal" class="chip">100%</span>
+        </div>
+      </div>
+    </div>
+    <div class="row" style="margin-top:10px;">
+      <button class="btn" id="closeSettings">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- LOADING / COUNTDOWN -->
+<div id="overlayLoading" class="overlay" style="display:none;">
+  <div class="card">
+    <h2>⏳ Preparing match</h2>
+    <p id="loadingText">Joining lobby…</p>
+    <div id="lobbyPlayers" style="margin-top:10px; font-size:12px; line-height:1.3;"></div>
+    <div class="row" style="margin-top:10px;">
+      <button class="btn" id="cancelLoading">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- CUSTOMIZE -->
+<div id="overlayCustomize" class="overlay">
+  <div class="card">
+<h2>🎨 Customize</h2>
+
+<!-- TAB BUTTONS -->
+<div class="tabBar">
+  <button class="tabBtn active" id="tabPlayerBtn">Player</button>
+  <button class="tabBtn" id="tabGunsBtn">Guns</button>
+  <button class="tabBtn" id="tabMeleeBtn">Melee</button>
+</div>
+
+<!-- PLAYER TAB -->
+<div id="playerTab" class="tabContent" style="display:block;">
+  <p>Select a <b>design</b> and a <b>color</b>. Designs unlock as you reach higher waves.</p>
+  <div id="skinGrid" class="skinGrid" aria-label="Designs"></div>
+</div>
+
+<!-- GUNS TAB -->
+<div id="gunTab" class="tabContent" style="display:none;">
+  <div class="gunSection">
+    <div class="gunSectionTitle">Pistols</div>
+    <div id="pistolGrid" class="gunSkinGrid" aria-label="Pistol Skins"></div>
+  </div>
+  <div class="gunSection" style="margin-top:10px;">
+    <div class="gunSectionTitle">Rifles</div>
+    <div id="rifleGrid" class="gunSkinGrid" aria-label="Rifle Skins"></div>
+  </div>
+  <div class="gunSection" style="margin-top:10px;">
+    <div class="gunSectionTitle">Shotguns</div>
+    <div id="shotgunGrid" class="gunSkinGrid" aria-label="Shotgun Skins"></div>
+  </div>
+</div>
+<div id="meleeTab" class="tabContent" style="display:none;">
+  <div class="gunSection">
+    <div class="gunSectionTitle">Common</div>
+    <div id="meleeCommonGrid" class="gunSkinGrid" aria-label="Common Melee"></div>
+  </div>
+  <div class="gunSection" style="margin-top:10px;">
+    <div class="gunSectionTitle">Rare</div>
+    <div id="meleeRareGrid" class="gunSkinGrid" aria-label="Rare Melee"></div>
+  </div>
+  <div class="gunSection" style="margin-top:10px;">
+    <div class="gunSectionTitle">Epic</div>
+    <div id="meleeEpicGrid" class="gunSkinGrid" aria-label="Epic Melee"></div>
+  </div>
+  <div class="gunSection" style="margin-top:10px;">
+    <div class="gunSectionTitle">Legendary</div>
+    <div id="meleeLegendaryGrid" class="gunSkinGrid" aria-label="Legendary Melee"></div>
+  </div>
+  <div class="gunSection" style="margin-top:10px;">
+    <div class="gunSectionTitle">God</div>
+    <div id="meleeGodGrid" class="gunSkinGrid" aria-label="God Melee"></div>
+  </div>
+</div>
+<div class="row" style="margin-top:10px;">
+      <button class="btn" id="closeCustomize">Save</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- Touch controls -->
+<div class="touch" id="touchLayer" aria-hidden="true">
+  <div class="stick" id="stickL"><div class="nub" id="nubL"></div></div>
+  <div class="fire" id="btnFire"></div>
+  <div class="kpad" id="btnSwap">WPN</div>
+</div>
+
+<div class="help"><strong>Controls:</strong> <code class="k">WASD</code> move • <code class="k">Mouse</code> aim+shoot • <code class="k">R</code> reload • <code class="k">Q/E</code> swap • <code class="k">Space</code> dash • <code class="k">Esc</code> pause • <code class="k">H</code> help.</div>
+
+<script>
+  const boot = document.getElementById('overlayBoot');
+  const bootText = document.getElementById('bootText');
+
+  const BOOT_MESSAGES = [
+    'Loading assets…',
+    'Preparing arena…',
+    'Waking the monsters…'
+  ];
+
+  let i = 0;
+  const msgTimer = setInterval(() => {
+    if (bootText) bootText.textContent = BOOT_MESSAGES[i++ % BOOT_MESSAGES.length];
+  }, 700);
+
+  window.addEventListener('game:ready', () => {
+    clearInterval(msgTimer);
+    if (!boot) return;
+    boot.classList.add('fade-out');
+    setTimeout(() => boot.remove(), 420);
+  });
+</script>
+<script>
+  window.SIGNAL_URL = "http://localhost:8080";
+</script>
+
+<script src="js/melee_sprites.js"></script>
+<script src="js/network_http.js"></script>
+
+<!-- NEW ENTRYPOINT -->
+<script type="module" src="js/main2.js"></script>
+
+<script>
+const home = document.getElementById('overlayHome');
+const load = document.getElementById('overlayLoading');
+const loadingText = document.getElementById('loadingText');
+
+document.getElementById("joinBtn")?.addEventListener("click", async () => {
+  // This is your MENU "Play" button
+  // Show a mode picker (simple prompt for now)
+  const mode = document.getElementById("modeSelect").value; // pve/pvp from dropdown
+
+  // Join lobby ONLY now that we know the mode
+  await Net.join(mode);
+
+  // Keep user on home to pick a level
+  const badge = document.getElementById('lobbyBadge');
+  if (badge) {
+    badge.style.display = 'inline-block';
+    badge.textContent = `Lobby ${Net.state.lobbyId} • ${mode.toUpperCase()}`;
+  }
+
+  // Tell the user: now choose a level
+  alert("Connected! Now click a Level card to start.");
+});
+
+// When server tells us joinDeadline/meta changed, update loading text
+window.addEventListener('net:meta', (ev) => {
+  const meta = ev.detail || {};
+  if (!load || load.style.display !== 'grid') return;
+  const deadline = meta.joinDeadline || 0;
+  const secs = deadline > 0 ? Math.max(0, Math.ceil((deadline - Date.now())/1000)) : 0;
+  if (loadingText) loadingText.textContent = deadline ? `Joining lobby… starting in ${secs}s` : `Joining lobby…`;
+});
+</script>
+</body>
+</html>
