@@ -25,14 +25,6 @@ const CLIENT_DIR = path.resolve(__dirname, "..", "client");
 
 // Serve static assets
 app.use(express.static(CLIENT_DIR));
-// ✅ DEV: prevent browser caching for JS/CSS so new builds always load
-app.disable('etag');
-app.use((req, res, next) => {
-  if (req.path.endsWith('.js') || req.path.endsWith('.css')) {
-    res.set('Cache-Control', 'no-store');
-  }
-  next();
-});
 
 // ✅ FORCE root to load the game
 app.get("/", (req, res) => {
@@ -45,7 +37,7 @@ app.get("/", (req, res) => {
 });
 
 const PORT = process.env.PORT || 8080;
-const TICK_MS = 50; // 100Hz
+const TICK_MS = 15; // 100Hz
 const LOBBY_INTERVAL = 10_000;
 const WORLD = { w: 4000, h: 2800 };
 const slotNow = () => Math.floor(now() / LOBBY_INTERVAL);
@@ -1161,6 +1153,7 @@ function enemyAI(lobby, e, dt) {
         const leadT = Math.min(0.55, dist / bulletSp);
         const px = tgt.x + (tgt.vx || 0) * leadT * 0.9;
         const py = tgt.y + (tgt.vy || 0) * leadT * 0.9;
+        aAim = angleTo(e.x, e.y, px, py);
       }
 
       aAim += (Math.random() * 2 - 1) * (underFire ? 0.06 : 0.03);
@@ -1359,13 +1352,10 @@ app.post('/chest/open', (req, res) => {
 });
 
 app.post('/input', (req, res) => {
-  const { lobbyId, peerId, ix, iy, ang } = req.body;
+  const { lobbyId, peerId, ix, iy, ang, x, y } = req.body;
   const lobby = LOBBIES.get(lobbyId);
   if (!lobby) return res.json({ ok: false });
-
-  // ✅ Store only input vector + angle (ignore x/y)
-  lobby.inputs.set(peerId, { ix, iy, ang });
-
+  lobby.inputs.set(peerId, { ix, iy, ang, x, y });
   res.json({ ok: true });
 });
 
@@ -1602,11 +1592,14 @@ setInterval(() => {
       p.ang = inp.ang;
 
       // trust client-collided position if provided
-      // ✅ Never trust client x/y (prevents 20Hz stepping / snapping)
-      // Always integrate from input vector
-      const m = Math.hypot(inp.ix, inp.iy) || 1;
-      p.x += (inp.ix / m) * PLAYER_SPEED * dt;
-      p.y += (inp.iy / m) * PLAYER_SPEED * dt;
+      if (typeof inp.x === 'number' && typeof inp.y === 'number') {
+        p.x = inp.x;
+        p.y = inp.y;
+      } else {
+        const m = Math.hypot(inp.ix, inp.iy) || 1;
+        p.x += (inp.ix / m) * PLAYER_SPEED * dt;
+        p.y += (inp.iy / m) * PLAYER_SPEED * dt;
+      }
 
       p.x = clamp(p.x, 30, WORLD.w - 30);
       p.y = clamp(p.y, 30, WORLD.h - 30);
