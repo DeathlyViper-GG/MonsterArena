@@ -45,7 +45,7 @@ app.get("/", (req, res) => {
 });
 
 const PORT = process.env.PORT || 8080;
-const TICK_MS = 15; // 100Hz
+const TICK_MS = 50; // 100Hz
 const LOBBY_INTERVAL = 10_000;
 const WORLD = { w: 4000, h: 2800 };
 const slotNow = () => Math.floor(now() / LOBBY_INTERVAL);
