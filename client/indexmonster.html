@@ -1,9 +1,13 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
-<title>Monster Arena — Modular</title>
+  <meta charset="utf-8">
+  <title>Monster Arena</title>
+
+  <!-- ✅ REQUIRED FOR RENDER + SCHOOL WIFI -->
+  <script>
+    window.SIGNAL_URL = location.origin;
+  </script>
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -269,7 +273,7 @@
   });
 </script>
 <script>
-  window.SIGNAL_URL = location.origin;
+  window.SIGNAL_URL = "http://localhost:8080";
 </script>
 
 <script src="js/melee_sprites.js"></script>

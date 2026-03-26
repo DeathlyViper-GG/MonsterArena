@@ -2693,47 +2693,51 @@ if (btnHomeCustomize){
       }
 
       if (melee.state === 'using') {
-        const DMG = meleeDamageForCurrentWeapon();          // 1/3 of current gun dmg
-        const RANGE = 120;                                   // same as before (tweak)
-        const ARC   = Math.PI / 2;                          // 90° cone (tweak)
-        const ang   = player.angle;
+        const DMG = meleeDamageForCurrentWeapon();
+        const RANGE = 120;
+        const ARC = Math.PI / 2;
+        const ang = player.angle;
 
-        for (let i = ents.enemies.length - 1; i >= 0; i--) {
-          const e = ents.enemies[i];
+        const snap = isNetActive() ? Net.state?.snapshot : null;
+        const targets = (isNetActive() && snap && Array.isArray(snap.enemies))
+          ? snap.enemies
+          : ents.enemies;
 
-          // skip if already hit this swing
-          if (melee._hitSet && melee._hitSet.has(e)) continue;
+        // Track hit IDs per swing (works for snapshot + local enemies)
+        if (!melee._hitSet) melee._hitSet = new Set();
+
+        for (let i = targets.length - 1; i >= 0; i--) {
+          const e = targets[i];
+          if (!e) continue;
+
+          const idKey = e.id ?? e;           // snapshot enemies have e.id; local use object
+          if (melee._hitSet.has(idKey)) continue;
 
           const dx = e.x - player.x;
           const dy = e.y - player.y;
           const dist = Math.hypot(dx, dy);
-          if (dist > RANGE + e.r) continue;
+          const er = e.r ?? 16;
 
-          // in front cone?
-          const dir  = Math.atan2(dy, dx);
-          const diff = Math.abs(((dir - ang + Math.PI*3) % (Math.PI*2)) - Math.PI);
-          if (diff <= ARC / 2) {
+          if (dist > RANGE + er) continue;
 
-            addEffect(e.x, e.y, 'hit', 0.15, '#fff');
-            if (isNetActive()) {
-              Net.sendHit('enemy', e.x, e.y, DMG, 'melee');
-            } else {
-              e.hp -= DMG;
-            }
-            cam.shake = Math.max(cam.shake, 2);
+          const dir = Math.atan2(dy, dx);
+          const diff = Math.abs(((dir - ang + Math.PI * 3) % (Math.PI * 2)) - Math.PI);
+          if (diff > ARC / 2) continue;
 
-            // mark as hit in this swing
-            if (!melee._hitSet) melee._hitSet = new Set();
-            melee._hitSet.add(e);
+          // VFX always
+          addEffect(e.x, e.y, 'hit', 0.15, '#fff');
+          cam.shake = Math.max(cam.shake, 2);
 
-            if (e.hp <= 0) {
-              const baseCol = sampleSpriteColor(e.type);
-              spawnTriangleBurst(e.x, e.y, baseCol, { big:6, small:22 });
-              spawnGhostSilhouette(e.x, e.y, e.r + 10, currentTheme.accent);
-              state.score += 10;
-              ents.enemies.splice(i, 1);
-            }
+          if (isNetActive()) {
+            // ✅ server authoritative melee damage
+            Net.sendHit('enemy', e.x, e.y, DMG, 'melee');
+          } else {
+            // offline damage
+            e.hp -= DMG;
+            if (e.hp <= 0) ents.enemies.splice(i, 1);
           }
+
+          melee._hitSet.add(idKey);
         }
       }
     }

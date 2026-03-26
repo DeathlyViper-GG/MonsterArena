@@ -7,39 +7,48 @@
  - PvE + PvP
 */
 
-import express from 'express';
-import cors from 'cors';
-
-const app = express();
-app.use(cors());
-app.use(express.json());
-
+import express from "express";
+import cors from "cors";
 import path from "path";
 import { fileURLToPath } from "url";
 
+const app = express();
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+app.use(cors());
+app.use(express.json());
 
-// Absolute path to client
-const CLIENT_DIR = path.resolve(__dirname, "..", "client");
+// ✅ SERVE THE GAME CLIENT
+app.use(express.static(path.join(__dirname, "../client")));
 
-// Serve static assets
-app.use(express.static(CLIENT_DIR));
-
-// ✅ FORCE root to load the game
-app.get("/", (req, res) => {
-  res.sendFile(path.join(CLIENT_DIR, "indexmonster.html"));
-});
-
-// Root page → game
-app.get("/", (req, res) => {
-  res.sendFile(path.join(__dirname, "..", "client", "indexmonster.html"));
-});
-
-const PORT = process.env.PORT || 8080;
 const TICK_MS = 15; // 100Hz
 const LOBBY_INTERVAL = 10_000;
 const WORLD = { w: 4000, h: 2800 };
+// ✅ Long-poll waiters per lobby
+const POLL_TIMEOUT_MS = 25_000;
+const WAITERS = new Map(); // lobbyId -> Set(res)
+
+function addWaiter(lobbyId, res) {
+  if (!WAITERS.has(lobbyId)) WAITERS.set(lobbyId, new Set());
+  WAITERS.get(lobbyId).add(res);
+
+  // cleanup if client disconnects
+  res.on('close', () => {
+    const set = WAITERS.get(lobbyId);
+    if (set) set.delete(res);
+  });
+}
+
+function flushWaiters(lobby) {
+  const set = WAITERS.get(lobby.id);
+  if (!set || set.size === 0) return;
+
+  for (const res of set) {
+    try { res.json(lobby.snapshot); } catch {}
+  }
+  set.clear();
+}
 const slotNow = () => Math.floor(now() / LOBBY_INTERVAL);
 const slotEndMs = (slot) => (slot + 1) * LOBBY_INTERVAL;
 // -----------------------------------------------------------------------------
@@ -329,6 +338,24 @@ function explodeEnemyBomb(lobby, b){
   }
 }
 
+// ✅ WORLD DELTA: only send the full world when it changes (worldKey/chestVer)
+function worldDelta(lobby) {
+  const worldFull = lobby.world ? {
+    walls: lobby.world.walls,
+    hazards: lobby.world.hazards,
+    solids: lobby.world.solids ?? [],
+    buildings: lobby.world.buildings ?? [],
+    chests: lobby.world.chests ?? []
+  } : { walls: [], hazards: [], solids: [], buildings: [], chests: [] };
+
+  // World changes when worldKey changes OR chests change (chestVer)
+  const worldKeyNow = String(lobby.worldKey ?? '') + ':' + String(lobby.chestVer ?? 0);
+  const sendWorld = (lobby._worldKeySent !== worldKeyNow);
+
+  if (sendWorld) lobby._worldKeySent = worldKeyNow;
+  return sendWorld ? worldFull : null;
+}
+
 // -----------------------------------------------------------------------------
 // Utilities
 // -----------------------------------------------------------------------------
@@ -396,6 +423,18 @@ function bulletSegmentHitsWall(lobby, x0, y0, x1, y1, r) {
     const x = x0 + (x1 - x0) * t;
     const y = y0 + (y1 - y0) * t;
     if (bulletHitsWall(lobby, x, y, r)) return true;
+  }
+  return false;
+}
+// ✅ Swept circle hit: check bullet segment against a circle (player/enemy)
+function segmentHitsCircle(x0, y0, x1, y1, cx, cy, r) {
+  const steps = Math.max(1, Math.ceil(Math.hypot(x1 - x0, y1 - y0) / 6));
+  for (let i = 1; i <= steps; i++) {
+    const t = i / steps;
+    const x = x0 + (x1 - x0) * t;
+    const y = y0 + (y1 - y0) * t;
+    const dx = x - cx, dy = y - cy;
+    if (dx * dx + dy * dy <= r * r) return true;
   }
   return false;
 }
@@ -674,6 +713,10 @@ function createLobby(mode) {
     levelId: null,
     mapSeed: null,
 
+    pickups: [],
+    pickupSeq: 1,
+    pickupVer: 0,
+
     // ✅ CRITICAL: initialise world state
     world: { walls: [], hazards: [] },
     worldKey: null,
@@ -687,12 +730,15 @@ function createLobby(mode) {
       players: [],
       enemies: [],
       bullets: [],
+      pickups: [],
       meta: {
         mode,
         joinDeadline: created + LOBBY_INTERVAL,
         levelId: null,
         mapSeed: null,
+        pickupVer: 0,
         worldKey: null
+        
       }
     }
   };
@@ -1440,26 +1486,31 @@ app.post('/hit', (req, res) => {
   res.json({ ok: true });
 });
 
-app.get('/world', (req, res) => {
-  const { lobbyId } = req.query;
-  const lobby = LOBBIES.get(lobbyId);
-  if (!lobby) return res.json(null);
-  res.json({
-    world: lobby.world,
-    meta: {
-      worldKey: lobby.worldKey ?? null,
-      chestVer: lobby.chestVer ?? 0,
-      levelId: lobby.levelId ?? null,
-      mapSeed: lobby.mapSeed ?? null
-    }
-  });
-});
-
 app.get('/poll', (req, res) => {
-  const { lobbyId } = req.query;
+  const lobbyId = String(req.query.lobbyId ?? '');
+  const since = Number(req.query.since ?? 0);
+
   const lobby = LOBBIES.get(lobbyId);
-  if (!lobby) return res.json(null);
-  res.json(lobby.snapshot);
+  if (!lobby) return res.status(404).end();
+
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+
+  const curT = Number(lobby.snapshot?.t ?? 0);
+
+  // ✅ If client is behind, respond immediately
+  if (curT > since) return res.json(lobby.snapshot);
+
+  // ✅ Otherwise hold the request until snapshot changes or timeout
+  addWaiter(lobbyId, res);
+
+  const timer = setTimeout(() => {
+    // still no update -> no content (client will re-poll)
+    try { res.status(204).end(); } catch {}
+  }, POLL_TIMEOUT_MS);
+
+  res.on('close', () => clearTimeout(timer));
 });
 
 app.post('/lobby/setLevel', (req, res) => {
@@ -1543,7 +1594,7 @@ setInterval(() => {
 
   for (const lobby of LOBBIES.values()) {
     // Compute dt first (safe)
-    const dt = Math.min(0.05, (t - lobby.lastTick) / 1000);
+    const dt = Math.min(0.03, (t - lobby.lastTick) / 1000);
     lobby.lastTick = t;
 
     // Start lobby when countdown ends
@@ -1559,6 +1610,7 @@ setInterval(() => {
     }
 
     // If not started, still publish a snapshot (optional, helps clients)
+    // If not started, still publish a snapshot (optional, helps clients)
     if (!lobby.started) {
       lobby.snapshot = {
         t: now(),
@@ -1567,16 +1619,20 @@ setInterval(() => {
         players: [...lobby.players.values()],
         enemies: [],
         bullets: [],
+        // ✅ only send world when it changes
+        world: worldDelta(lobby),
         meta: {
           lobbyId: lobby.id,
           mode: lobby.mode,
           joinDeadline: lobby.startTime,
           levelId: lobby.levelId,
           mapSeed: lobby.mapSeed,
-          chestVer: lobby.chestVer || 0,
+          chestVer: lobby.chestVer ?? 0,
           worldKey: lobby.worldKey ?? null
         }
       };
+      flushWaiters(lobby);
+
       continue; // ✅ critical
     }
 
@@ -1683,6 +1739,7 @@ setInterval(() => {
       if (!hitWall){
         b.x = x1;
         b.y = y1;
+        b._x0 = x0; b._y0 = y0;
       }
 
       b.life -= dt;
@@ -1711,7 +1768,7 @@ setInterval(() => {
       if (isEnemy){
         for (const [pid, p] of lobby.players){
           const rr = (b.r ?? 4) + 16;
-          if (dist2(b.x, b.y, p.x, p.y) <= rr * rr){
+          if (segmentHitsCircle(x0, y0, b.x, b.y, p.x, p.y, rr)) {
             applyPlayerDamage(lobby, pid, b.dmg ?? DMG_SHOOTER);
             lobby.bullets.splice(i, 1);
             break;
@@ -1735,7 +1792,7 @@ setInterval(() => {
         for (let j = 0; j < lobby.enemies.length; j++) {
           const e = lobby.enemies[j];
           const rr = (b.r + e.r);
-          if (dist2(b.x, b.y, e.x, e.y) < rr * rr) { hitIndex = j; break; }
+          if (segmentHitsCircle(b._x0 ?? b.x, b._y0 ?? b.y, b.x, b.y, e.x, e.y, rr)) { hitIndex = j; break; }
         }
 
         if (hitIndex >= 0) {
@@ -1752,7 +1809,7 @@ setInterval(() => {
     removeDeadPlayers(lobby);
 
     // Snapshot
-    // Snapshot (LIGHTWEIGHT - no full world payload)
+    // Snapshot
     lobby.snapshot = {
       t: now(),
       mode: lobby.mode,
@@ -1761,8 +1818,8 @@ setInterval(() => {
       enemies: lobby.mode === 'pve' ? lobby.enemies : [],
       bullets: lobby.bullets,
 
-      // ✅ DO NOT ship world every tick (client fetches /world only when changed)
-      // world: undefined,
+      // ✅ only send world when it changes
+      world: worldDelta(lobby),
 
       meta: {
         lobbyId: lobby.id,
@@ -1770,16 +1827,24 @@ setInterval(() => {
         joinDeadline: lobby.startTime,
         levelId: lobby.levelId,
         mapSeed: lobby.mapSeed,
-        chestVer: lobby.chestVer || 0,
+        pickupVer: 0,
+        chestVer: lobby.chestVer ?? 0,
         worldKey: lobby.worldKey ?? null
       }
     };
+    flushWaiters(lobby);
   }
 }, TICK_MS);
 
 // -----------------------------------------------------------------------------
 // Start
 // -----------------------------------------------------------------------------
-app.listen(PORT, () => {
-  console.log(`✅ HTTP server running on http://localhost:${PORT}`);
+const PORT = process.env.PORT || 8080;
+
+const server = app.listen(PORT, "0.0.0.0", () => {
+  console.log("✅ MonsterArena running on port", PORT);
 });
+
+// ✅ help proxies/load balancers (avoid weird stalls)
+server.keepAliveTimeout = 65_000;
+server.headersTimeout = 66_000;

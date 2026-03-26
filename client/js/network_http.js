@@ -84,22 +84,31 @@
     async poll() {
       while (true) {
         try {
-          const r = await fetch(`${BASE}/poll?lobbyId=${this.state.lobbyId}`);
+          const since = (this.state.snapshot && this.state.snapshot.t) ? this.state.snapshot.t : 0;
+
+          const r = await fetch(
+            `${BASE}/poll?lobbyId=${this.state.lobbyId}&since=${since}`,
+            { cache: 'no-store' }
+          );
+
+          if (r.status === 204) continue; // timeout, just re-poll
+
           const snap = await r.json();
           this.state.snapshot = snap;
           window.dispatchEvent(new CustomEvent("net:snapshot", { detail: snap }));
 
-          // If server includes meta, keep UI updated
           if (snap && snap.meta) {
-            const oldKey = JSON.stringify(this.state.meta || {});
-            const newKey = JSON.stringify(snap.meta || {});
+            const oldKey = JSON.stringify(this.state.meta ?? {});
+            const newKey = JSON.stringify(snap.meta ?? {});
             if (oldKey !== newKey) {
               this.state.meta = snap.meta;
               window.dispatchEvent(new CustomEvent("net:meta", { detail: this.state.meta }));
             }
           }
-        } catch {}
-        await new Promise(res => setTimeout(res, 25));
+        } catch {
+          // brief backoff on errors
+          await new Promise(res => setTimeout(res, 250));
+        }
       }
     },
 
@@ -120,6 +129,15 @@
 
 
     sendInput(ix, iy, ang, x, y) {
+      // ✅ throttle input sends (reduces lag massively)
+      const now = performance.now();
+      const MIN_MS = 33; // ~30 sends/sec (try 50 for ~20/sec if still heavy)
+      if (this._lastInputAt && (now - this._lastInputAt) < MIN_MS) return;
+      this._lastInputAt = now;
+
+      // Optional: skip if not joined yet
+      if (!this.state.lobbyId || !this.state.peerId) return;
+
       fetch(`${BASE}/input`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -129,7 +147,7 @@
           ix, iy, ang,
           x, y
         })
-      });
+      }).catch(() => {});
     },
 
     sendShoot(x, y, ang, speed, dmg) {

@@ -1,5 +1,5 @@
 {
-  "name": "arena-server",
+  "name": "monsterarena",
   "version": "1.0.0",
   "type": "module",
   "main": "signaling_http.js",
@@ -7,7 +7,7 @@
     "start": "node signaling_http.js"
   },
   "dependencies": {
-    "express": "^4.18.2",
+    "express": "^4.19.0",
     "cors": "^2.8.5"
   }
 }
