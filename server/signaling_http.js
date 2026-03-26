@@ -1360,10 +1360,13 @@ app.post('/chest/open', (req, res) => {
 });
 
 app.post('/input', (req, res) => {
-  const { lobbyId, peerId, ix, iy, ang, x, y } = req.body;
+  const { lobbyId, peerId, ix, iy, ang } = req.body;
   const lobby = LOBBIES.get(lobbyId);
   if (!lobby) return res.json({ ok: false });
-  lobby.inputs.set(peerId, { ix, iy, ang, x, y });
+
+  // ✅ Store only input vector + angle (ignore x/y)
+  lobby.inputs.set(peerId, { ix, iy, ang });
+
   res.json({ ok: true });
 });
 
@@ -1600,14 +1603,11 @@ setInterval(() => {
       p.ang = inp.ang;
 
       // trust client-collided position if provided
-      if (typeof inp.x === 'number' && typeof inp.y === 'number') {
-        p.x = inp.x;
-        p.y = inp.y;
-      } else {
-        const m = Math.hypot(inp.ix, inp.iy) || 1;
-        p.x += (inp.ix / m) * PLAYER_SPEED * dt;
-        p.y += (inp.iy / m) * PLAYER_SPEED * dt;
-      }
+      // ✅ Never trust client x/y (prevents 20Hz stepping / snapping)
+      // Always integrate from input vector
+      const m = Math.hypot(inp.ix, inp.iy) || 1;
+      p.x += (inp.ix / m) * PLAYER_SPEED * dt;
+      p.y += (inp.iy / m) * PLAYER_SPEED * dt;
 
       p.x = clamp(p.x, 30, WORLD.w - 30);
       p.y = clamp(p.y, 30, WORLD.h - 30);
