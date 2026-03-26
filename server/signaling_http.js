@@ -39,10 +39,6 @@ app.get("/", (req, res) => {
   res.sendFile(path.join(CLIENT_DIR, "indexmonster.html"));
 });
 
-// Root page → game
-app.get("/", (req, res) => {
-  res.sendFile(path.join(__dirname, "..", "client", "indexmonster.html"));
-});
 
 const PORT = process.env.PORT || 8080;
 const TICK_MS = 50; // 100Hz
@@ -364,6 +360,31 @@ function enemyBlocked(lobby, x, y, r) {
     if (circleRectCollide(x, y, r, w)) return true;
   }
   return false;
+}
+function playerBlocked(lobby, x, y, r = 16) {
+  const walls = lobby.world?.walls || [];
+  for (const w of walls) {
+    if (circleRectCollide(x, y, r, w)) return true;
+  }
+  return false;
+}
+
+function movePlayerWithCollide(lobby, p, dx, dy, r = 16) {
+  const dist = Math.hypot(dx, dy);
+  const steps = Math.max(1, Math.ceil(dist / 6));
+  const sx = dx / steps;
+  const sy = dy / steps;
+
+  for (let i = 0; i < steps; i++) {
+    const nx = p.x + sx;
+    if (!playerBlocked(lobby, nx, p.y, r)) p.x = nx;
+
+    const ny = p.y + sy;
+    if (!playerBlocked(lobby, p.x, ny, r)) p.y = ny;
+
+    p.x = clamp(p.x, 30, WORLD.w - 30);
+    p.y = clamp(p.y, 30, WORLD.h - 30);
+  }
 }
 
 function moveEnemyWithCollide(lobby, e, dx, dy) {
@@ -1154,15 +1175,6 @@ function enemyAI(lobby, e, dt) {
     if (e.fireCD <= 0 && dist < 1400) {
       let aAim = baseAng;
 
-      // Predict only when NOT under fire
-      // Predict only at higher waves (tier2+) and only when NOT under fire
-      if (!underFire && tier >= 2) {
-        const bulletSp = SPD_SNIPER;
-        const leadT = Math.min(0.55, dist / bulletSp);
-        const px = tgt.x + (tgt.vx || 0) * leadT * 0.9;
-        const py = tgt.y + (tgt.vy || 0) * leadT * 0.9;
-        aAim = angleTo(e.x, e.y, px, py);
-      }
 
       aAim += (Math.random() * 2 - 1) * (underFire ? 0.06 : 0.03);
 
@@ -1593,29 +1605,15 @@ setInterval(() => {
 
     // ---- Players ----
     // ---- Players ----
-    for (const [id, p] of lobby.players) {
-      const inp = lobby.inputs.get(id);
-      if (!inp) continue;
-
-      // store old pos for velocity
-      const prevX = p.x, prevY = p.y;
-
-      p.ang = inp.ang;
-
-      // trust client-collided position if provided
-      // ✅ Never trust client x/y (prevents 20Hz stepping / snapping)
-      // Always integrate from input vector
-      const m = Math.hypot(inp.ix, inp.iy) || 1;
-      p.x += (inp.ix / m) * PLAYER_SPEED * dt;
-      p.y += (inp.iy / m) * PLAYER_SPEED * dt;
-
-      p.x = clamp(p.x, 30, WORLD.w - 30);
-      p.y = clamp(p.y, 30, WORLD.h - 30);
-
-      // ✅ velocity for sniper lead aim
-      p.vx = (p.x - prevX) / dt;
-      p.vy = (p.y - prevY) / dt;
-    }
+    const m = Math.hypot(inp.ix, inp.iy) || 1;
+    movePlayerWithCollide(
+      lobby,
+      p,
+      (inp.ix / m) * PLAYER_SPEED * dt,
+      (inp.iy / m) * PLAYER_SPEED * dt,
+      16
+    );
+    ``
 
     // ---- PvE: spawn + enemy AI ----
     if (lobby.mode === 'pve') {
