@@ -25,6 +25,14 @@ const CLIENT_DIR = path.resolve(__dirname, "..", "client");
 
 // Serve static assets
 app.use(express.static(CLIENT_DIR));
+// ✅ DEV: prevent browser caching for JS/CSS so new builds always load
+app.disable('etag');
+app.use((req, res, next) => {
+  if (req.path.endsWith('.js') || req.path.endsWith('.css')) {
+    res.set('Cache-Control', 'no-store');
+  }
+  next();
+});
 
 // ✅ FORCE root to load the game
 app.get("/", (req, res) => {
@@ -1752,6 +1760,7 @@ setInterval(() => {
     removeDeadPlayers(lobby);
 
     // Snapshot
+    // Snapshot (LIGHTWEIGHT - no full world payload)
     lobby.snapshot = {
       t: now(),
       mode: lobby.mode,
@@ -1759,13 +1768,10 @@ setInterval(() => {
       players: [...lobby.players.values()],
       enemies: lobby.mode === 'pve' ? lobby.enemies : [],
       bullets: lobby.bullets,
-      world: lobby.world ? {
-        walls: lobby.world.walls,
-        hazards: lobby.world.hazards,
-        solids: lobby.world.solids ?? [],
-        buildings: lobby.world.buildings ?? [],
-        chests: lobby.world.chests ?? []
-      } : { walls: [], hazards: [], solids: [], buildings: [], chests: [] },
+
+      // ✅ DO NOT ship world every tick (client fetches /world only when changed)
+      // world: undefined,
+
       meta: {
         lobbyId: lobby.id,
         mode: lobby.mode,
