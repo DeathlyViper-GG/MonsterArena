@@ -1440,6 +1440,21 @@ app.post('/hit', (req, res) => {
   res.json({ ok: true });
 });
 
+app.get('/world', (req, res) => {
+  const { lobbyId } = req.query;
+  const lobby = LOBBIES.get(lobbyId);
+  if (!lobby) return res.json(null);
+  res.json({
+    world: lobby.world,
+    meta: {
+      worldKey: lobby.worldKey ?? null,
+      chestVer: lobby.chestVer ?? 0,
+      levelId: lobby.levelId ?? null,
+      mapSeed: lobby.mapSeed ?? null
+    }
+  });
+});
+
 app.get('/poll', (req, res) => {
   const { lobbyId } = req.query;
   const lobby = LOBBIES.get(lobbyId);
@@ -1552,13 +1567,6 @@ setInterval(() => {
         players: [...lobby.players.values()],
         enemies: [],
         bullets: [],
-        world: lobby.world ? {
-          walls: lobby.world.walls,
-          hazards: lobby.world.hazards,
-          solids: lobby.world.solids ?? [],
-          buildings: lobby.world.buildings ?? [],
-          chests: lobby.world.chests ?? []
-        } : { walls: [], hazards: [], solids: [], buildings: [], chests: [] },
         meta: {
           lobbyId: lobby.id,
           mode: lobby.mode,
