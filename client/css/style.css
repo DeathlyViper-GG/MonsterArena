@@ -40,14 +40,114 @@
   .fire{ position:absolute; right:20px; bottom:36px; width:84px; height:84px; border-radius:50%; background:rgba(255,255,255,.07); border:1px solid rgba(255,255,255,.18); pointer-events:auto; }
   .kpad{ position:absolute; right:20px; bottom:130px; width:84px; height:84px; border-radius:14px; background:rgba(255,255,255,.07); border:1px solid rgba(255,255,255,.18); pointer-events:auto; display:grid; place-items:center; font-weight:800; }
 
-  /* Home */
-  .levelsGrid{ display:grid; grid-template-columns: repeat(5,1fr); gap:14px; margin-top:12px; }
-  .levelCard{ border-radius:14px; overflow:hidden; border:1px solid #233; background:#0e1322; cursor:pointer; display:grid; grid-template-rows:130px auto;
-     transition: transform .08s ease, box-shadow .2s ease, border-color .2s ease; }
-  .levelCard:hover{ transform: translateY(-2px); box-shadow: 0 10px 26px rgba(0,0,0,.45); border-color:#3a4c77; }
-  .levelPreview{ position:relative; } .levelPreview canvas{ width:100%; height:100%; display:block; }
-  .levelBody{ padding:10px 12px; } .levelName{ font-weight:800; } .levelDesc{ opacity:.85; font-size:.95em; margin-top:4px; }
-  .levelBadge{ position:absolute; right:8px; top:8px; background:#0f1423cc; border:1px solid #1c2a55; padding:2px 6px; border-radius:6px; font-weight:700; }
+  /* ===================================================== */
+  /* SINGLE PLAYER — PROFESSIONAL LEVEL SELECT LAYOUT      */
+  /* ===================================================== */
+
+  /* The card MUST have a height so "bottom" exists */
+  .single-layout {
+    display: flex;
+    flex-direction: column;
+    height: min(80vh, 620px); /* ✅ creates a real bottom */
+  }
+
+  /* ---------- TOP: LEVEL STRIP ---------- */
+  .level-strip {
+    flex: 0 0 auto;
+    width: 100%;
+  }
+
+  /* ONE ROW, NO WRAP, EVEN SPACING */
+  .levelsGrid {
+    display: flex;
+    gap: 18px;
+    justify-content: space-between;
+    align-items: stretch;
+    width: 100%;
+  }
+
+  /* ---------- LEVEL CARDS ---------- */
+  .levelCard {
+    flex: 1;
+    max-width: 220px;
+    height: 300px; /* ✅ fixed height = aligned bottoms */
+    background: linear-gradient(180deg, #141a2a, #0d1220);
+    border: 1px solid #273059;
+    border-radius: 14px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    cursor: pointer;
+    transition: transform .12s ease, box-shadow .2s ease, border-color .2s ease;
+  }
+
+  .levelCard:hover {
+    transform: translateY(-4px);
+    border-color: #5ad2ff;
+    box-shadow: 0 18px 40px rgba(0,0,0,.55);
+  }
+
+  /* ---------- CARD PREVIEW ---------- */
+  .levelPreview {
+    height: 140px;
+    background: #0b1020;
+    flex-shrink: 0;
+  }
+
+  .levelPreview canvas {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+
+  /* ---------- CARD TEXT (BOTTOM ALIGNED) ---------- */
+  .levelBody {
+    flex: 1;
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end; /* ✅ text sits at bottom of card */
+  }
+
+  .levelName {
+    font-size: 1.05em;
+    font-weight: 900;
+  }
+
+  .levelDesc {
+    font-size: .9em;
+    opacity: .85;
+    line-height: 1.35;
+  }
+
+  /* ---------- BADGE ---------- */
+  .levelBadge {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    font-size: .75em;
+    font-weight: 800;
+    background: #0f1423cc;
+    border: 1px solid #2e3a66;
+    padding: 4px 8px;
+    border-radius: 8px;
+  }
+
+  /* ---------- BOTTOM INFO (PINNED) ---------- */
+  .single-info {
+    margin-top: auto;          /* ✅ THIS pins it to the bottom */
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-top: 14px;
+    border-top: 1px solid #1f2a44; /* subtle grounding */
+  }
+
+  .single-desc {
+    max-width: 70%;
+    opacity: .85;
+    line-height: 1.4;
+  }
   @media (max-width: 900px){ .levelsGrid{ grid-template-columns:1fr 1fr; } }
 
   /* Customize overlay */
@@ -175,4 +275,37 @@
   width: 0%;
   background: linear-gradient(90deg, #66a3ff, #7dffa3);
   transition: width .25s ease;
+}
+
+.bigBtn {
+  font-size: 1.1em;
+  padding: 14px 22px;
+}
+
+.intro-title {
+  text-align:center;
+  font-size:38px;
+  letter-spacing:2px;
+  color:#9fd2ff;
+  text-shadow:0 0 18px rgba(120,180,255,.5);
+}
+
+.intro-text {
+  text-align:center;
+  opacity:.85;
+  margin-top:8px;
+}
+
+.modeCard {
+  background:#0e1322;
+  border:1px solid #273059;
+  border-radius:14px;
+  padding:14px;
+  cursor:pointer;
+  transition:transform .1s ease, border-color .2s ease;
+}
+
+.modeCard:hover {
+  transform:translateY(-2px);
+  border-color:#5ad2ff;
 }

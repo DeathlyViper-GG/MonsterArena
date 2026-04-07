@@ -28,6 +28,45 @@
   const btnHelp = document.getElementById('btnHelp');
   const btnSettings = document.getElementById('btnSettings');
   const btnHomeCustomize = document.getElementById('homeCustomize');
+  async function leaveMultiplayerAndReturnHome() {
+    // Stop gameplay
+    try { state.running = false; } catch {}
+
+    // ✅ HARD STOP NETWORK (prevents /poll spam)
+    try {
+      if (window.Net && Net.state) {
+        Net.state.stopped = true;
+        Net.state.lobbyId = null;
+        Net.state.peerId = null;
+      }
+      if (window.Net && Net.leave) {
+        if (isNetActive()) {
+          await Net.leave();
+          return;
+        }
+      }
+    } catch {}
+
+    // Reset menu context
+    window.MENU_CONTEXT = 'intro';
+
+    // Hide all overlays
+    document.querySelectorAll('.overlay').forEach(o => {
+      o.style.display = 'none';
+    });
+
+    // Return to multiplayer home
+    const home = document.getElementById('overlayHome');
+    if (home) home.style.display = 'grid';
+  }
+
+  // Wire Exit button to the shared function
+  const btnExit = document.getElementById('btnExit');
+  if (btnExit) {
+    btnExit.onclick = () => {
+      leaveMultiplayerAndReturnHome();
+    };
+  }
   document.getElementById('resumeBtn')?.addEventListener('click', () => togglePause(false));
   document.getElementById('restartBtn2')?.addEventListener('click', () => restart());
   document.getElementById('homeBtn2')?.addEventListener('click', () => goHome());
@@ -37,14 +76,54 @@
   document.getElementById('closeSettings')?.addEventListener('click', () => { saveSettings(); showOverlay(ovSettings,false); });
   document.getElementById('homeHelp')?.addEventListener('click', () => showOverlay(ovHelp,true));
   document.getElementById('homeSettings')?.addEventListener('click', () => showOverlay(ovSettings,true));
-  btnHomeCustomize.onclick = () => { buildSkins(); showOverlay(ovCustomize,true); };
-  document.getElementById('closeCustomize').onclick = () => { store.write('design', selectedDesign); store.write('color', selectedColor); showOverlay(ovCustomize,false); };
+  if (btnHomeCustomize) {
+    btnHomeCustomize.onclick = () => { buildSkins(); showOverlay(ovCustomize, true); };
+  }
 
-  btnPause.onclick = () => togglePause();
-  btnRestart.onclick = () => restart();
-  btnHome.onclick = () => goHome();
-  btnHelp.onclick = () => showOverlay(ovHelp, true);
-  btnSettings.onclick = () => showOverlay(ovSettings, true);
+  const closeCustomizeBtn = document.getElementById('closeCustomize');
+  if (closeCustomizeBtn) {
+    closeCustomizeBtn.onclick = () => {
+      // Save selections
+      store.write('design', selectedDesign);
+      store.write('color', selectedColor);
+
+      // Hide customise
+      showOverlay(ovCustomize, false);
+
+      // ✅ Route back to the correct menu
+      document.querySelectorAll('.overlay').forEach(o => {
+        o.style.display = 'none';
+      });
+
+      if (window.MENU_CONTEXT === 'multi') {
+        const el = document.getElementById('overlayHome');
+        if (el) el.style.display = 'grid';
+        return;
+      }
+
+      if (window.MENU_CONTEXT === 'single') {
+        const el = document.getElementById('overlaySingle');
+        if (el) el.style.display = 'grid';
+        return;
+      }
+
+      // ✅ Default: intro (single / multiplayer choice)
+      const intro = document.getElementById('overlayIntro');
+      if (intro) intro.style.display = 'grid';
+    };
+  }
+
+  if (btnPause) {
+    btnPause.onclick = () => {
+      if (!isNetActive()) {
+        togglePause();
+      }
+    };
+  }
+  if (btnRestart)  btnRestart.onclick  = () => restart();
+  if (btnHome)     btnHome.onclick     = () => goHome();
+  if (btnHelp)     btnHelp.onclick     = () => showOverlay(ovHelp, true);
+  if (btnSettings) btnSettings.onclick = () => showOverlay(ovSettings, true);
 
   const selDiff = document.getElementById('selDiff');
   const selSfx = document.getElementById('selSfx');
@@ -74,6 +153,32 @@
   const VIEW = { w: 0, h: 0, dpr: 1 };
   function isNetActive() {
     return !!(window.Net && Net.state && Net.state.peerId);
+  }
+
+  let _sentAppearanceOnce = false;
+
+  function syncAppearanceOnce() {
+    if (_sentAppearanceOnce) return;
+    if (!isNetActive()) return;
+
+    Net.setDesign(selectedDesign);
+    Net.setColor(selectedColor);
+    _sentAppearanceOnce = true;
+  }
+
+  let _sentGunsOnce = false;
+
+  function syncGunsOnce() {
+    if (_sentGunsOnce) return;
+    if (!isNetActive()) return;
+
+    Net.setGuns({
+      pistol: pistolIndex,
+      rifle: rifleIndex,
+      shotgun: shotgunIndex
+    });
+
+    _sentGunsOnce = true;
   }
   function hasFreshSnapshot(maxAgeMs = 1200) {
     const s = (window.Net && Net.state && Net.state.snapshot) ? Net.state.snapshot : null;
@@ -186,9 +291,11 @@
     return false; // server is authoritative
   }
 
+  
   function amPeer() {
-    return false; // no peer-to-peer logic in HTTP mode
+    return isNetActive(); // ✅ THIS CLIENT IS A PEER
   }
+
 
   function electedHostId() {
     return null; // no client host
@@ -332,8 +439,36 @@
     {id:13, name:'Fire Wings',          unlock:9,  wing:true,  wingType:'fire'},
     {id:14, name:'Insect Wings',        unlock:5,  wing:true,  wingType:'insect'}
   ];
-  let selectedDesign = parseInt(store.read('design', 0),10) || 0;
-  let selectedColor  = parseInt(store.read('color', 0),10)  || 0;
+  // ✅ PER-TAB appearance (prevents mirror bug)
+  // ✅ PER-TAB DEFAULT APPEARANCE (prevents mirror bug)
+  function getTabDesign() {
+    const v = sessionStorage.getItem('design');
+    if (v !== null) return parseInt(v, 10);
+
+    // no tab value yet → generate one
+    const d = Math.floor(Math.random() * 15); // 0–14
+    sessionStorage.setItem('design', d);
+    return d;
+  }
+
+  function getTabColor() {
+    const v = sessionStorage.getItem('color');
+    if (v !== null) return parseInt(v, 10);
+
+    const c = Math.floor(Math.random() * COLORS.length);
+    sessionStorage.setItem('color', c);
+    return c;
+  }
+
+  let selectedDesign = getTabDesign();
+  let selectedColor  = getTabColor();
+  console.log('[BOOT DESIGN]', {
+    tabId: crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2),
+    selectedDesign,
+    selectedColor,
+    sessionDesign: sessionStorage.getItem('design'),
+    sessionColor: sessionStorage.getItem('color')
+  });
  // Gun variant indices (persisted)
  // -1 means "Default sprite"
  let pistolIndex  = parseInt(store.read('pistolIndex',  '-1'),10);
@@ -345,10 +480,15 @@
  if (!Number.isInteger(rifleIndex))   rifleIndex   = -1;
  if (!Number.isInteger(shotgunIndex)) shotgunIndex = -1;
  function cycleGunIndex(kind, dir=1){
-   if(kind==='pistol'){ pistolIndex=(pistolIndex+dir+5)%5; store.write('pistolIndex', pistolIndex); }
-   if(kind==='rifle'){ rifleIndex=(rifleIndex+dir+5)%5; store.write('rifleIndex', rifleIndex); }
-   if(kind==='shotgun'){ shotgunIndex=(shotgunIndex+dir+5)%5; store.write('shotgunIndex', shotgunIndex); }
- }
+  if(kind==='pistol'){ pistolIndex=(pistolIndex+dir+5)%5; store.write('pistolIndex', pistolIndex); }
+  if(kind==='rifle'){ rifleIndex=(rifleIndex+dir+5)%5; store.write('rifleIndex', rifleIndex); }
+  if(kind==='shotgun'){ shotgunIndex=(shotgunIndex+dir+5)%5; store.write('shotgunIndex', shotgunIndex); }
+
+  // ✅ sync
+  if (isNetActive()) {
+    Net.setGuns({ pistol: pistolIndex, rifle: rifleIndex, shotgun: shotgunIndex });
+  }
+}
 
 
   // WORLD --------------------------------------------------------------------
@@ -926,7 +1066,11 @@
   window.addEventListener('keydown', e=>{
     input.keys.add(e.key.toLowerCase());
     if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].includes(e.key)) e.preventDefault();
-    if(e.key==='Escape') togglePause();
+    if (e.key === 'Escape') {
+      if (!isNetActive()) {
+        togglePause();
+      }
+    }
     if(e.key.toLowerCase()==='h') showOverlay(ovHelp, ovHelp.style.display!=='grid');
     // Q → equip melee (shows melee idle pose)
     if(e.key.toLowerCase()==='q'){
@@ -1018,9 +1162,8 @@
     const meSnap = online ? mySnapshotPlayer() : null;
 
     // Use authoritative-me when online (prevents drift)
-    const px = meSnap ? meSnap.x : player.x;
-    const py = meSnap ? meSnap.y : player.y;
-
+    const px = meSnap?.x ?? LS.visualMe?.x ?? player.x;
+    const py = meSnap?.y ?? LS.visualMe?.y ?? player.y;
     // ✅ Use CSS viewport size (NOT canvas.width/height which are device pixels)
     const targetX = px - VIEW.w / 2;
     const targetY = py - VIEW.h / 2;
@@ -1045,6 +1188,9 @@
     weapon:0, ammo:15, reserve:60, angle:0, lastShot:0, reloading:false, reloadT:0,
     dashCD:0, dashI:0, slowT:0,
   };
+  // 🔍 DEBUG: detect illegal writes to player (lockstep / render bugs)
+  Object.seal(player);
+  console.log('[DEBUG] player object sealed');
   // --- Melee damage helper: 1/3 of current gun's per-shot damage ---
   function meleeDamageForCurrentWeapon(){
     const w = weapons[player.weapon];
@@ -1060,6 +1206,34 @@
   function swapWeapon(d){ setWeapon(player.weapon+d); audio.click(); }
   function playerTryReload(){ const w=weapons[player.weapon]; if(player.reloading||player.ammo>=w.ammo||player.reserve<=0) return; player.reloading=true; player.reloadT=w.reload; audio.reload(); }
   function playerDash(){ if(player.dashCD>0) return; const w=weapons[player.weapon]; const dash=w.dash*(1+(player.shield>0?0.15:0)); const ax=Math.cos(player.angle), ay=Math.sin(player.angle); player.x+=ax*dash; player.y+=ay*dash; player.x=clamp(player.x,60,world.w-60); player.y=clamp(player.y,60,world.h-60); cam.shake=Math.max(cam.shake,8); player.dashCD=1.4; player.dashI=0.15; audio.dash(); }
+  function updateHudButtonsForMode() {
+    const online = isNetActive();
+
+    const btnPause = document.getElementById('btnPause');
+    const btnRestart = document.getElementById('btnRestart');
+    const btnHome = document.getElementById('btnHome');
+    const btnSettings = document.getElementById('btnSettings');
+    const btnHelp = document.getElementById('btnHelp');
+    const btnExit = document.getElementById('btnExit');
+
+    if (!online) {
+      // ✅ Single‑player
+      btnPause && (btnPause.style.display = 'inline-block');
+      btnRestart && (btnRestart.style.display = 'inline-block');
+      btnHome && (btnHome.style.display = 'inline-block');
+      btnSettings && (btnSettings.style.display = 'inline-block');
+      btnHelp && (btnHelp.style.display = 'inline-block');
+      btnExit && (btnExit.style.display = 'none');
+    } else {
+      // ✅ Multiplayer
+      btnPause && (btnPause.style.display = 'none');
+      btnRestart && (btnRestart.style.display = 'none');
+      btnHome && (btnHome.style.display = 'none');
+      btnSettings && (btnSettings.style.display = 'none');
+      btnHelp && (btnHelp.style.display = 'inline-block');
+      btnExit && (btnExit.style.display = 'inline-block');
+    }
+  }
   function updateHUD(){
     const online = isNetActive();
     const snap = online ? Net.state?.snapshot : null;
@@ -1169,7 +1343,6 @@
   };
   const imgSheets = {};
   function loadImages(){ return new Promise(resolve => { const keys = Object.keys(IMG_SPRITES); if(keys.length===0) return resolve(); let left = keys.length; keys.forEach(k=>{ const meta = IMG_SPRITES[k]; const img = new Image(); img.onload = ()=>{ imgSheets[k] = { img }; if(--left===0) resolve(); }; img.onerror = ()=>{ if(--left===0) resolve(); }; img.src = meta.src; }); }); }
-  loadImages();
  // === Gun sprites (top-down) ===============================================
  const GUN_SPRITES = {
    pistols: { basePath: 'assets/guns/pistols/',  files: ['pistol1.png','pistol2.png','pistol3.png','pistol4.png','pistol5.png'] },
@@ -1193,10 +1366,9 @@
      }
    });
  }
- loadGunImages();
+ 
  // === MELEE ================================================================
   // 1) Preload all melee sprites (common/rare/epic/legendary/god)
-  Melee.loadAll();
 
   // 2) Persisted selection (rarity + specific sprite name)
   let meleeRarity = (store.read('meleeRarity', 'common') || 'common');
@@ -1273,7 +1445,146 @@ const SPRITE_OFFSET = {
   function drawShadowWing(glow){ ctx.fillStyle='rgba(160,110,255,0.28)'; ctx.beginPath(); ctx.ellipse(-26, -4, 26, 16, -0.2, 0, Math.PI*2); ctx.fill(); }
   function drawFlameWing(col){ const g=ctx.createLinearGradient(-40,0,-10,0); g.addColorStop(0,'#0000'); g.addColorStop(1,col); ctx.fillStyle=g; ctx.beginPath(); ctx.moveTo(-10,0); ctx.quadraticCurveTo(-38,-10,-44,-2); ctx.quadraticCurveTo(-30,12,-10,4); ctx.fill(); }
   function drawInsectWing(col){ ctx.strokeStyle=col; ctx.globalAlpha=0.6; ctx.beginPath(); ctx.ellipse(-24, -2, 24, 12, -0.1, 0, Math.PI*2); ctx.stroke(); ctx.globalAlpha=1; }
-  function drawDesign(designId, bodyColor, t){ ctx.fillStyle = bodyColor; ctx.beginPath(); ctx.arc(0,0, player.r, 0, Math.PI*2); ctx.fill(); switch(designId){ case 0: ctx.strokeStyle = bodyColor+'aa'; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(0,0, player.r+3+Math.sin(t*4), 0, Math.PI*2); ctx.stroke(); break; case 1: ctx.strokeStyle='#ff6478aa'; ctx.lineWidth=3; for(let i=0;i<10;i++){ const a=i*(Math.PI*2/10)+t*1.2; ctx.beginPath(); ctx.moveTo(Math.cos(a)*(player.r+2), Math.sin(a)*(player.r+2)); ctx.lineTo(Math.cos(a)*(player.r+10), Math.sin(a)*(player.r+10)); ctx.stroke(); } break; case 2: ctx.fillStyle='#1b1120aa'; for(let i=0;i<8;i++){ const a=i*(Math.PI*2/8)+t*1.5; ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(Math.cos(a)*(player.r+2), Math.sin(a)*(player.r+2)); ctx.lineTo(Math.cos(a+0.2)*(player.r+6), Math.sin(a+0.2)*(player.r+6)); ctx.fill(); } break; case 3: ctx.strokeStyle='#5b7faaaa'; ctx.lineWidth=2; for(let i=0;i<6;i++){ const a=i*(Math.PI*2/6)+t*0.6; ctx.beginPath(); for(let j=0;j<6;j++){ const aa=a+j*(Math.PI*2/6); const rr=player.r+6; const x=Math.cos(aa)*rr, y=Math.sin(aa)*rr; if(j===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);} ctx.closePath(); ctx.stroke(); } break; case 4: ctx.strokeStyle='#9cf'; ctx.lineWidth=3; ctx.beginPath(); ctx.arc(0,0, player.r+10, t, t+Math.PI*1.4); ctx.stroke(); break; case 5: ctx.fillStyle='rgba(192,102,255,0.28)'; for(let i=0;i<12;i++){ const a=i*(Math.PI*2/12)+Math.sin(t*2)*0.2; ctx.beginPath(); ctx.ellipse(Math.cos(a)*(player.r+2), Math.sin(a)*(player.r+2), 6+Math.sin(t*4+i)*2, 12, a, 0, Math.PI*2); ctx.fill(); } break; case 6: ctx.fillStyle='#aef'; for(let i=0;i<6;i++){ const a=i*(Math.PI*2/6)+t*1.0; ctx.save(); ctx.rotate(a); ctx.beginPath(); ctx.moveTo(player.r+4,0); ctx.lineTo(player.r+14,-5); ctx.lineTo(player.r+18,0); ctx.lineTo(player.r+14,5); ctx.closePath(); ctx.fill(); ctx.restore(); } break; case 7: ctx.strokeStyle='#7dffa3'; ctx.lineWidth=3; for(let i=0;i<3;i++){ const a=t*2+i*2.09; ctx.beginPath(); ctx.moveTo(Math.cos(a)*player.r, Math.sin(a)*player.r); ctx.lineTo(Math.cos(a)*(player.r+16), Math.sin(a)*(player.r+16)); ctx.stroke(); } break; case 8: ctx.fillStyle='#ff9a3caa'; for(let s of [-1,1]){ ctx.beginPath(); ctx.ellipse(s*(player.r+4), -6, 6, 10, 0.3*s, 0, Math.PI*2); ctx.fill(); } break; case 9: ctx.fillStyle='#e8eefb'; for(let i=0;i<3;i++){ const a=t*3+i*(Math.PI*2/3); ctx.save(); ctx.rotate(a); ctx.fillRect(player.r*0.2, -3, 18, 6); ctx.restore(); } break; case 10: drawWing('angel', t); break; case 11: drawWing('cyber', t); break; case 12: drawWing('void',  t); break; case 13: drawWing('fire',  t); break; case 14: drawWing('insect',t); break; } }
+  function drawDesign(designId, bodyColor, t, r){
+    ctx.fillStyle = bodyColor;
+    ctx.beginPath();
+    ctx.arc(0, 0, r, 0, Math.PI * 2);
+    ctx.fill();
+
+    switch (designId) {
+      case 0:
+        ctx.strokeStyle = bodyColor + 'aa';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(0, 0, r + 3 + Math.sin(t * 4), 0, Math.PI * 2);
+        ctx.stroke();
+        break;
+
+      case 1:
+        ctx.strokeStyle = '#ff6478aa';
+        ctx.lineWidth = 3;
+        for (let i = 0; i < 10; i++) {
+          const a = i * (Math.PI * 2 / 10) + t * 1.2;
+          ctx.beginPath();
+          ctx.moveTo(Math.cos(a) * (r + 2), Math.sin(a) * (r + 2));
+          ctx.lineTo(Math.cos(a) * (r + 10), Math.sin(a) * (r + 10));
+          ctx.stroke();
+        }
+        break;
+
+      case 2:
+        ctx.fillStyle = '#1b1120aa';
+        for (let i = 0; i < 8; i++) {
+          const a = i * (Math.PI * 2 / 8) + t * 1.5;
+          ctx.beginPath();
+          ctx.moveTo(0, 0);
+          ctx.lineTo(Math.cos(a) * (r + 2), Math.sin(a) * (r + 2));
+          ctx.lineTo(Math.cos(a + 0.2) * (r + 6), Math.sin(a + 0.2) * (r + 6));
+          ctx.fill();
+        }
+        break;
+
+      case 3:
+        ctx.strokeStyle = '#5b7faaaa';
+        ctx.lineWidth = 2;
+        for (let i = 0; i < 6; i++) {
+          const a = i * (Math.PI * 2 / 6) + t * 0.6;
+          ctx.beginPath();
+          for (let j = 0; j < 6; j++) {
+            const aa = a + j * (Math.PI * 2 / 6);
+            const rr = r + 6;
+            const x = Math.cos(aa) * rr;
+            const y = Math.sin(aa) * rr;
+            if (j === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+          }
+          ctx.closePath();
+          ctx.stroke();
+        }
+        break;
+
+      case 4:
+        ctx.strokeStyle = '#9cf';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(0, 0, r + 10, t, t + Math.PI * 1.4);
+        ctx.stroke();
+        break;
+
+      case 5:
+        ctx.fillStyle = 'rgba(192,102,255,0.28)';
+        for (let i = 0; i < 12; i++) {
+          const a = i * (Math.PI * 2 / 12) + Math.sin(t * 2) * 0.2;
+          ctx.beginPath();
+          ctx.ellipse(
+            Math.cos(a) * (r + 2),
+            Math.sin(a) * (r + 2),
+            6 + Math.sin(t * 4 + i) * 2,
+            12,
+            a,
+            0,
+            Math.PI * 2
+          );
+          ctx.fill();
+        }
+        break;
+
+      case 6:
+        ctx.fillStyle = '#aef';
+        for (let i = 0; i < 6; i++) {
+          const a = i * (Math.PI * 2 / 6) + t * 1.0;
+          ctx.save();
+          ctx.rotate(a);
+          ctx.beginPath();
+          ctx.moveTo(r + 4, 0);
+          ctx.lineTo(r + 14, -5);
+          ctx.lineTo(r + 18, 0);
+          ctx.lineTo(r + 14, 5);
+          ctx.closePath();
+          ctx.fill();
+          ctx.restore();
+        }
+        break;
+
+      case 7:
+        ctx.strokeStyle = '#7dffa3';
+        ctx.lineWidth = 3;
+        for (let i = 0; i < 3; i++) {
+          const a = t * 2 + i * 2.09;
+          ctx.beginPath();
+          ctx.moveTo(Math.cos(a) * r, Math.sin(a) * r);
+          ctx.lineTo(Math.cos(a) * (r + 16), Math.sin(a) * (r + 16));
+          ctx.stroke();
+        }
+        break;
+
+      case 8:
+        ctx.fillStyle = '#ff9a3caa';
+        for (let s of [-1, 1]) {
+          ctx.beginPath();
+          ctx.ellipse(s * (r + 4), -6, 6, 10, 0.3 * s, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        break;
+
+      case 9:
+        ctx.fillStyle = '#e8eefb';
+        for (let i = 0; i < 3; i++) {
+          const a = t * 3 + i * (Math.PI * 2 / 3);
+          ctx.save();
+          ctx.rotate(a);
+          ctx.fillRect(r * 0.2, -3, 18, 6);
+          ctx.restore();
+        }
+        break;
+
+      case 10: drawWing('angel', t); break;
+      case 11: drawWing('cyber', t); break;
+      case 12: drawWing('void', t); break;
+      case 13: drawWing('fire', t); break;
+      case 14: drawWing('insect', t); break;
+    }
+  }
 
   // CUSTOMIZE UI --------------------------------------------------------------
   
@@ -1308,7 +1619,25 @@ function buildSkins(){
     card.appendChild(name);
 
     if(unlocked){
-      card.onclick = () => { selectedDesign = d.id; store.write('design', selectedDesign); buildSkins(); };
+      card.onclick = () => {
+        selectedDesign = d.id;
+        store.write('design', selectedDesign);
+        sessionStorage.setItem('design', selectedDesign);
+
+        // ✅ MULTIPLAYER: sync body design to server
+        if (isNetActive()) {
+          console.log('[SEND DESIGN]', {
+            peerId: Net.state?.peerId,
+            design: selectedDesign,
+            color: selectedColor
+          });
+
+          Net.setDesign(selectedDesign);
+          Net.setColor(selectedColor);
+        }
+
+        buildSkins();
+      };
     }
 
     const colorRow = document.createElement('div');
@@ -1320,7 +1649,18 @@ function buildSkins(){
       if(!unlocked){
         sw.style.opacity = '.35';
       } else {
-        sw.onclick = ()=>{ selectedColor = idx; store.write('color', selectedColor); buildSkins(); };
+        sw.onclick = () => {
+          selectedColor = idx;
+          store.write('color', selectedColor);
+          sessionStorage.setItem('color', selectedColor);
+
+          // ✅ MULTIPLAYER: sync colour
+          if (isNetActive()) {
+            Net.setColor(selectedColor);
+          }
+
+          buildSkins();
+        };
       }
       if(unlocked && selectedDesign===d.id && selectedColor===idx){
         sw.style.outline='2px solid #fff';
@@ -1367,6 +1707,33 @@ if (tabPlayerBtn && tabGunsBtn && tabMeleeBtn) {
 function bestWave(){
   const best = state?.best || parseInt(localStorage.getItem('arenaBest')||'0',10) || 0;
   return best;
+}
+
+function updateBestWave(w) {
+  const current = bestWave();
+
+  if (w > current) {
+    // ✅ update runtime state (immediate unlocks)
+    state.best = w;
+
+    // ✅ persist progression
+    localStorage.setItem('arenaBest', String(w));
+  }
+}
+
+function maybeUpdateBestWave(w) {
+  const mode = localStorage.getItem('arenaMode');
+
+  // ✅ Single-player
+  if (!isNetActive()) {
+    updateBestWave(w);
+    return;
+  }
+
+  // ✅ Multiplayer PvE
+  if (mode === 'pve') {
+    updateBestWave(w);
+  }
 }
 
 const UNLOCK_GUN_WAVE = {
@@ -1427,10 +1794,20 @@ function buildGunsUI(){
         card.appendChild(badge);
       } else {
         card.onclick = () => {
-          if (kind==='pistol'){ pistolIndex = idx; store.write('pistolIndex', idx); }
-          if (kind==='rifle'){  rifleIndex  = idx; store.write('rifleIndex',  idx); }
-          if (kind==='shotgun'){shotgunIndex= idx; store.write('shotgunIndex',idx); }
-          makeGrid(gridId, kind, idx);
+          if (kind === 'pistol')  { pistolIndex  = -1; store.write('pistolIndex',  -1); }
+          if (kind === 'rifle')   { rifleIndex   = -1; store.write('rifleIndex',   -1); }
+          if (kind === 'shotgun') { shotgunIndex = -1; store.write('shotgunIndex', -1); }
+
+          makeGrid(gridId, kind, -1);
+
+          // ✅ SYNC DEFAULT TOO
+          if (isNetActive()) {
+            Net.setGuns({
+              pistol: pistolIndex,
+              rifle: rifleIndex,
+              shotgun: shotgunIndex
+            });
+          }
         };
       }
 
@@ -2124,12 +2501,47 @@ if (btnHomeCustomize){
   function showOverlay(el,show){ el.style.display=show?'grid':'none'; if(el===ovSettings && !show) saveSettings(); if(show) togglePause(true); else canvas.focus(); }
   function togglePause(force){ const on=typeof force==='boolean'?force:!state.running; state.running=!on; ovPause.style.display=on?'grid':'none' 
   if (player.hp <= 0) {
-      showGameOver(); 
-      return;
+    // one-time VFX trigger
+    if (!state.playerExploded) {
+      const baseCol = COLORS[selectedColor]?.c || '#aef';
+      spawnTriangleBurst(player.x, player.y, baseCol, { big:8, small:26 });
+      spawnGhostSilhouette(player.x, player.y, player.r + 14, currentTheme.accent);
+      state.playerExploded = true;
+    }
+
+    state.running = false;
+
+    // ✅ MULTIPLAYER: leave lobby immediately on death
+    if (isNetActive()) {
+      leaveMultiplayerAndReturnHome();
+      return; // 🚨 stop updateFixed immediately
+    }
+
+    // ✅ SINGLE‑PLAYER: normal game over flow
+    const prev = parseInt(localStorage.getItem('arenaBest') || '0', 10) || 0;
+    const best = Math.max(prev, state.wave);
+    state.best = best;
+    localStorage.setItem('arenaBest', String(best));
+    bestEl.textContent = best;
+
+    showGameOver();
   }
   ovPause.querySelector('h2').textContent = '⏸️ Paused'; 
   if(on) audio.stopMusic(); else if(audio.musicOn) audio.startMusic(); }
-  function goHome(){ state.running=false; ovPause.style.display='none'; ovHome.style.display='grid'; if(audio.musicOn) audio.startMusic(); }
+  function goHome(){
+    state.running = false;
+    ovPause.style.display = 'none';
+
+    // ✅ DO NOT FALL BACK TO SINGLE WHEN ONLINE
+    if (isNetActive()) {
+      // stay in multiplayer home
+      ovHome.style.display = 'grid';
+    } else {
+      ovHome.style.display = 'grid';
+    }
+
+    if (audio.musicOn) audio.startMusic();
+  }
 
   function restart() {
     // Reset player
@@ -2164,27 +2576,26 @@ if (btnHomeCustomize){
     noiseEvents.length = 0;
 
     // Rebuild map & nav
-    world.buildObstacles();
-    world.buildHazards();
-    world.buildChests();
-    state.running = true;
-    nav.rebuild();
-    const c0 = nav.cellFrom(player.x, player.y);
-    nav.floodFrom(c0.ix, c0.iy);
-
-    // If multiplayer is NOT active, spawn the first wave locally
-    // PvE: ALWAYS spawn enemies (offline and online)
-    const netActive = !!(window.Net && Net.state && Net.state.peerId);
-
-    // Important: mapSeed is already applied via net:meta/applyNetMap when online
+    // Rebuild map ONLY offline.
+    // Online: server provides world via snapshot.world.
     if (!isNetActive()) {
+      world.buildObstacles();
+      world.buildHazards();
+      world.buildChests();
+      nav.rebuild();
+
+      const c0 = nav.cellFrom(player.x, player.y);
+      nav.floodFrom(c0.ix, c0.iy);
+
       startWave(1);
     }
+
 
     // 👇 IMPORTANT: actually start the simulation
     ovHome.style.display = 'none';
     ovPause.style.display = 'none';
-    state.running = true;                     // ← lets update() run
+    state.running = true;     
+    updateHudButtonsForMode();                // ← lets update() run
     if (audio.musicOn) audio.startMusic();
     canvas.focus();
   }
@@ -2220,9 +2631,14 @@ if (btnHomeCustomize){
   }
   // Build home cards ----------------------------------------------------------
   function createLevelPreview(theme){ const cnv=document.createElement('canvas'); cnv.width=260; cnv.height=130; const c=cnv.getContext('2d'); const g=c.createLinearGradient(0,0,0,cnv.height); g.addColorStop(0,theme.floor.c1); g.addColorStop(1,theme.floor.c2); c.fillStyle=g; c.fillRect(0,0,cnv.width,cnv.height); c.strokeStyle=theme.floor.grid; c.lineWidth=1; c.beginPath(); for(let x=0;x<cnv.width;x+=20){ c.moveTo(x,0); c.lineTo(x,cnv.height); } for(let y=0;y<cnv.height;y+=20){ c.moveTo(0,y); c.lineTo(cnv.width,y); } c.stroke(); const rects=[{x:20,y:22,w:70,h:18},{x:120,y:46,w:50,h:26},{x:190,y:26,w:50,h:22},{x:60,y:82,w:120,h:20}]; for(const o of rects){ c.fillStyle=theme.obs.fill; c.strokeStyle=theme.obs.stroke; c.lineWidth=2; roundRect(c,o.x,o.y,o.w,o.h,8); c.fill(); c.stroke(); } if(theme.hazards.kind!=='none'){ c.fillStyle= theme.hazards.kind==='lava'?'#ff6a2a': theme.hazards.kind==='chasm'?'#08101a': theme.hazards.kind==='void'?'#09060c':'#4a3a2a'; c.fillRect(160,22,70,30); c.strokeStyle=theme.accent+'66'; c.strokeRect(160,22,70,30); } c.fillStyle = '#fff'; c.beginPath(); c.arc(200,70, 14, 0, Math.PI*2); c.fill(); return cnv; }
-  function buildHome(){ const grid=document.getElementById('levelsGrid') 
-    grid.innerHTML='' 
-    LEVELS.forEach(theme=>{ const card=document.createElement('div') 
+  
+  function buildHome(){
+    const grid = document.getElementById('levelsGrid');
+    if (!grid) return; // ✅ multiplayer / in‑game safety
+
+    grid.innerHTML = '';
+    LEVELS.forEach(theme => { 
+    const card=document.createElement('div') 
     card.className='levelCard' 
     const prev=document.createElement('div') 
     prev.className='levelPreview' 
@@ -2275,7 +2691,9 @@ if (btnHomeCustomize){
 
   // Init ----------------------------------------------------------------------
   // Init ----------------------------------------------------------------------
-  world.buildObstacles(); buildHome(); loadSettings();
+  if (!isNetActive()) world.buildObstacles();
+    buildHome();
+    loadSettings();
   // React to host meta (level + seed)
   let _lastRosterKey = '';
   let _lastMapKey = '';
@@ -2353,9 +2771,33 @@ if (btnHomeCustomize){
     if (ch && !ch.opened) openChest(ch, e.drops || []);
    }
   });
-  window.addEventListener('net:snapshot', () => {
-    renderLobbyPlayers();
-  });
+  let _lastSeenServerWave = 0;
+
+ 
+window.addEventListener('net:snapshot', () => {
+  const snap = Net?.state?.snapshot;
+  if (!snap || !Array.isArray(snap.players)) return;
+
+  console.log('[CLIENT SNAPSHOT]', snap.players.map(p => ({
+    id: p.id,
+    design: p.design,
+    color: p.color,
+    designType: typeof p.design
+  })));
+
+  renderLobbyPlayers();
+
+
+    if (!snap) return;
+
+    // ✅ Multiplayer PvE progression
+    if (localStorage.getItem('arenaMode') === 'pve' && typeof snap.wave === 'number') {
+      if (snap.wave > _lastSeenServerWave) {
+        _lastSeenServerWave = snap.wave;
+        updateBestWave(snap.wave);
+      }
+    }
+});
 
   // If we join late and meta already exists, apply once at startup
   try { if (isNetActive() && Net.state?.meta) applyNetMap(Net.state.meta); } catch {}
@@ -2389,8 +2831,15 @@ if (btnHomeCustomize){
     LS.players.set(id, { x: cx + Math.cos(a)*R, y: cy + Math.sin(a)*R, ang: 0, hp: 100 }); 
     } 
     // bind local player object to my lockstep state 
-    const me = LS.players.get(Net.state.peerId); 
-    if (me) { player.x = me.x; player.y = me.y; player.angle = me.ang; player.hp = me.hp; } 
+    // ✅ DO NOT overwrite the local player object
+    // Lockstep state is authoritative ONLY for prediction,
+    // render from snapshot / player separately
+
+    const me = LS.players.get(Net.state.peerId);
+    if (me) {
+      // keep a separate visual reference only
+      LS.visualMe = me;
+    }
     LS.tick = 0; 
     LS.acc = 0; 
     LS.ready = true; 
@@ -2416,11 +2865,7 @@ if (btnHomeCustomize){
     }
 
     // copy my lockstep state into your existing local "player" object
-    const me = LS.players.get(Net.state.peerId);
-    if (me) {
-      player.x = me.x; player.y = me.y;
-      player.angle = me.ang; player.hp = me.hp;
-    }
+    
 
     // ---- Deterministic firing (LOCAL ONLY for now) ----
     // (This makes "shoot" actually work when lockstep is active.)
@@ -2537,6 +2982,8 @@ if (btnHomeCustomize){
   requestAnimationFrame(loop);
 
   function updateFixed(dt, tick){
+    if (isNetActive()) syncAppearanceOnce();
+    if (isNetActive()) syncGunsOnce();
     let dx = 0, dy = 0;
     const online = isNetActive();
     if (online && hasFreshSnapshot()) {
@@ -2668,7 +3115,7 @@ if (btnHomeCustomize){
     moveWithCollide(player, dx * speed * dt, dy * speed * dt);
 
     if (online) {
-      Net.sendInput(dx, dy, player.angle, player.x, player.y);
+      Net.sendInput(dx, dy, player.angle, player.x, player.y, player.weapon);
     }
 
     
@@ -2742,7 +3189,7 @@ if (btnHomeCustomize){
       }
     }
     // --- Single‑player spawning only ---
-    if (!online || isHost) {
+    if (!online) {
       state.spawnT += dt;
 
       while (spawnQueue.length && state.spawnT >= spawnQueue[0].t) {
@@ -2763,6 +3210,7 @@ if (btnHomeCustomize){
         state.nextWaveT -= dt;
         if (state.nextWaveT <= 0) {
           startWave(state.wave + 1);
+          maybeUpdateBestWave(state.wave);
           respawnCollectedChests();
           player.reserve += 10 + Math.floor(state.wave * 2);
         }
@@ -2771,7 +3219,7 @@ if (btnHomeCustomize){
     
     if (melee) Melee.update(melee, dt);
     // --- Single‑player enemy updates only ---
-    if (!online || isHost) {
+    if (!online) {
       for (let i = ents.enemies.length - 1; i >= 0; i--) {
         const e = ents.enemies[i];
 
@@ -3224,26 +3672,74 @@ if (btnHomeCustomize){
     // ---------------------------
     // Remote players
     // ---------------------------
+    // ---------------------------
+    // Remote players
+    // ---------------------------
     if (online && Net.state?.snapshot?.players) {
       const myId = Net.state.peerId;
+
       for (const rp of Net.state.snapshot.players) {
         if (!rp || rp.id === myId) continue;
 
         const px = rp.x - cam.x - cam.sx;
         const py = rp.y - cam.y - cam.sy;
 
+        const design =
+          Number.isInteger(rp.design)
+            ? rp.design
+            : parseInt(rp.design, 10) || 0;
+
+        const colIdx =
+          Number.isInteger(rp.color)
+            ? rp.color
+            : parseInt(rp.color, 10) || 0;
+
+        const col = COLORS[colIdx]?.c ?? COLORS[0].c;
+
         ctx.save();
         ctx.translate(px, py);
         ctx.rotate(rp.ang ?? 0);
-
+        
+        console.log('[DRAW REMOTE]', {
+          viewer: Net.state.peerId,
+          target: rp.id,
+          design,
+          color: colIdx
+        });
+        // ✅ BODY ONLY — no gun, no local state
         drawDesign(
-          selectedDesign,
-          COLORS[selectedColor].c,
-          performance.now() / 1000
+          design,
+          col,
+          performance.now() / 1000,
+          rp.r ?? 16
         );
+        // ✅ draw remote gun skin (visual only)
+        const guns = rp.guns ?? { pistol: -1, rifle: -1, shotgun: -1 };
+        const w = weapons[rp.weapon ?? 0];
 
-        ctx.fillStyle = '#1e2a45';
-        ctx.fillRect(player.r * 0.5, -3, 18, 6);
+        let img = null;
+        if (w.kind === 'pistol' && guns.pistol >= 0) img = gunSheets.pistols[guns.pistol];
+        if (w.kind === 'rifle' && guns.rifle >= 0) img = gunSheets.rifles[guns.rifle];
+        if (w.kind === 'shotgun' && guns.shotgun >= 0) img = gunSheets.shotguns[guns.shotgun];
+
+        if (img) {
+          const targetLength = (w.kind === 'shotgun') ? 20 : (w.kind === 'rifle') ? 30 : 110;
+          const ar = (img.width > 0) ? (img.height / img.width) : 1.8;
+          const drawW = targetLength / ar;
+          const drawH = targetLength;
+
+          ctx.save();
+          ctx.translate((rp.r ?? 16) * 0.4, 0);
+          ctx.rotate(SPRITE_ROT_OFF[w.kind] ?? 0);
+          const off = SPRITE_OFFSET[w.kind] ?? { x: -0.2, y: -0.5 };
+          ctx.drawImage(img, drawW * off.x, drawH * off.y, drawW, drawH);
+          ctx.restore();
+        } else {
+          // fallback gun block (same as local)
+          ctx.fillStyle = '#1e2a45';
+          ctx.fillRect((rp.r ?? 16) * 0.5, -4, 22, 8);
+        }
+
         ctx.restore();
       }
     }
@@ -3272,7 +3768,12 @@ if (btnHomeCustomize){
       ctx.translate(px, py);
       ctx.rotate(player.angle);
 
-      drawDesign(selectedDesign, COLORS[selectedColor].c, t);
+      drawDesign(
+        selectedDesign,
+        COLORS[selectedColor].c,
+        t,
+        player.r
+      );
 
       const w = weapons[player.weapon];
       const showMelee = (equip === 'melee') || (melee && melee.state === 'using');
@@ -3698,9 +4199,26 @@ if (btnHomeCustomize){
   window.addEventListener('pointerdown', ()=>{ try{audio.ctx?.resume?.();}catch(e){} if(audio.musicOn) audio.startMusic(); }, {once:true});
   state.running=false; updateHUD();
 
+  
+window.buildSkins = buildSkins;
+window.buildGunsUI = buildGunsUI;
+window.buildMeleeUI = buildMeleeUI;
+
   // ---- expose asset loaders for boot progress ----
 window.__ASSETS__ = window.__ASSETS__ || {};
 window.__ASSETS__.loadImages = loadImages;
 window.__ASSETS__.loadGunImages = loadGunImages;
 window.__ASSETS__.loadMelee = () => Melee.loadAll();
+
+// ✅ PRELOAD ALL VISUAL ASSETS IMMEDIATELY
+(async () => {
+  try {
+    await loadImages();        // monsters
+    await loadGunImages();     // guns
+    await Melee.loadAll();     // melee
+    console.log('[ASSETS] All sprites preloaded');
+  } catch (e) {
+    console.warn('[ASSETS] preload failed', e);
+  }
+})();
 })();

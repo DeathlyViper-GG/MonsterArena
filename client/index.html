@@ -8,6 +8,7 @@
   <script>
     window.SIGNAL_URL = location.origin;
   </script>
+  
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -54,6 +55,7 @@
       <button class="btn" id="btnHome">🏠 Home</button>
       <button class="btn" id="btnHelp">❓ Help</button>
       <button class="btn" id="btnSettings">⚙️ Settings</button>
+      <button class="btn" id="btnExit" style="display:none;">🚪 Exit</button>
     </div>
   </div>
 </div>
@@ -61,31 +63,81 @@
 <div class="minimap"><canvas id="mini" width="150" height="150" aria-label="Minimap"></canvas></div>
 <div id="netStatus" class="net-status" title="Network status"></div>
 
-<!-- HOME -->
-<div id="overlayHome" class="overlay" style="display:grid;">
-  <div class="card">
-    <h2>🏠 Monster Arena</h2>
-    <p>Pick a <b>Level</b> to begin. All levels start easy and scale by waves. Later levels add lethal hazards. Some buildings hide chests—you won’t know which until you go inside.</p>
-    <div class="levelsGrid" id="levelsGrid"></div>
+<!-- MAIN INTRO -->
+<div id="overlayIntro" class="overlay" style="display:grid;">
+  <div class="card intro-card">
+    <h1 class="intro-title">MONSTER ARENA</h1>
 
-    <!-- Multiplayer controls -->
-    <div class="row" style="margin-top:12px;">
-      <select id="modeSelect" class="select">
-        <option value="pve" selected>Co‑op PvE (up to 5)</option>
-        <option value="pvp">PvP FFA (15 players, no respawn)</option>
-      </select>
+    <p class="intro-text">
+      Survive escalating waves of intelligent enemies.  
+      Explore buildings, uncover hidden chests, and adapt as hazards become lethal.
+    </p>
 
-      <input id="nick" class="input" placeholder="Nickname" style="width:160px;">
-      <button class="btn" id="joinBtn">▶️ Join Lobby</button>
+    <div class="row" style="justify-content:center; margin-top:18px;">
+      <button class="btn bigBtn" id="btnIntroSingle">🧍 Singleplayer</button>
+      <button class="btn bigBtn" id="btnIntroMulti">👥 Multiplayer</button>
     </div>
 
-    <div class="row" style="margin-top:12px;">
-      <button class="btn" id="homeCustomize">🎨 Customize</button>
-      <button class="btn" id="homeHelp">❓ Help</button>
-      <button class="btn" id="homeSettings">⚙️ Settings</button>
+    <div class="row" style="justify-content:center; margin-top:14px;">
+      <button class="btn" id="introCustomize">🎨 Customize</button>
+      <button class="btn" id="introHelp">❓ Help</button>
+      <button class="btn" id="introSettings">⚙️ Settings</button>
     </div>
   </div>
 </div>
+
+<!-- SINGLE PLAYER -->
+<!-- SINGLE PLAYER -->
+<div id="overlaySingle" class="overlay">
+  <div class="card single-layout">
+
+    <!-- TOP: LEVELS (FIXED POSITION) -->
+    <div class="level-strip" id="singleLevelStrip"></div>
+
+    <!-- BOTTOM: DESCRIPTION -->
+    <div class="single-info">
+      <p class="single-desc">
+        Fight increasingly dangerous waves of monsters.
+        Each level introduces new hazards, smarter enemies,
+        and escalating pressure.
+      </p>
+      <button class="btn" id="backFromSingle">⬅ Back</button>
+    </div>
+
+  </div>
+</div>
+
+<!-- MULTIPLAYER -->
+<div id="overlayHome" class="overlay">
+  <div class="card">
+    <h2>👥 Multiplayer</h2>
+
+    <div class="row" style="margin-top:8px;">
+      <input id="multiNick" class="input" placeholder="Username" style="width:180px;">
+      <button class="btn" id="joinMultiBtn">▶ Join Lobby</button>
+      <span id="multiLobbyId" class="chip">—</span>
+    </div>
+
+    <div class="grid" style="margin-top:14px;">
+      <div class="modeCard" id="modePvE">
+        <h3>🤝 PvE</h3>
+        <p>Co‑op survival. Share waves and support each other.</p>
+      </div>
+      <div class="modeCard" id="modePvP">
+        <h3>⚔ PvP</h3>
+        <p>Free‑for‑all. One life. Last player standing wins.</p>
+      </div>
+    </div>
+
+    <!-- LEVELS APPEAR HERE (MULTIPLAYER) -->
+    <div class="level-strip" id="multiLevelStrip"></div>
+
+    <div class="row" style="margin-top:12px;">
+      <button class="btn" id="backFromMulti">⬅ Back</button>
+    </div>
+  </div>
+</div>
+
 
 <!-- PAUSE / GAME OVER -->
 <div id="overlayPause" class="overlay">
@@ -240,6 +292,9 @@
   </div>
 </div>
 
+<!-- SHARED LEVEL GRID (MOVED BETWEEN SINGLE & MULTI) -->
+<div id="levelsGrid" class="levelsGrid"></div>
+
 
 <!-- Touch controls -->
 <div class="touch" id="touchLayer" aria-hidden="true">
@@ -275,42 +330,404 @@
 
 <script src="js/melee_sprites.js"></script>
 <script src="js/network_http.js"></script>
+<script src="js/pve16.js"></script>
 
 <!-- NEW ENTRYPOINT -->
 <script type="module" src="js/main2.js"></script>
-
 <script>
-const home = document.getElementById('overlayHome');
-const load = document.getElementById('overlayLoading');
-const loadingText = document.getElementById('loadingText');
+  /* ===================================================== */
+  /* MENU + OVERLAYS (FIXED, NEW FILE VERSION)             */
+  /* ===================================================== */
 
-document.getElementById("joinBtn")?.addEventListener("click", async () => {
-  // This is your MENU "Play" button
-  // Show a mode picker (simple prompt for now)
-  const mode = document.getElementById("modeSelect").value; // pve/pvp from dropdown
+  window.MENU_CONTEXT = 'intro'; // intro | single | multi
+  let selectedMode = null; // user must explicitly choose
 
-  // Join lobby ONLY now that we know the mode
-  await Net.join(mode);
-
-  // Keep user on home to pick a level
-  const badge = document.getElementById('lobbyBadge');
-  if (badge) {
-    badge.style.display = 'inline-block';
-    badge.textContent = `Lobby ${Net.state.lobbyId} • ${mode.toUpperCase()}`;
+  function showOverlay(id) {
+    document.querySelectorAll('.overlay').forEach(o => {
+      o.style.display = 'none';
+    });
+    const el = document.getElementById(id);
+    if (el) el.style.display = 'grid';
   }
 
-  // Tell the user: now choose a level
-  alert("Connected! Now click a Level card to start.");
-});
+  /* ===================================================== */
+  /* LEVEL GRID MOVEMENT (ONE GRID, TWO STRIPS)            */
+  /* ===================================================== */
 
-// When server tells us joinDeadline/meta changed, update loading text
-window.addEventListener('net:meta', (ev) => {
-  const meta = ev.detail || {};
-  if (!load || load.style.display !== 'grid') return;
-  const deadline = meta.joinDeadline || 0;
-  const secs = deadline > 0 ? Math.max(0, Math.ceil((deadline - Date.now())/1000)) : 0;
-  if (loadingText) loadingText.textContent = deadline ? `Joining lobby… starting in ${secs}s` : `Joining lobby…`;
-});
-</script>
+  function moveLevelsToSingle() {
+    const grid = document.getElementById('levelsGrid');
+    const strip = document.getElementById('singleLevelStrip');
+    if (!grid || !strip) return;
+    strip.innerHTML = '';
+    strip.appendChild(grid);
+  }
+
+  function moveLevelsToMulti() {
+    const grid = document.getElementById('levelsGrid');
+    const strip = document.getElementById('multiLevelStrip');
+    if (!grid || !strip) return;
+    strip.innerHTML = '';
+    strip.appendChild(grid);
+  }
+
+  function updateHudButtonsForMode() {
+    const online = isNetActive();
+
+    // Buttons
+    const btnPause = document.getElementById('btnPause');
+    const btnRestart = document.getElementById('btnRestart');
+    const btnHome = document.getElementById('btnHome');
+    const btnSettings = document.getElementById('btnSettings');
+    const btnHelp = document.getElementById('btnHelp');
+    const btnExit = document.getElementById('btnExit');
+
+    if (!online) {
+      // ✅ Single-player
+      btnPause && (btnPause.style.display = 'inline-block');
+      btnRestart && (btnRestart.style.display = 'inline-block');
+      btnHome && (btnHome.style.display = 'inline-block');
+      btnSettings && (btnSettings.style.display = 'inline-block');
+      btnHelp && (btnHelp.style.display = 'inline-block');
+      btnExit && (btnExit.style.display = 'none');
+    } else {
+      // ✅ Multiplayer
+      btnPause && (btnPause.style.display = 'none');
+      btnRestart && (btnRestart.style.display = 'none');
+      btnHome && (btnHome.style.display = 'none');
+      btnSettings && (btnSettings.style.display = 'none');
+      btnHelp && (btnHelp.style.display = 'inline-block');
+      btnExit && (btnExit.style.display = 'inline-block');
+    }
+  }
+
+  function openCustomizeOverlay() {
+    // Build all customise content safely
+    if (typeof buildSkins === 'function') {
+      buildSkins();
+    } else {
+      console.warn('buildSkins() missing');
+    }
+
+    if (typeof buildGunsUI === 'function') {
+      buildGunsUI();
+    } else {
+      console.warn('buildGunsUI() missing');
+    }
+
+    if (typeof buildMeleeUI === 'function') {
+      buildMeleeUI();
+    } else {
+      console.warn('buildMeleeUI() missing');
+    }
+
+    // Hide all overlays
+    document.querySelectorAll('.overlay').forEach(o => {
+      o.style.display = 'none';
+    });
+
+    // Show customise
+    const ov = document.getElementById('overlayCustomize');
+    if (ov) {
+      ov.style.display = 'grid';
+    }
+  }
+
+  /* ===================================================== */
+  /* INTRO BUTTONS                                         */
+  /* ===================================================== */
+
+  document.getElementById('btnIntroSingle')?.addEventListener('click', () => {
+    // ✅ FORCE OFFLINE MODE
+    localStorage.setItem('arenaMode', 'single');
+
+    // ✅ CLEAR ANY MULTIPLAYER STATE
+    if (window.Net && Net.state) {
+      Net.state.lobbyId = null;
+    }
+
+    window.MENU_CONTEXT = 'single';
+    showOverlay('overlaySingle');
+    moveLevelsToSingle();
+  });
+
+  document.getElementById('btnIntroMulti')?.addEventListener('click', () => {
+    window.MENU_CONTEXT = 'multi';
+    showOverlay('overlayHome');
+  });
+
+  /* Keep customise/help/settings EXACTLY the same logic */
+  document.getElementById('introCustomize')?.addEventListener('click', () => {
+    openCustomizeOverlay();
+  });
+  document.getElementById('introHelp')?.addEventListener('click', () => {
+    document.getElementById('homeHelp')?.click();
+  });
+  document.getElementById('introSettings')?.addEventListener('click', () => {
+    document.getElementById('homeSettings')?.click();
+  });
+
+  /* ===================================================== */
+  /* MULTIPLAYER MODE SELECT (SHOW LEVELS STRIP)           */
+  /* ===================================================== */
+
+  document.getElementById('modePvE')?.addEventListener('click', () => {
+    selectedMode = 'pve';
+    window.MENU_CONTEXT = 'multi';
+
+    // ✅ ensure correct mode
+    localStorage.setItem('arenaMode', 'pve');
+
+    moveLevelsToMulti();
+  });
+
+  document.getElementById('modePvP')?.addEventListener('click', () => {
+    selectedMode = 'pvp';
+    window.MENU_CONTEXT = 'multi';
+
+    // ✅ THIS IS CRITICAL
+    localStorage.setItem('arenaMode', 'pvp');
+
+    moveLevelsToMulti();
+  });
+
+  /* ===================================================== */
+  /* MULTIPLAYER JOIN (THIS WAS MISSING)                   */
+  /* ===================================================== */
+
+  const joinBtn = document.getElementById('joinMultiBtn');
+  if (joinBtn) {
+    joinBtn.onclick = async (e) => {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+
+      // ✅ hard lock prevents multiple joins per press
+      if (window.__JOIN_LOCK__) return;
+      window.__JOIN_LOCK__ = true;
+      joinBtn.disabled = true;
+
+      try {
+        const nick = (document.getElementById('multiNick')?.value || '').trim();
+        if (!nick) { alert('Enter a username'); return; }
+
+        localStorage.setItem('arenaNick', nick);
+
+        // ✅ use stored mode as fallback, never silently flip
+        if (!selectedMode) {
+          alert('Select PvE or PvP first.');
+          return;
+        }
+
+        const mode = selectedMode;
+
+        console.log('[CLIENT JOIN]', { mode, selectedMode, stored: localStorage.getItem('arenaMode') });
+
+        await Net.join(mode, nick);
+
+        const idEl = document.getElementById('multiLobbyId');
+        if (idEl) idEl.textContent = Net.state.lobbyId || '—';
+
+        const badge = document.getElementById('lobbyBadge');
+        if (badge) {
+          badge.style.display = 'inline-block';
+          badge.textContent = `Lobby ${Net.state.lobbyId} • ${mode.toUpperCase()}`;
+        }
+      } finally {
+        window.__JOIN_LOCK__ = false;
+        joinBtn.disabled = false;
+      }
+    };
+  }
+
+  /* ===================================================== */
+  /* CRITICAL FIX: WHEN A LEVEL IS CLICKED, HIDE MENU       */
+  /* ===================================================== */
+  /* This prevents overlaySingle/overlayMulti staying visible,
+    and prevents multiplayer from falling back to offline mode. */
+
+  function hookLevelGridGuard() {
+    const grid = document.getElementById('levelsGrid');
+    if (!grid) {
+      requestAnimationFrame(hookLevelGridGuard);
+      return;
+    }
+
+    // capture-phase so we run BEFORE the card's own click handler
+    grid.addEventListener('click', (e) => {
+      const card = e.target.closest('[data-level]');
+      if (card) {
+        const levelId = card.dataset.level;
+
+        // ✅ THIS IS WHAT YOUR ENGINE READS
+        localStorage.setItem('arenaLevel', levelId);
+        localStorage.setItem('level', levelId);
+
+        // ✅ sync for multiplayer
+        if (window.Net && Net.state) {
+          Net.state.level = levelId;
+        }
+      }
+      if (window.MENU_CONTEXT === 'multi') {
+        // If you haven't joined yet, block the click so it doesn't start offline
+        if (!(window.Net && Net.state && Net.state.lobbyId)) {
+          e.preventDefault();
+          e.stopImmediatePropagation();
+          alert('Join a multiplayer lobby first.');
+          return;
+        }
+        // hide menu overlays before the level handler shows overlayLoading
+        showOverlay('overlayLoading');
+      }
+
+      if (window.MENU_CONTEXT === 'single') {
+        // hide menu overlays before level handler shows overlayLoading
+        showOverlay('overlayLoading');
+      }
+    }, true);
+  }
+  hookLevelGridGuard();
+
+  /* ===================================================== */
+  /* BACK BUTTONS                                          */
+  /* ===================================================== */
+
+  document.getElementById('backFromSingle')?.addEventListener('click', () => {
+    window.MENU_CONTEXT = 'intro';
+    showOverlay('overlayIntro');
+  });
+
+  document.getElementById('backFromMulti')?.addEventListener('click', () => {
+    window.MENU_CONTEXT = 'intro';
+    showOverlay('overlayIntro');
+  });
+
+  /* ===================================================== */
+  /* INITIAL STATE                                         */
+  /* ===================================================== */
+
+  window.addEventListener('game:ready', () => {
+    window.MENU_CONTEXT = 'intro';
+    showOverlay('overlayIntro');
+  });
+  </script>
+  <script>
+  document.getElementById('btnHome')?.addEventListener('click', () => {
+    // stop gameplay if state exists
+    try { if (window.state) state.running = false; } catch {}
+
+    // go to your NEW home (intro)
+    window.MENU_CONTEXT = 'intro';
+    document.querySelectorAll('.overlay').forEach(o => o.style.display = 'none');
+    const intro = document.getElementById('overlayIntro');
+    if (intro) intro.style.display = 'grid';
+  });
+  </script>
+  <script>
+    /* ===================================================== */
+    /* FIX GAME-OVER → CORRECT MENU RETURN                   */
+    /* ===================================================== */
+
+    function goToPostGameMenu() {
+      // Stop gameplay safely
+      try {
+        if (window.state) state.running = false;
+      } catch {}
+
+      // Hide everything
+      document.querySelectorAll('.overlay').forEach(o => {
+        o.style.display = 'none';
+      });
+
+      // Decide where to go based on last context
+      if (window.MENU_CONTEXT === 'multi') {
+        {
+          const el = document.getElementById('overlayHome');
+          if (el) el.style.display = 'grid';
+        }
+      } else {
+        // default to singleplayer menu
+        {
+          const el = document.getElementById('overlaySingle');
+          if (el) el.style.display = 'grid';
+        }
+      }
+    }
+
+    /* Game Over "Home" button */
+    
+    /* In‑game HUD Home button */
+    
+    </script>
+    <script>
+      /* ===================================================== */
+      /* FINAL OVERRIDE: GAME OVER → CORRECT MENU              */
+      /* ===================================================== */
+
+      function forcePostGameMenu() {
+        try {
+          if (window.state) state.running = false;
+        } catch {}
+
+        // Kill all overlays
+        document.querySelectorAll('.overlay').forEach(o => {
+          o.style.display = 'none';
+        });
+
+        // ✅ Multiplayer → PvE/PvP selection
+        if (window.MENU_CONTEXT === 'multi') {
+          {
+            const el = document.getElementById('overlayHome');
+            if (el) el.style.display = 'grid';
+          }
+          return;
+        }
+
+        // ✅ Singleplayer → level select
+        {
+          const el = document.getElementById('overlaySingle');
+          if (el) el.style.display = 'grid';
+        }
+      }
+
+      /* Game Over Home button */
+      
+
+      /* HUD Home button */
+      
+      </script>
+      <script>
+        /* ===================================================== */
+        /* HARD OVERRIDE: HOME BUTTON (CAPTURE PHASE)            */
+        /* ===================================================== */
+
+        function routeHomeCorrectly(e) {
+          // STOP every other Home handler (UI + engine)
+          e.preventDefault();
+          e.stopImmediatePropagation();
+
+          try { if (window.state) state.running = false; } catch {}
+
+          // Hide EVERYTHING
+          document.querySelectorAll('.overlay').forEach(o => {
+            o.style.display = 'none';
+          });
+
+          // Route based on context
+          if (window.MENU_CONTEXT === 'multi') {
+            {
+              const el = document.getElementById('overlayHome');
+              if (el) el.style.display = 'grid';
+            }
+          } else {
+            {
+              const el = document.getElementById('overlaySingle');
+              if (el) el.style.display = 'grid';
+            }
+          }
+        }
+
+        // Capture-phase = runs BEFORE all other listeners
+        document.getElementById('btnHome')?.addEventListener('click', routeHomeCorrectly, true);
+        document.getElementById('homeBtn2')?.addEventListener('click', routeHomeCorrectly, true);
+        </script>
 </body>
 </html>

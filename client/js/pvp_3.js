@@ -92,6 +92,22 @@
     audio.stopMusic();
     updateHUD();
   }
+  function getGlobalBestWave() {
+    let best = 0;
+
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (!k) continue;
+
+      // Stored by PvE per level
+      if (k.startsWith('arenaBestWave_')) {
+        const v = parseInt(localStorage.getItem(k), 10);
+        if (!isNaN(v)) best = Math.max(best, v);
+      }
+    }
+
+    return best;
+  }
 
   // Levels / themes -----------------------------------------------------------
   const LEVELS = [
@@ -1101,7 +1117,7 @@ const UNLOCK_GUN_WAVE = {
 };
 
 function buildGunsUI(){
-  const bw = bestWave();
+  const bw = getGlobalBestWave();
 
   const makeGrid = (gridId, kind, currentIndex) => {
     const grid = document.getElementById(gridId); if(!grid) return; grid.innerHTML='';
@@ -1375,6 +1391,10 @@ if (btnHomeCustomize){
   }
   function lineWallHit(px,py,vx,vy, dt, r){ const nx=px+vx*dt, ny=py+vy*dt; for(const o of world.walls){ const cx=clamp(nx,o.x,o.x+o.w), cy=clamp(ny,o.y,o.y+o.h); const dx=nx-cx, dy=ny-cy; if(dx*dx+dy*dy < r*r) return true; } return false; }
   function stepProjectiles(dt){
+    // ✅ PvP: bullets are 100% server-authoritative
+    if (isNetActive() && Net.state?.meta?.mode === 'pvp') {
+      return;
+    }
     // ✅ ONLINE: server owns bullets + damage; client does not simulate
     if (isNetActive()){
       for (let i = ents.effects.length - 1; i >= 0; i--){
@@ -1453,11 +1473,6 @@ if (btnHomeCustomize){
     ents.pickups = [];
     noiseEvents.length = 0;
 
-    // Rebuild map & nav
-    world.buildObstacles();
-    world.buildHazards();
-    world.buildChests();
-    nav.rebuild();
     const c0 = nav.cellFrom(player.x, player.y);
     nav.floodFrom(c0.ix, c0.iy);
 
@@ -1470,87 +1485,101 @@ if (btnHomeCustomize){
     if (audio.musicOn) audio.startMusic();
     canvas.focus();
   }
-  function applyTheme(theme){ currentTheme=theme; state.diff=parseFloat(selDiff.value||'1.0')||1.0; lvlEl.textContent=`${currentTheme.id} — ${currentTheme.name}`; world.buildObstacles(); world.buildHazards(); world.buildChests(); nav.rebuild(); }
+  function applyTheme(theme){
+    // ❌ NEVER allow local map builds in multiplayer
+    if (isNetActive()) return;
+
+    currentTheme = theme;
+    state.diff = parseFloat(selDiff.value || '1.0');
+    lvlEl.textContent = `${currentTheme.id} — ${currentTheme.name}`;
+
+    world.buildObstacles();
+    world.buildHazards();
+    world.buildChests();
+    nav.rebuild();
+  }
   function applyNetMap(meta){
     if (!meta) return;
-    // 1) Set theme by levelId when provided
+
+    // ✅ Resolve level
     if (meta.levelId){
       const th = LEVELS.find(l => l.id === meta.levelId);
-      if (th) applyTheme(th);
+      if (th) currentTheme = th;
     }
-    // 2) Apply deterministic seed (rebuild world)
+
+    // ✅ Apply deterministic seed
     if (typeof meta.mapSeed === 'number'){
       srand(meta.mapSeed);
-      world.buildObstacles();
-      world.buildHazards();
-      world.buildChests();
-      nav.rebuild();
     }
+
+    // ✅ Build the world ONCE, authoritatively
+    world.buildObstacles();
+    world.buildHazards();
+    world.buildChests();
+    nav.rebuild();
+
+    lvlEl.textContent = currentTheme
+      ? `${currentTheme.id} — ${currentTheme.name}`
+      : '—';
   }
   // Build home cards ----------------------------------------------------------
   function createLevelPreview(theme){ const cnv=document.createElement('canvas'); cnv.width=260; cnv.height=130; const c=cnv.getContext('2d'); const g=c.createLinearGradient(0,0,0,cnv.height); g.addColorStop(0,theme.floor.c1); g.addColorStop(1,theme.floor.c2); c.fillStyle=g; c.fillRect(0,0,cnv.width,cnv.height); c.strokeStyle=theme.floor.grid; c.lineWidth=1; c.beginPath(); for(let x=0;x<cnv.width;x+=20){ c.moveTo(x,0); c.lineTo(x,cnv.height); } for(let y=0;y<cnv.height;y+=20){ c.moveTo(0,y); c.lineTo(cnv.width,y); } c.stroke(); const rects=[{x:20,y:22,w:70,h:18},{x:120,y:46,w:50,h:26},{x:190,y:26,w:50,h:22},{x:60,y:82,w:120,h:20}]; for(const o of rects){ c.fillStyle=theme.obs.fill; c.strokeStyle=theme.obs.stroke; c.lineWidth=2; roundRect(c,o.x,o.y,o.w,o.h,8); c.fill(); c.stroke(); } if(theme.hazards.kind!=='none'){ c.fillStyle= theme.hazards.kind==='lava'?'#ff6a2a': theme.hazards.kind==='chasm'?'#08101a': theme.hazards.kind==='void'?'#09060c':'#4a3a2a'; c.fillRect(160,22,70,30); c.strokeStyle=theme.accent+'66'; c.strokeRect(160,22,70,30); } c.fillStyle = '#fff'; c.beginPath(); c.arc(200,70, 14, 0, Math.PI*2); c.fill(); return cnv; }
   function buildHome(){ const grid=document.getElementById('levelsGrid'); grid.innerHTML=''; LEVELS.forEach(theme=>{ const card=document.createElement('div'); card.className='levelCard'; const prev=document.createElement('div'); prev.className='levelPreview'; const prevCanvas=createLevelPreview(theme); prev.appendChild(prevCanvas); const badge=document.createElement('div'); badge.className='levelBadge'; badge.textContent=theme.badge; prev.appendChild(badge); const body=document.createElement('div'); body.className='levelBody'; const name=document.createElement('div'); name.className='levelName'; name.textContent=`${theme.id}. ${theme.name}`; const desc=document.createElement('div'); desc.className='levelDesc'; desc.textContent=theme.desc; body.appendChild(name); body.appendChild(desc); card.appendChild(prev); card.appendChild(body); 
     
-    card.addEventListener('click', ()=>{
-      // If online host: choose level + seed and broadcast to lobby
-      try {
-        if (isNetActive() && Net.state?.meta?.role === 'host') {
-          const seed = Math.floor(Math.random() * 2**31);
-          Net.setMap(theme.id, seed);    // <-- broadcast via network_webrtc.js
-          applyNetMap({ levelId: theme.id, mapSeed: seed }); // also apply locally now
-        } else {
-          // offline or peer: just local apply (host will override via meta once received)
-          applyTheme(theme);
-        }
-      } catch {
+    card.addEventListener('click', async () => {
+      // ✅ ONLINE (HTTP authoritative): request level from server
+      if (isNetActive()) {
+        try { await Net.setLevel(theme.id); } catch (e) { console.warn(e); }
+      } else {
+        // ✅ OFFLINE only
         applyTheme(theme);
       }
 
-      // Show loading overlay with countdown from Net.joinDeadline
+      // Show loading overlay with countdown from server joinDeadline
       const ovLoad = document.getElementById('overlayLoading');
+      const text   = document.getElementById('loadingText');
+      const badge  = document.getElementById('lobbyBadge');
 
+      const meta = (window.Net && Net.state && Net.state.meta) ? Net.state.meta : {};
+      const deadline = meta.joinDeadline || 0;
 
-    const text   = document.getElementById('loadingText');
-    const badge  = document.getElementById('lobbyBadge');
+      if (badge) {
+        const parts = badge.textContent.split(' • ')[0];
+        badge.textContent = `${parts} • L${theme.id}`;
+        badge.style.display = 'inline-block';
+      }
 
-    // Read lobby meta (needs Meta added by network_webrtc.js — see section 3)
-    const meta = (window.Net && Net.state && Net.state.meta) ? Net.state.meta : {};
-    const deadline = meta.joinDeadline || 0;
+      if (ovLoad && text) {
+        ovLoad.style.display = 'grid';
 
-    // Update badge to include level selected
-    if (badge) {
-      const parts = badge.textContent.split(' • ')[0]; // "Lobby ABCD"
-      badge.textContent = `${parts} • L${theme.id}`;
-      badge.style.display = 'inline-block';
-    }
+        const tick = () => {
+          let secs = 0;
+          if (deadline > 0) secs = Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
 
-    // Show loading + start countdown
-    if (ovLoad && text) {
-      ovLoad.style.display = 'grid';
-      const tick = () => {
-        let secs = 0;
-        if (deadline > 0) secs = Math.max(0, Math.ceil((deadline - Date.now())/1000));
-        text.textContent = (deadline > 0)
-          ? `Starting in ${secs}s…`
-          : `Waiting for host…`;
+          text.textContent = (deadline > 0)
+            ? `Starting in ${secs}s…`
+            : `Waiting for server…`;
 
-        if (deadline > 0 && secs <= 0) {
-          // Hide overlays and start the match now
-          ovLoad.style.display = 'none';
-          document.getElementById('overlayHome').style.display = 'none';
-          // Use the in-IIFE restart via the wired button to avoid scope issues
-          document.getElementById('btnRestart')?.click();
-        } else {
-          setTimeout(tick, 500);
-        }
-      };
-      tick();
-    }
-  });
+          if (deadline > 0 && secs <= 0) {
+            ovLoad.style.display = 'none';
+            document.getElementById('overlayHome').style.display = 'none';
+            document.getElementById('btnRestart')?.click();
+          } else {
+            setTimeout(tick, 250);
+          }
+        };
+
+        tick();
+      }
+    });
     grid.appendChild(card); }); }
 
   // Init ----------------------------------------------------------------------
-  world.buildObstacles(); buildHome(); loadSettings();
+  if (!isNetActive()) {
+    world.buildObstacles();
+  }
+  buildHome();
+  loadSettings();
   // React to host meta (level + seed)
   window.addEventListener('net:meta', (ev) => {
    try { applyNetMap(ev.detail); } catch {} 
@@ -1592,6 +1621,20 @@ if (btnHomeCustomize){
     else if (e.kind === 'chest_open') {
       const ch = world.chests?.[e.id];
       if (ch && !ch.opened) openChest(ch, e.drops);
+    }
+  });
+  window.addEventListener('net:snapshot', (ev) => {
+    const snap = ev.detail;
+    if (!snap) return;
+
+    // ✅ Server is the ONLY world authority in PvP
+    if (snap.world) {
+      world.walls = snap.world.walls || [];
+      world.hazards = snap.world.hazards || [];
+      world.solids = snap.world.solids || [];
+      world.buildings = snap.world.buildings || [];
+      world.chests = snap.world.chests || [];
+      nav.rebuild();
     }
   });
 
@@ -1750,6 +1793,21 @@ if (btnHomeCustomize){
   requestAnimationFrame(loop);
 
   function updateFixed(dt, tick){
+    // ✅ PvP is server-authoritative
+    if (isNetActive() && Net.state?.meta?.mode === 'pvp') {
+      const snap = Net.state.snapshot;
+      if (snap?.players) {
+        const me = snap.players.find(p => p.id === Net.state.myId);
+        if (me) {
+          player.x = me.x;
+          player.y = me.y;
+          player.angle = me.ang;
+          player.hp = me.hp;
+        }
+      }
+      return; // ❌ no local sim
+    }
+    if (isNetActive() && Net.lockstep) return;
     const online = isNetActive();
 
     // ✅ Authoritative death: if server no longer includes me → go home
@@ -2038,7 +2096,15 @@ if (btnHomeCustomize){
   }
   // Utilities -----------------------------------------------------------------
   function lerpAngle(a,b,t){ const d=((b-a+Math.PI*3)%(Math.PI*2))-Math.PI; return a + d*t; }
-  function moveWithCollide(obj, dx, dy){ obj.x += dx; if(world.isBlocked(obj.x,obj.y,obj.r)) obj.x -= dx; obj.y += dy; if(world.isBlocked(obj.x,obj.y,obj.r)) obj.y -= dy; obj.x = clamp(obj.x, 30, world.w-30); obj.y = clamp(obj.y, 30, world.h-30); }
+  function moveWithCollide(obj, dx, dy){
+    // ❌ PvP: server already resolved movement
+    if (isNetActive() && Net.state?.meta?.mode === 'pvp') return;
+
+    obj.x += dx;
+    if (world.isBlocked(obj.x, obj.y, obj.r)) obj.x -= dx;
+    obj.y += dy;
+    if (world.isBlocked(obj.x, obj.y, obj.r)) obj.y -= dy;
+  }
 
   // Quicksand (swirling vortex) field: tangential swirl + inward pull
   function applyQuicksand(entity, hazard, dt, opts = {}) {

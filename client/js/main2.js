@@ -33,10 +33,7 @@
   // URL params / settings
   // --------------------------------------------------
   const params = new URLSearchParams(location.search);
-  const mode =
-    (params.get('mode') ||
-     localStorage.getItem('arenaMode') ||
-     'pve').toLowerCase();
+  const mode = 'menu'; // mode is chosen later by UI
 
   const nickname =
     params.get('nickname') ||
@@ -52,7 +49,6 @@
     window.SIGNAL_URL ||
     undefined;
 
-  localStorage.setItem('arenaMode', mode);
   localStorage.setItem('arenaNick', nickname);
 
   const BASE = 'js/';
@@ -109,19 +105,12 @@
       // 2) Load game code
       if (bootText) bootText.textContent = 'Preparing arena…';
 
-      if (mode === 'pvp') {
-        await loadScript(BASE + 'pvp_3.js');
-      } else {
-        await loadScript(BASE + 'pve16.js');
-      }
-
       // ✅ 3) INTENTIONAL INTRO PAUSE (2 seconds)
       if (bootText) bootText.textContent = 'Entering Monster Arena…';
       if (bootFill) bootFill.style.width = '0%';
       await delay(2000);
 
       // ✅ 4) REAL asset loading starts AFTER delay
-      await loadAssets();
 
       // ✅ 5) Finish
       if (bootText) bootText.textContent = 'Ready!';

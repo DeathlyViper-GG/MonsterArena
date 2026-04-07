@@ -1,6 +1,18 @@
 // network_http.js (HTTP authoritative)
 (() => {
-  const BASE = window.SIGNAL_URL || "http://localhost:8080";
+  const BASE = window.location.origin;
+  function getSavedAppearance() {
+    try {
+      const raw = localStorage.getItem('arenaSettings');
+      const s = raw ? JSON.parse(raw) : {};
+      return {
+        design: Number.isInteger(s.design) ? s.design : 0,
+        color:  Number.isInteger(s.color)  ? s.color  : 0
+      };
+    } catch {
+      return { design: 0, color: 0 };
+    }
+  }
 
   const Net = {
     state: {
@@ -11,12 +23,17 @@
       meta: null
     },
 
-    // ✅ Keep old API working
-    async connect({ mode = "pve" } = {}) {
-        return this.join(mode);
-      },
+    
 
-      async join(mode = "pve", nickname = null) {
+    // ✅ Keep old API working
+    setSignalUrl(_) { /* HTTP server uses same origin; ignore */ },
+    setNickname(nick) { try { localStorage.setItem('arenaNick', nick); } catch {} },
+
+    async connect({ mode = "pve", nickname = null } = {}) {
+      return this.join(mode, nickname);
+    },
+
+    async join(mode = "pve", nickname = null) {
     const nick = nickname || localStorage.getItem('arenaNick') || "Player";
 
     const r = await fetch(`${BASE}/lobby/join`, {
@@ -29,6 +46,9 @@
     this.state.lobbyId = j.lobbyId;
     this.state.peerId = j.peerId;
     this.state.myId = j.peerId;
+
+    // ✅ Sync appearance immediately
+    
 
     this.state.meta = {
       lobbyId: j.lobbyId,
@@ -61,7 +81,8 @@
       if (j && j.ok && j.lobbyId && j.lobbyId !== this.state.lobbyId) {
         this.state.lobbyId = j.lobbyId;
       }
-
+      // ✅ Re‑sync appearance after lobby migration
+      // ✅ Re‑sync appearance after lobby migration
       this.state.meta = { ...(this.state.meta || {}), ...j };
       window.dispatchEvent(new CustomEvent("net:meta", { detail: this.state.meta }));
       return j;
@@ -81,35 +102,99 @@
       return r.json();
     },
 
-    async poll() {
-      while (true) {
-        try {
-          const since = (this.state.snapshot && this.state.snapshot.t) ? this.state.snapshot.t : 0;
+    async setGuns(guns) {
+      if (!this.state.lobbyId || !this.state.peerId) return;
 
+      await fetch('/player/guns', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          lobbyId: this.state.lobbyId,
+          peerId: this.state.peerId,
+          guns
+        })
+      });
+    },
+
+    async setDesign(design) {
+      if (!this.state.lobbyId || !this.state.peerId) return;
+
+      await fetch('/player/design', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          lobbyId: this.state.lobbyId,
+          peerId: this.state.peerId,
+          design
+        })
+      });
+    },
+
+    async setColor(color) {
+      if (!this.state.lobbyId || !this.state.peerId) return;
+
+      await fetch('/player/color', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          lobbyId: this.state.lobbyId,
+          peerId: this.state.peerId,
+          color
+        })
+      });
+    },
+
+
+    async leave() {
+      if (!this.state.lobbyId || !this.state.peerId) return;
+
+      const lobbyId = this.state.lobbyId;
+      const peerId = this.state.peerId;
+
+      try {
+        await fetch(`${BASE}/lobby/leave`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ lobbyId, peerId })
+        });
+      } catch (e) {
+        console.warn('[NET] leave failed', e);
+      }
+
+      // ✅ Stop polling by invalidating state
+      this.state.lobbyId = null;
+      this.state.peerId = null;
+      this.state.snapshot = null;
+    },
+
+    async poll() {
+      while (this.state.lobbyId) {
+        try {
+          const since = this.state.snapshot?.t ?? 0;
           const r = await fetch(
-            `${BASE}/poll?lobbyId=${this.state.lobbyId}&since=${since}`,
+            `${BASE}/poll?lobbyId=${this.state.lobbyId}&peerId=${this.state.peerId}&since=${since}`,
             { cache: 'no-store' }
           );
 
-          if (r.status === 204) continue; // timeout, just re-poll
-
+          if (r.status === 204) continue;
           const snap = await r.json();
           this.state.snapshot = snap;
-          window.dispatchEvent(new CustomEvent("net:snapshot", { detail: snap }));
+          window.dispatchEvent(new CustomEvent('net:snapshot', { detail: snap }));
 
-          if (snap && snap.meta) {
+          if (snap?.meta) {
             const oldKey = JSON.stringify(this.state.meta ?? {});
             const newKey = JSON.stringify(snap.meta ?? {});
             if (oldKey !== newKey) {
               this.state.meta = snap.meta;
-              window.dispatchEvent(new CustomEvent("net:meta", { detail: this.state.meta }));
+              window.dispatchEvent(new CustomEvent('net:meta', { detail: this.state.meta }));
             }
           }
         } catch {
-          // brief backoff on errors
           await new Promise(res => setTimeout(res, 250));
         }
       }
+
+      console.log('[NET] poll stopped');
     },
 
     
@@ -128,7 +213,7 @@
     },
 
 
-    sendInput(ix, iy, ang, x, y) {
+    sendInput(ix, iy, ang, x, y, weapon) {
       // ✅ throttle input sends (reduces lag massively)
       const now = performance.now();
       const MIN_MS = 33; // ~30 sends/sec (try 50 for ~20/sec if still heavy)
@@ -145,7 +230,8 @@
           lobbyId: this.state.lobbyId,
           peerId: this.state.peerId,
           ix, iy, ang,
-          x, y
+          x, y,
+          weapon
         })
       }).catch(() => {});
     },
