@@ -2596,28 +2596,16 @@ if (btnHomeCustomize){
   function applyNetMap(meta){
     if (!meta) return;
 
-    // 1) Set theme (affects obstacle counts + hazard type)
+    // ✅ Theme is visual ONLY
     if (meta.levelId){
       const th = LEVELS.find(l => l.id === meta.levelId);
-      if (th){
-        currentTheme = th;
-        lvlEl.textContent = `${currentTheme.id} — ${currentTheme.name}`;
-      }
+      if (th) currentTheme = th;
     }
 
-    // 2) Always rebuild LOCAL buildings/doors/chests using the server seed
-    if (typeof meta.mapSeed === 'number'){
-      srand(meta.mapSeed);
+    // ❌ DO NOT build world locally in multiplayer
+    // ❌ DO NOT call buildObstacles / buildHazards / buildChests
 
-      if (!isNetActive()) {
-        world.buildObstacles();
-        world.buildHazards();
-        world.buildChests();
-        nav.rebuild();
-      }
-    }
-
-    // 3) If snapshot has server walls/hazards, prefer those for collision
+    // ✅ Server snapshot owns the world completely
     if (isNetActive() && hasFreshSnapshot()){
       applyServerWorldFromSnapshot();
     }
@@ -2684,7 +2672,10 @@ if (btnHomeCustomize){
 
   // Init ----------------------------------------------------------------------
   // Init ----------------------------------------------------------------------
-  if (!isNetActive()) world.buildObstacles();
+  if (!window.Net || !Net.state || !Net.state.lobbyId) {
+    world.buildObstacles();
+  }
+
     buildHome();
     loadSettings();
   // React to host meta (level + seed)
