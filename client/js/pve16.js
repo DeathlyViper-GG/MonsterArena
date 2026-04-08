@@ -262,27 +262,20 @@
     const snap = Net?.state?.snapshot;
     if (!snap || !snap.world) return;
 
-    // ✅ define wk (this was missing)
     const wk = String(snap.meta?.worldKey ?? '') + ':' + String(snap.meta?.chestVer ?? 0);
-
     const w = snap.world;
-    const hasB = Array.isArray(w.buildings) && w.buildings.length > 0;
 
-    // ✅ cache guard: only skip if key AND "has buildings" state match
-    if (wk && wk === _lastServerWorldKey && hasB === _lastServerHadBuildings) return;
+    // ✅ Always overwrite ALL geometry arrays (prevents local leftovers)
+    world.walls     = Array.isArray(w.walls)     ? w.walls     : [];
+    world.hazards   = Array.isArray(w.hazards)   ? w.hazards   : [];
+    world.solids    = Array.isArray(w.solids)    ? w.solids    : [];
+    world.buildings = Array.isArray(w.buildings) ? w.buildings : [];
+    world.chests    = Array.isArray(w.chests)    ? w.chests    : [];
 
-    // Apply state FIRST
-    world.walls   = Array.isArray(w.walls)   ? w.walls   : [];
-    world.hazards = Array.isArray(w.hazards) ? w.hazards : [];
-
-    if (Array.isArray(w.solids)) world.solids = w.solids;
-    if (Array.isArray(w.buildings)) world.buildings = w.buildings;
-    if (Array.isArray(w.chests)) world.chests = w.chests; // ✅ NEW
     nav.rebuild();
 
-    // ✅ update cache LAST (after applying)
-    _lastServerHadBuildings = hasB;
-    _lastServerWorldKey = wk || (String(world.walls.length) + ':' + String(world.hazards.length));
+    _lastServerWorldKey = wk;
+    _lastServerHadBuildings = world.buildings.length > 0;
   }
   // -----------------------------------------------------------------------------
   // HTTP MODE COMPATIBILITY SHIMS (no WebRTC host/peer)

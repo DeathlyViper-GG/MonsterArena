@@ -171,8 +171,9 @@
       while (this.state.lobbyId) {
         try {
           const since = this.state.snapshot?.t ?? 0;
+          const worldKey = encodeURIComponent(this.state.meta?.worldKey ?? '');
           const r = await fetch(
-            `${BASE}/poll?lobbyId=${this.state.lobbyId}&peerId=${this.state.peerId}&since=${since}`,
+            `${BASE}/poll?lobbyId=${this.state.lobbyId}&peerId=${this.state.peerId}&since=${since}&worldKey=${worldKey}`,
             { cache: 'no-store' }
           );
 
