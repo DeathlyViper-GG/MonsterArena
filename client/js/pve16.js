@@ -2572,9 +2572,11 @@ if (btnHomeCustomize){
     // Rebuild map ONLY offline.
     // Online: server provides world via snapshot.world.
     if (!isNetActive()) {
-      world.buildObstacles();
-      world.buildHazards();
-      world.buildChests();
+      if (!window.Net || !Net.state || !Net.state.lobbyId) {
+        world.buildObstacles();
+        world.buildHazards();
+        world.buildChests();
+      }
       nav.rebuild();
 
       const c0 = nav.cellFrom(player.x, player.y);
@@ -2592,7 +2594,13 @@ if (btnHomeCustomize){
     if (audio.musicOn) audio.startMusic();
     canvas.focus();
   }
-  function applyTheme(theme){ currentTheme=theme; state.diff=parseFloat(selDiff.value||'1.0')||1.0; lvlEl.textContent=`${currentTheme.id} — ${currentTheme.name}`; world.buildObstacles(); world.buildHazards(); world.buildChests(); nav.rebuild(); }
+  function applyTheme(theme){ currentTheme=theme; state.diff=parseFloat(selDiff.value||'1.0')||1.0; lvlEl.textContent=`${currentTheme.id} — ${currentTheme.name}` 
+    if (!window.Net || !Net.state || !Net.state.lobbyId) {
+      world.buildObstacles();
+      world.buildHazards();
+      world.buildChests();
+    }
+    nav.rebuild(); }
   function applyNetMap(meta){
     if (!meta) return;
 
