@@ -105,7 +105,7 @@
     async setGuns(guns) {
       if (!this.state.lobbyId || !this.state.peerId) return;
 
-      await fetch('/player/guns', {
+      await fetch(`${BASE}/player/guns`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -119,7 +119,7 @@
     async setDesign(design) {
       if (!this.state.lobbyId || !this.state.peerId) return;
 
-      await fetch('/player/design', {
+      await fetch(`${BASE}/player/design`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -133,7 +133,7 @@
     async setColor(color) {
       if (!this.state.lobbyId || !this.state.peerId) return;
 
-      await fetch('/player/color', {
+      await fetch(`${BASE}/player/color`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
