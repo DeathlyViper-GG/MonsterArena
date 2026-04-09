@@ -55,7 +55,8 @@
       mode: j.mode,
       joinDeadline: j.startTime,
       levelId: j.levelId ?? null,
-      mapSeed: j.mapSeed ?? null
+      mapSeed: j.mapSeed ?? null,
+      worldKey: j.worldKey ?? null
     };
 
     this.poll();
