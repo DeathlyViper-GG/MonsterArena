@@ -162,10 +162,12 @@
     if (_sentAppearanceOnce) return;
     if (!isNetActive()) return;
 
-    Net.setDesign(selectedDesign);
-    Net.setColor(selectedColor);
+    Net.setDesign(selectedDesign).catch(() => {});
+    Net.setColor(selectedColor).catch(() => {});
+
     _sentAppearanceOnce = true;
   }
+
 
   let _sentGunsOnce = false;
 
@@ -4013,10 +4015,25 @@ window.addEventListener('net:snapshot', () => {
   }
   // Utilities -----------------------------------------------------------------
   function lerpAngle(a,b,t){ const d=((b-a+Math.PI*3)%(Math.PI*2))-Math.PI; return a + d*t; }
-  function moveWithCollide(obj, dx, dy){ 
-    if (isNetActive() && !HAS_SERVER_WORLD) return;
-    obj.x += dx 
-    if(world.isBlocked(obj.x,obj.y,obj.r)) obj.x -= dx; obj.y += dy; if(world.isBlocked(obj.x,obj.y,obj.r)) obj.y -= dy; obj.x = clamp(obj.x, 30, world.w-30); obj.y = clamp(obj.y, 30, world.h-30); }
+  
+  function moveWithCollide(obj, dx, dy) {
+    // Always allow movement (so WSAD works immediately)
+    const ox = obj.x, oy = obj.y;
+    obj.x += dx;
+    obj.y += dy;
+
+    // Only apply wall collision when we actually have world geometry
+    if (!isNetActive() || HAS_SERVER_WORLD) {
+      // X axis resolve
+      if (world.isBlocked(obj.x, oy, obj.r)) obj.x = ox;
+      // Y axis resolve
+      if (world.isBlocked(obj.x, obj.y, obj.r)) obj.y = oy;
+    }
+
+    // Always clamp bounds
+    obj.x = clamp(obj.x, 30, world.w - 30);
+    obj.y = clamp(obj.y, 30, world.h - 30);
+  }
 
   // Quicksand (swirling vortex) field: tangential swirl + inward pull
   function applyQuicksand(entity, hazard, dt, opts = {}) {
