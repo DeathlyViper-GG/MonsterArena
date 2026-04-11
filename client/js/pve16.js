@@ -28,6 +28,7 @@
   const btnHelp = document.getElementById('btnHelp');
   const btnSettings = document.getElementById('btnSettings');
   const btnHomeCustomize = document.getElementById('homeCustomize');
+  let HAS_SERVER_WORLD = false;
   async function leaveMultiplayerAndReturnHome() {
     // Stop gameplay
     try { state.running = false; } catch {}
@@ -258,19 +259,28 @@
     // Update UI once
     updateHUD();
   }
-  function applyServerWorldFromSnapshot(){
+  function applyServerWorldFromSnapshot() {
     const snap = Net?.state?.snapshot;
     if (!snap || !snap.world) return;
 
     const wk = String(snap.meta?.worldKey ?? '') + ':' + String(snap.meta?.chestVer ?? 0);
     const w = snap.world;
 
-    // ✅ Always overwrite ALL geometry arrays (prevents local leftovers)
-    world.walls     = Array.isArray(w.walls)     ? w.walls     : [];
-    world.hazards   = Array.isArray(w.hazards)   ? w.hazards   : [];
-    world.solids    = Array.isArray(w.solids)    ? w.solids    : [];
-    world.buildings = Array.isArray(w.buildings) ? w.buildings : [];
-    world.chests    = Array.isArray(w.chests)    ? w.chests    : [];
+    HAS_SERVER_WORLD = true;
+
+    // Hard clear any locally generated geometry
+    world.walls.length     = 0;
+    world.hazards.length   = 0;
+    world.solids.length    = 0;
+    world.buildings.length = 0;
+    world.chests.length    = 0;
+
+    // Replace with authoritative server world
+    if (Array.isArray(w.walls))     world.walls.push(...w.walls);
+    if (Array.isArray(w.hazards))   world.hazards.push(...w.hazards);
+    if (Array.isArray(w.solids))    world.solids.push(...w.solids);
+    if (Array.isArray(w.buildings)) world.buildings.push(...w.buildings);
+    if (Array.isArray(w.chests))    world.chests.push(...w.chests);
 
     nav.rebuild();
 
@@ -2690,6 +2700,7 @@ if (btnHomeCustomize){
   let _lastRosterKey = '';
   let _lastMapKey = '';
   window.addEventListener('net:meta', (ev) => {
+    HAS_SERVER_WORLD = false;
     // 1) Apply map only when it actually changes (prevents heavy work every poll tick)
     try {
       const d = ev.detail || {};
@@ -3462,13 +3473,11 @@ window.addEventListener('net:snapshot', () => {
     world.drawFloor();
     world.drawHazards();
 
-    if (!isNetActive()) {
-      world.drawObstacles(); // offline only
-    } else {
-      const hasServerBuildings = Array.isArray(world.buildings) && world.buildings.length > 0;
-      if (hasServerBuildings) world.drawObstacles();
-      else drawServerWallsOnly();
+    
+    if (!isNetActive() || HAS_SERVER_WORLD) {
+      world.drawObstacles();
     }
+
 
     // ---------------------------
     // Pickups (local-only visuals)
@@ -4004,7 +4013,10 @@ window.addEventListener('net:snapshot', () => {
   }
   // Utilities -----------------------------------------------------------------
   function lerpAngle(a,b,t){ const d=((b-a+Math.PI*3)%(Math.PI*2))-Math.PI; return a + d*t; }
-  function moveWithCollide(obj, dx, dy){ obj.x += dx; if(world.isBlocked(obj.x,obj.y,obj.r)) obj.x -= dx; obj.y += dy; if(world.isBlocked(obj.x,obj.y,obj.r)) obj.y -= dy; obj.x = clamp(obj.x, 30, world.w-30); obj.y = clamp(obj.y, 30, world.h-30); }
+  function moveWithCollide(obj, dx, dy){ 
+    if (isNetActive() && !HAS_SERVER_WORLD) return;
+    obj.x += dx 
+    if(world.isBlocked(obj.x,obj.y,obj.r)) obj.x -= dx; obj.y += dy; if(world.isBlocked(obj.x,obj.y,obj.r)) obj.y -= dy; obj.x = clamp(obj.x, 30, world.w-30); obj.y = clamp(obj.y, 30, world.h-30); }
 
   // Quicksand (swirling vortex) field: tangential swirl + inward pull
   function applyQuicksand(entity, hazard, dt, opts = {}) {
