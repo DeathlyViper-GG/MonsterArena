@@ -18,25 +18,38 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 app.use(cors());
 app.use(express.json());
+// --- sanity/version endpoint (proves which code is deployed) ---
+app.get('/__version', (req, res) => {
+  res.json({ ok: true, file: 'signaling_http.js', t: Date.now() });
+});
 
+// --- make it obvious if client accidentally GETs these ---
+app.get('/player/design', (req, res) => res.status(405).json({ ok:false, error:'POST only' }));
+app.get('/player/color',  (req, res) => res.status(405).json({ ok:false, error:'POST only' }));
+app.get('/player/guns',   (req, res) => res.status(405).json({ ok:false, error:'POST only' }));
+
+// --- required: design endpoint (prevents 404 + enables appearance sync) ---
 // ✅ SERVE THE GAME CLIENT
-app.use(express.static(path.join(__dirname, "../client")));
 
 const TICK_MS = 15; // 100Hz
 const LOBBY_INTERVAL = 10_000;
 const WORLD = { w: 4000, h: 2800 };
+const DISCONNECT_TIMEOUT = 1_000; // 0.1 seconds
 // ✅ Long-poll waiters per lobby
 const POLL_TIMEOUT_MS = 25_000;
-const WAITERS = new Map(); // lobbyId -> Set(res)
+const WAITERS = new Map(); // lobbyId -> Set({ res, worldKey })
 
-function addWaiter(lobbyId, res) {
+function addWaiter(lobbyId, res, worldKey = '') {
   if (!WAITERS.has(lobbyId)) WAITERS.set(lobbyId, new Set());
-  WAITERS.get(lobbyId).add(res);
+  const entry = { res, worldKey: String(worldKey ?? '') };
+  WAITERS.get(lobbyId).add(entry);
 
-  // cleanup if client disconnects
   res.on('close', () => {
     const set = WAITERS.get(lobbyId);
-    if (set) set.delete(res);
+    if (!set) return;
+    for (const it of set) {
+      if (it.res === res) { set.delete(it); break; }
+    }
   });
 }
 
@@ -44,8 +57,23 @@ function flushWaiters(lobby) {
   const set = WAITERS.get(lobby.id);
   if (!set || set.size === 0) return;
 
-  for (const res of set) {
-    try { res.json(lobby.snapshot); } catch {}
+  for (const { res, worldKey } of set) {
+    try {
+      const snap = structuredClone(lobby.snapshot);
+
+      snap.meta = snap.meta ?? {};
+      snap.meta.worldKey = String(lobby.worldKey ?? '');
+      snap.meta.chestVer = Number(lobby.chestVer ?? 0);
+
+      // ✅ If this waiter doesn't have the current worldKey, force full world
+      if (worldKey !== String(lobby.worldKey ?? '')) {
+        snap.world = worldDelta(lobby, true);
+      } else {
+        snap.world = worldDelta(lobby, false);
+      }
+
+      res.json(snap);
+    } catch {}
   }
   set.clear();
 }
@@ -57,7 +85,7 @@ const slotEndMs = (slot) => (slot + 1) * LOBBY_INTERVAL;
 const PLAYER_SPEED = 240;
 
 // Bullet speeds
-const SPD_SHOOTER = 520;
+const SPD_SHOOTER = 480;
 const SPD_SNIPER  = 760;     // faster than shooter
 const SPD_BOMB    = 260;     // ~half speed of bullets
 
@@ -67,7 +95,7 @@ const LIFE_SNIPER  = 2.0;    // ~1520px at 760 (longer, but not infinite)
 const LIFE_BOMB    = 0.9;    // ~234px at 260 (short)
 
 // Damage
-const DMG_SHOOTER = 10;
+const DMG_SHOOTER = 8;
 const DMG_SNIPER  = 14;      // slightly more
 const DMG_BOMB    = 24;      // higher than bullets
 const SPLASH_BOMB = 140;     // splash radius
@@ -339,21 +367,22 @@ function explodeEnemyBomb(lobby, b){
 }
 
 // ✅ WORLD DELTA: only send the full world when it changes (worldKey/chestVer)
-function worldDelta(lobby) {
-  const worldFull = lobby.world ? {
-    walls: lobby.world.walls,
-    hazards: lobby.world.hazards,
-    solids: lobby.world.solids ?? [],
-    buildings: lobby.world.buildings ?? [],
-    chests: lobby.world.chests ?? []
-  } : { walls: [], hazards: [], solids: [], buildings: [], chests: [] };
+function worldDelta(lobby, force = false) {
+  // If no world somehow, send empty once
+  if (!lobby.world) {
+    return { walls: [], hazards: [], solids: [], buildings: [], chests: [] };
+  }
 
-  // World changes when worldKey changes OR chests change (chestVer)
-  const worldKeyNow = String(lobby.worldKey ?? '') + ':' + String(lobby.chestVer ?? 0);
-  const sendWorld = (lobby._worldKeySent !== worldKeyNow);
+  const keyNow = `${lobby.worldKey}:${lobby.chestVer ?? 0}`;
 
-  if (sendWorld) lobby._worldKeySent = worldKeyNow;
-  return sendWorld ? worldFull : null;
+  if (force || lobby._worldKeySent !== keyNow) {
+    lobby._worldKeySent = keyNow;
+
+    // ✅ SEND THE SAME OBJECT
+    return lobby.world;
+  }
+
+  return null;
 }
 
 // -----------------------------------------------------------------------------
@@ -384,10 +413,36 @@ function enemyBlocked(lobby, x, y, r) {
   }
   return false;
 }
+function playerBlocked(lobby, x, y, r) {
+  const walls = lobby.world?.walls || [];
+  for (const w of walls) {
+    if (circleRectCollide(x, y, r, w)) return true;
+  }
+  return false;
+}
+
+function movePlayerWithCollide(lobby, p, dx, dy) {
+  const dist = Math.hypot(dx, dy);
+  const steps = Math.max(1, Math.ceil(dist / 6));
+  const sx = dx / steps;
+  const sy = dy / steps;
+
+  for (let i = 0; i < steps; i++) {
+    let nx = p.x + sx;
+    if (!playerBlocked(lobby, nx, p.y, 16)) p.x = nx;
+
+    let ny = p.y + sy;
+    if (!playerBlocked(lobby, p.x, ny, 16)) p.y = ny;
+
+    p.x = clamp(p.x, 30, WORLD.w - 30);
+    p.y = clamp(p.y, 30, WORLD.h - 30);
+  }
+}
 
 function moveEnemyWithCollide(lobby, e, dx, dy) {
   const dist = Math.hypot(dx, dy);
-  const steps = Math.max(1, Math.ceil(dist / 6)); // max ~6px per micro-step
+  const MAX_STEP = 4;
+  const steps = Math.max(1, Math.ceil(dist / MAX_STEP));
   const sx = dx / steps;
   const sy = dy / steps;
 
@@ -675,15 +730,15 @@ function buildWorld(levelId, mapSeed){
 }
 
 function ensureWorldGenerated(lobby){
-  if (!Number.isFinite(lobby.levelId) || !Number.isFinite(lobby.mapSeed)) return;
-  const key = `${lobby.levelId}:${lobby.mapSeed}`;
-  if (lobby.worldKey === key && lobby.worldLocked) return;
-  lobby.chestVer = (lobby.chestVer || 0) + 1;
+  // ✅ HARD RULE: generate world ONCE
+  if (lobby.world) return;
 
-  const { walls, hazards, solids, buildings, chests } = buildWorld(lobby.levelId, lobby.mapSeed);
+  const { walls, hazards, solids, buildings, chests } =
+    buildWorld(lobby.levelId, lobby.mapSeed);
+
   lobby.world = { walls, hazards, solids, buildings, chests };
-  lobby.worldKey = key;
-  lobby.worldLocked = true;
+  lobby.worldKey = `${lobby.levelId}:${lobby.mapSeed}`;
+  lobby.chestVer = 0;
 }
 
 // -----------------------------------------------------------------------------
@@ -691,13 +746,17 @@ function ensureWorldGenerated(lobby){
 // -----------------------------------------------------------------------------
 const LOBBIES = new Map(); // id → lobby
 
-function createLobby(mode) {
+function createLobby(mode, startTimeOverride = null) {
   const created = now();
+  const startTime = (typeof startTimeOverride === 'number')
+    ? startTimeOverride
+    : (created + LOBBY_INTERVAL);
+
   return {
     id: makeId(),
     mode,
     created,
-    startTime: created + LOBBY_INTERVAL,
+    startTime,
     started: false,
 
     players: new Map(),
@@ -717,8 +776,7 @@ function createLobby(mode) {
     pickupSeq: 1,
     pickupVer: 0,
 
-    // ✅ CRITICAL: initialise world state
-    world: { walls: [], hazards: [] },
+    world: null,
     worldKey: null,
     chestVer: 0,
     worldLocked: false,
@@ -733,12 +791,11 @@ function createLobby(mode) {
       pickups: [],
       meta: {
         mode,
-        joinDeadline: created + LOBBY_INTERVAL,
+        joinDeadline: startTime,
         levelId: null,
         mapSeed: null,
         pickupVer: 0,
         worldKey: null
-        
       }
     }
   };
@@ -746,22 +803,42 @@ function createLobby(mode) {
 
 function ensureLobbyForLevel(mode, levelId){
   const t = now();
+  const slot = slotNow();
+  const deadline = slotEndMs(slot);
 
   const open = [...LOBBIES.values()]
-    .filter(l => l.mode === mode && !l.started && t < l.startTime && l.levelId === levelId)
+    .filter(l =>
+      l.mode === mode &&          // ✅ strict mode match
+      l.levelId === levelId &&
+      !l.started &&
+      l.startTime === deadline &&
+      t < l.startTime
+    )
     .sort((a,b) => b.created - a.created)[0];
 
   if (open) return open;
 
-  const l = createLobby(mode);
+  // ✅ ALWAYS create a fresh lobby for PvP
+  const l = createLobby(mode, deadline);
   l.levelId = levelId;
   l.mapSeed = Math.floor(Math.random() * 2**31);
+
   ensureWorldGenerated(l);
+  Object.freeze(l.world.walls);
+  Object.freeze(l.world.hazards);
+  Object.freeze(l.world.solids);
+  Object.freeze(l.world.buildings);
+  console.log(
+    '[WORLD CREATED]',
+    l.id,
+    l.world.walls.length,
+    l.world.buildings.length
+  );
   LOBBIES.set(l.id, l);
   return l;
 }
 
-function placePlayerInLobby(lobby, peerId, name){
+function placePlayerInLobby(lobby, peerId, name, prevPlayer = null){
   const n = lobby.players.size;
   const R = 120;
   const a = (n * Math.PI * 2) / 8;
@@ -772,7 +849,18 @@ function placePlayerInLobby(lobby, peerId, name){
     x: WORLD.w / 2 + Math.cos(a) * R,
     y: WORLD.h / 2 + Math.sin(a) * R,
     ang: 0,
-    hp: 100
+    hp: 100,
+
+    // ✅ PRESERVE APPEARANCE
+    // ✅ PRESERVE APPEARANCE
+    design: prevPlayer?.design ?? 0,
+    color:  prevPlayer?.color  ?? 0,
+
+    // ✅ PRESERVE GUN SKINS + CURRENT WEAPON
+    guns: prevPlayer?.guns ?? { pistol: -1, rifle: -1, shotgun: -1 },
+    weapon: prevPlayer?.weapon ?? 0,
+
+    lastSeen: now()
   });
 }
 
@@ -837,7 +925,7 @@ function spawnEnemy(type, x, y, bossVariant = 0) {
     e.hp = e.maxhp = 70;
     e.speed = 150;
     e.r = 15;
-    e.fireCD = 0.2;
+    e.fireCD = 0.4;
   }
 
   if (type === 'sniper') {
@@ -1000,6 +1088,13 @@ function topUpChestsForWave(lobby){
 }
 
 function startWave(lobby, n) {
+  lobby.wave = n;
+
+  // ✅ ENSURE chests exist even on wave 1 multiplayer
+  if (!lobby.world?.chests || lobby.world.chests.length === 0) {
+    topUpChestsForWave(lobby);
+    lobby.chestVer++;
+  }
   lobby.wave = n;
 
   // ✅ HARD RESET: retire ALL chests so every wave is a fresh spawn set
@@ -1319,7 +1414,13 @@ function enemyAI(lobby, e, dt) {
 // HTTP API
 // -----------------------------------------------------------------------------
 app.post('/lobby/join', (req, res) => {
-  const mode = req.body?.mode === 'pvp' ? 'pvp' : 'pve';
+  const mode = String(req.body?.mode || '').toLowerCase() === 'pvp'
+    ? 'pvp'
+    : 'pve';
+  console.log('[JOIN]', {
+    rawMode: req.body?.mode,
+    resolvedMode: mode
+  });
   const nickname = String(req.body?.nickname || '').trim() || null;
 
   const lobby = ensureLobby(mode);
@@ -1335,8 +1436,20 @@ app.post('/lobby/join', (req, res) => {
     x: WORLD.w / 2 + Math.cos(a) * R,
     y: WORLD.h / 2 + Math.sin(a) * R,
     ang: 0,
-    hp: 100
+    hp: 100,
+
+    design: 0,
+    color: 0,
+
+    // ✅ gun skins + current weapon (authoritative)
+    guns: { pistol: -1, rifle: -1, shotgun: -1 },
+    weapon: 0,
+
+    lastSeen: now()
   });
+
+  // ✅ FORCE SNAPSHOT UPDATE FOR ALL CLIENTS
+  flushWaiters(lobby);
 
   res.json({
     lobbyId: lobby.id,
@@ -1345,8 +1458,106 @@ app.post('/lobby/join', (req, res) => {
     startTime: lobby.startTime,
     world: WORLD,
     levelId: lobby.levelId,
-    mapSeed: lobby.mapSeed
+    mapSeed: lobby.mapSeed,
+
+    // ✅ ADD THIS
+    worldKey: lobby.worldKey
   });
+});
+
+app.post('/lobby/leave', (req, res) => {
+  const { lobbyId, peerId } = req.body;
+
+  const lobby = LOBBIES.get(lobbyId);
+  if (!lobby) {
+    return res.json({ ok: true });
+  }
+
+  // ✅ Remove player
+  lobby.players.delete(peerId);
+  lobby.inputs.delete(peerId);
+
+  // ✅ Remove bullets owned by this player
+  lobby.bullets = lobby.bullets.filter(b => b.owner !== peerId);
+
+  console.log('[LEAVE]', { lobbyId, peerId });
+
+  res.json({ ok: true });
+});
+
+app.post('/player/color', (req, res) => {
+  const { lobbyId, peerId, color } = req.body;
+
+  const lobby = LOBBIES.get(lobbyId);
+  if (!lobby) return res.json({ ok:false });
+
+  const p = lobby.players.get(peerId);
+  if (!p) return res.json({ ok:false });
+
+  // ✅ Validate colour index
+  if (!Number.isInteger(color) || color < 0 || color >= 7) {
+    return res.json({ ok:false });
+  }
+
+  p.color = color;
+
+  // ✅ FORCE SNAPSHOT UPDATE FOR ALL CLIENTS
+  flushWaiters(lobby);
+
+  res.json({ ok:true });
+});
+
+app.post('/player/guns', (req, res) => {
+  const { lobbyId, peerId, guns } = req.body;
+
+  const lobby = LOBBIES.get(lobbyId);
+  if (!lobby) return res.json();
+
+  const p = lobby.players.get(peerId);
+  if (!p) return res.json();
+
+  // guns must be { pistol, rifle, shotgun }, each in range -1..4
+  const clampSkin = (v) => (Number.isInteger(v) && v >= -1 && v <= 4) ? v : null;
+
+  const pi = clampSkin(guns?.pistol);
+  const ri = clampSkin(guns?.rifle);
+  const si = clampSkin(guns?.shotgun);
+
+  // if none valid, ignore
+  if (pi === null && ri === null && si === null) return res.json();
+
+  p.guns = p.guns ?? { pistol: -1, rifle: -1, shotgun: -1 };
+  if (pi !== null) p.guns.pistol = pi;
+  if (ri !== null) p.guns.rifle = ri;
+  if (si !== null) p.guns.shotgun = si;
+
+  flushWaiters(lobby);
+  res.json({ ok: true });
+});
+
+app.post('/player/design', (req, res) => {
+  const { lobbyId, peerId, design } = req.body;
+
+  console.log('[DESIGN REQ]', { lobbyId, peerId, design, type: typeof design });
+
+  const lobby = LOBBIES.get(lobbyId);
+  if (!lobby) return res.json({ ok:false });
+
+  const p = lobby.players.get(peerId);
+  if (!p) return res.json({ ok:false });
+
+  if (!Number.isInteger(design) || design < 0 || design > 14) {
+    console.log('[DESIGN REJECTED]', design);
+    return res.json({ ok:false });
+  }
+
+  p.design = design;
+
+  console.log('[DESIGN STORED]', peerId, '→', p.design);
+
+  flushWaiters(lobby);
+
+  res.json({ ok:true });
 });
 
 app.post('/chest/open', (req, res) => {
@@ -1369,7 +1580,8 @@ app.post('/chest/open', (req, res) => {
     p.x >= b.inner.x && p.x <= b.inner.x + b.inner.w &&
     p.y >= b.inner.y && p.y <= b.inner.y + b.inner.h;
 
-  if (!inside) return res.json({ ok:false });
+  // ⭐ Allow wave 1 to open even if building index isn't ready yet
+  if (lobby.wave > 1 && !inside) return res.json({ ok:false });
 
   // must be close enough
   const rr = (ch.r ?? 16) + 16;
@@ -1393,16 +1605,34 @@ app.post('/chest/open', (req, res) => {
   }
   ch.drops = drops;
   lobby.chestVer = (lobby.chestVer || 0) + 1;
+  for (const d of drops) {
+    lobby.pickups.push({
+      x: d.x,
+      y: d.y,
+      r: 14,
+      type: d.type
+    });
+  }
+  lobby.pickupVer++;
 
   res.json({ ok:true, chestId, drops });
 });
 
 app.post('/input', (req, res) => {
-  const { lobbyId, peerId, ix, iy, ang, x, y } = req.body;
+  const { lobbyId, peerId, ix, iy, ang, x, y, weapon } = req.body;
+
   const lobby = LOBBIES.get(lobbyId);
-  if (!lobby) return res.json({ ok: false });
-  lobby.inputs.set(peerId, { ix, iy, ang, x, y });
-  res.json({ ok: true });
+  if (!lobby) return res.json();
+
+  lobby.inputs.set(peerId, { ix, iy, ang, x, y, weapon });
+
+  // ✅ store current weapon on the player so it can go in snapshots
+  const p = lobby.players.get(peerId);
+  if (p && Number.isInteger(weapon) && weapon >= 0 && weapon <= 2) {
+    p.weapon = weapon;
+  }
+
+  res.json();
 });
 
 app.post('/shoot', (req, res) => {
@@ -1488,10 +1718,17 @@ app.post('/hit', (req, res) => {
 
 app.get('/poll', (req, res) => {
   const lobbyId = String(req.query.lobbyId ?? '');
-  const since = Number(req.query.since ?? 0);
+  const since   = Number(req.query.since ?? 0);
+  const peerId  = String(req.query.peerId ?? '');
+  const clientWorldKey = String(req.query.worldKey ?? '');
 
   const lobby = LOBBIES.get(lobbyId);
   if (!lobby) return res.status(404).end();
+
+  // heartbeat
+  if (peerId && lobby.players?.has(peerId)) {
+    lobby.players.get(peerId).lastSeen = now();
+  }
 
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
   res.setHeader('Pragma', 'no-cache');
@@ -1499,14 +1736,29 @@ app.get('/poll', (req, res) => {
 
   const curT = Number(lobby.snapshot?.t ?? 0);
 
-  // ✅ If client is behind, respond immediately
-  if (curT > since) return res.json(lobby.snapshot);
+  // ✅ IMMEDIATE RESPONSE if we have a newer snapshot than client
+  if (curT > since) {
+    const snap = structuredClone(lobby.snapshot);
 
-  // ✅ Otherwise hold the request until snapshot changes or timeout
-  addWaiter(lobbyId, res);
+    // ✅ Ensure meta carries worldKey/chestVer so client can echo worldKey back
+    snap.meta = snap.meta ?? {};
+    snap.meta.worldKey = String(lobby.worldKey ?? '');
+    snap.meta.chestVer = Number(lobby.chestVer ?? 0);
+
+    // ✅ If client has never seen this worldKey (or first poll), send full world
+    if (since === 0 || clientWorldKey !== String(lobby.worldKey ?? '')) {
+      snap.world = worldDelta(lobby, true); // full world
+    } else {
+      snap.world = worldDelta(lobby, false); // null unless changed (optional)
+    }
+
+    return res.json(snap); // 🚨 THIS LINE is what was missing
+  }
+
+  // Otherwise, long-poll
+  addWaiter(lobbyId, res, clientWorldKey);
 
   const timer = setTimeout(() => {
-    // still no update -> no content (client will re-poll)
     try { res.status(204).end(); } catch {}
   }, POLL_TIMEOUT_MS);
 
@@ -1526,18 +1778,28 @@ app.post('/lobby/setLevel', (req, res) => {
   }
 
   // If lobby has no level yet -> set it
+  // If lobby has no level yet -> migrate into the slot's level-room
   if (lobby.levelId == null) {
-    lobby.levelId = levelId;
-    lobby.mapSeed = Math.floor(Math.random() * 2**31);
-    ensureWorldGenerated(lobby);
+    if (!peerId) return res.status(400).json({ ok:false, error:'Missing peerId' });
+
+    const p = lobby.players.get(peerId);
+    if (!p) return res.status(404).json({ ok:false, error:'Player not found in lobby' });
+
+    const targetLobby = ensureLobbyForLevel(lobby.mode, levelId);
+
+    if (targetLobby.id !== lobby.id) {
+      lobby.players.delete(peerId);
+      lobby.inputs.delete(peerId);
+      placePlayerInLobby(targetLobby, peerId, p.name, p);
+    }
 
     return res.json({
       ok:true,
-      lobbyId: lobby.id,
-      levelId: lobby.levelId,
-      mapSeed: lobby.mapSeed,
-      joinDeadline: lobby.startTime,
-      redirected: false
+      redirected: (targetLobby.id !== lobby.id),
+      lobbyId: targetLobby.id,
+      levelId: targetLobby.levelId,
+      mapSeed: targetLobby.mapSeed,
+      joinDeadline: targetLobby.startTime
     });
   }
 
@@ -1570,7 +1832,7 @@ app.post('/lobby/setLevel', (req, res) => {
   lobby.inputs.delete(peerId);
 
   // add to new lobby (keep name)
-  placePlayerInLobby(targetLobby, peerId, p.name);
+  placePlayerInLobby(targetLobby, peerId, p.name, p);
 
   // reply with redirect info
   return res.json({
@@ -1593,6 +1855,16 @@ setInterval(() => {
   const t = now();
 
   for (const lobby of LOBBIES.values()) {
+    // ✅ Disconnect cleanup
+    for (const [pid, p] of lobby.players) {
+      if (p.lastSeen && (now() - p.lastSeen) > DISCONNECT_TIMEOUT) {
+        console.log('[DISCONNECT]', pid, 'from lobby', lobby.id);
+
+        lobby.players.delete(pid);
+        lobby.inputs.delete(pid);
+        lobby.bullets = lobby.bullets.filter(b => b.owner !== pid);
+      }
+    }
     // Compute dt first (safe)
     const dt = Math.min(0.03, (t - lobby.lastTick) / 1000);
     lobby.lastTick = t;
@@ -1600,19 +1872,25 @@ setInterval(() => {
     // Start lobby when countdown ends
     // Start lobby when countdown ends
     if (!lobby.started && t >= lobby.startTime) {
-      if (lobby.levelId == null) lobby.levelId = 1 + Math.floor(Math.random() * 5);
-      if (lobby.mapSeed == null) lobby.mapSeed = Math.floor(Math.random() * 2**31);
-
-      ensureWorldGenerated(lobby); // ✅ SERVER CREATES MAP HERE
+      // ✅ Do NOT auto-assign levels (especially for PvP)
+      if (lobby.levelId == null || lobby.mapSeed == null) {
+        continue; // wait until level is explicitly set
+      }
 
       lobby.started = true;
-      if (lobby.mode === 'pve') startWave(lobby, 1);
+
+      if (lobby.mode === 'pve') {
+        startWave(lobby, 1);
+      }
     }
 
     // If not started, still publish a snapshot (optional, helps clients)
     // If not started, still publish a snapshot (optional, helps clients)
+    
     if (!lobby.started) {
+
       lobby.snapshot = {
+
         t: now(),
         mode: lobby.mode,
         wave: lobby.wave,
@@ -1620,7 +1898,7 @@ setInterval(() => {
         enemies: [],
         bullets: [],
         // ✅ only send world when it changes
-        world: worldDelta(lobby),
+        world: worldDelta(lobby, true),
         meta: {
           lobbyId: lobby.id,
           mode: lobby.mode,
@@ -1639,6 +1917,40 @@ setInterval(() => {
     // ---- Players ----
     // ---- Players ----
     for (const [id, p] of lobby.players) {
+      // ---- Pickups (authoritative) ----
+      if (lobby.pickups && lobby.pickups.length) {
+        for (let i = lobby.pickups.length - 1; i >= 0; i--) {
+          const pk = lobby.pickups[i];
+
+          for (const [pid, p] of lobby.players) {
+            const rr = (pk.r ?? 14) + 16;
+            if (dist2(p.x, p.y, pk.x, pk.y) <= rr * rr) {
+
+              // ✅ APPLY EFFECT
+              if (pk.type === 'health') {
+                p.hp = Math.min(100, (p.hp ?? 100) + 25);
+              }
+
+              if (pk.type === 'ammo') {
+                p.ammo = Math.min((p.maxAmmo ?? 999), (p.ammo ?? 0) + 30);
+              }
+
+              if (pk.type === 'speed') {
+                p.speedBoostT = 8.0;
+              }
+
+              if (pk.type === 'shield') {
+                p.shield = Math.min(100, (p.shield ?? 0) + 40);
+              }
+
+              // ✅ REMOVE PICKUP
+              lobby.pickups.splice(i, 1);
+              lobby.pickupVer++;
+              break;
+            }
+          }
+        }
+      }
       const inp = lobby.inputs.get(id);
       if (!inp) continue;
 
@@ -1666,7 +1978,13 @@ setInterval(() => {
     }
 
     // ---- PvE: spawn + enemy AI ----
-    if (lobby.mode === 'pve') {
+    // ---- PvE ONLY: spawn + enemy AI ----
+    if (lobby.started && !lobby.world) {
+      throw new Error(
+        `WORLD MISSING: lobby=${lobby.id} level=${lobby.levelId} seed=${lobby.mapSeed}`
+      );
+    }
+    if (lobby.mode === 'pve' && lobby.started) {
       lobby.spawnQueue = lobby.spawnQueue.filter(s => {
         s.t -= dt;
         if (s.t <= 0) {
@@ -1674,9 +1992,7 @@ setInterval(() => {
           en.spawnWave = s.wave || lobby.wave;
           en.tier = aiTierForWave(en.spawnWave);
 
-          // assign ravener roles only when it matters (door blockers later)
           if (en.type === 'chaser') {
-            // before tier 2: no blocking role
             if (en.tier >= 2 && Math.random() < 0.35) en.role = 'blocker';
             else en.role = 'runner';
           }
@@ -1689,36 +2005,39 @@ setInterval(() => {
 
       for (let i = lobby.enemies.length - 1; i >= 0; i--) {
         const e = lobby.enemies[i];
-
         enemyAI(lobby, e, dt);
 
-        // ✅ Apply hazards to enemies (server authoritative)
         const killedByHazard = applyEnemyHazards(lobby, e, dt);
-
         if (killedByHazard || e.hp <= 0) {
           lobby.enemies.splice(i, 1);
         }
       }
-      // ✅ Enemy body contact damage (server authoritative)
+
       for (const e of lobby.enemies) {
         const bossV = (e.type === 'boss') ? (e.bossVariant ?? 1) : 0;
         const dps = touchDps(e.type, bossV);
-
         for (const [pid, p] of lobby.players) {
-          const rr = (e.r ?? 16) + 16; // enemy radius + player radius
+          const rr = (e.r ?? 16) + 16;
           if (dist2(e.x, e.y, p.x, p.y) <= rr * rr) {
             applyPlayerDamage(lobby, pid, dps * dt * 1.4);
           }
         }
       }
+
       removeDeadPlayers(lobby);
-      // ✅ Auto-advance waves when cleared
+
+      // ✅ Wave progression ONLY in PvE
       if (lobby.spawnQueue.length === 0 && lobby.enemies.length === 0) {
         lobby.nextWaveT = (lobby.nextWaveT ?? 2.0) - dt;
         if (lobby.nextWaveT <= 0) {
           startWave(lobby, (lobby.wave || 1) + 1);
         }
       }
+    }
+    // ✅ PvP: absolutely no enemies
+    if (lobby.mode === 'pvp') {
+      lobby.enemies.length = 0;
+      lobby.spawnQueue.length = 0;
     }
 
     // -----------------------------------------------------------------------------
@@ -1819,7 +2138,7 @@ setInterval(() => {
       bullets: lobby.bullets,
 
       // ✅ only send world when it changes
-      world: worldDelta(lobby),
+      world: worldDelta(lobby, false),
 
       meta: {
         lobbyId: lobby.id,
@@ -1835,6 +2154,7 @@ setInterval(() => {
     flushWaiters(lobby);
   }
 }, TICK_MS);
+app.use(express.static(path.join(__dirname, "../client")));
 
 // -----------------------------------------------------------------------------
 // Start
