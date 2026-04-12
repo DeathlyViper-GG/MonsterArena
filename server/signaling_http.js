@@ -367,19 +367,15 @@ function explodeEnemyBomb(lobby, b){
 }
 
 // ✅ WORLD DELTA: only send the full world when it changes (worldKey/chestVer)
-function worldDelta(lobby, force = false) {
-  // If no world somehow, send empty once
+function worldDelta(lobby, force = false, clientWorldKey = '') {
   if (!lobby.world) {
     return { walls: [], hazards: [], solids: [], buildings: [], chests: [] };
   }
 
   const keyNow = `${lobby.worldKey}:${lobby.chestVer ?? 0}`;
 
-  if (force || lobby._worldKeySent !== keyNow) {
-    lobby._worldKeySent = keyNow;
-
-    // ✅ SEND THE SAME OBJECT
-    return lobby.world;
+  if (force || String(clientWorldKey) !== keyNow) {
+    return lobby.world; // ✅ always give full world when client differs
   }
 
   return null;
@@ -1747,9 +1743,9 @@ app.get('/poll', (req, res) => {
 
     // ✅ If client has never seen this worldKey (or first poll), send full world
     if (since === 0 || clientWorldKey !== String(lobby.worldKey ?? '')) {
-      snap.world = worldDelta(lobby, true); // full world
+      snap.world = worldDelta(lobby, true, clientWorldKey);
     } else {
-      snap.world = worldDelta(lobby, false); // null unless changed (optional)
+      snap.world = worldDelta(lobby, false, clientWorldKey);
     }
 
     return res.json(snap); // 🚨 THIS LINE is what was missing
@@ -2138,7 +2134,7 @@ setInterval(() => {
       bullets: lobby.bullets,
 
       // ✅ only send world when it changes
-      world: worldDelta(lobby, false),
+      world: worldDelta(lobby, false, lobby.snapshot?.meta?.worldKey),
 
       meta: {
         lobbyId: lobby.id,
