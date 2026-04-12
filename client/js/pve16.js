@@ -727,12 +727,15 @@
             ctx.fillRect(x, y, hz.w, hz.h);
 
             ctx.fillStyle = 'rgba(255,120,40,0.7)';
-            for (let i = 0; i < 18; i++) {
-              ctx.fillRect(
-                x + Math.random() * hz.w,
-                y + Math.random() * hz.h,
-                3, 3
-              );
+            if ((SIM_TICK & 3) === 0) { // once every 4 frames
+              for (let i = 0; i < 6; i++) {
+                ctx.fillRect(
+                  x + Math.random() * hz.w,
+                  y + Math.random() * hz.h,
+                  3,
+                  3
+                );
+              }
             }
           }
 
