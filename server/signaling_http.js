@@ -1548,6 +1548,10 @@ app.post('/player/guns', (req, res) => {
 
   flushWaiters(lobby);
   res.json({ ok: true });
+  // ✅ allow weapon selection from customise
+  if (Number.isInteger(guns?.weapon) && guns.weapon >= 0 && guns.weapon <= 2) {
+    p.weapon = guns.weapon;
+  }
 });
 
 app.post('/player/design', (req, res) => {

@@ -1752,6 +1752,15 @@ function buildGunsUI(){
             if (kind === 'rifle')   { rifleIndex   = -1; store.write('rifleIndex',   -1); }
             if (kind === 'shotgun') { shotgunIndex = -1; store.write('shotgunIndex', -1); }
             makeGrid(gridId, kind, -1);
+            
+            if (isNetActive()) {
+              Net.setGuns({
+                pistol: pistolIndex,
+                rifle: rifleIndex,
+                shotgun: shotgunIndex
+              });
+            }
+
         };
 
         if (currentIndex === -1) card.classList.add('selected');
@@ -1777,22 +1786,26 @@ function buildGunsUI(){
         badge.textContent = 'Unlock @ Wave ' + req;
         card.appendChild(badge);
       } else {
-        card.onclick = () => {
-          if (kind === 'pistol')  { pistolIndex  = -1; store.write('pistolIndex',  -1); }
-          if (kind === 'rifle')   { rifleIndex   = -1; store.write('rifleIndex',   -1); }
-          if (kind === 'shotgun') { shotgunIndex = -1; store.write('shotgunIndex', -1); }
+        
+      card.onclick = () => {
+        // ✅ Set the chosen skin index (NOT -1)
+        if (kind === 'pistol')  { pistolIndex  = idx; store.write('pistolIndex',  idx); }
+        if (kind === 'rifle')   { rifleIndex   = idx; store.write('rifleIndex',   idx); }
+        if (kind === 'shotgun') { shotgunIndex = idx; store.write('shotgunIndex', idx); }
 
-          makeGrid(gridId, kind, -1);
+        // Rebuild with the new selection highlighted
+        makeGrid(gridId, kind, idx);
 
-          // ✅ SYNC DEFAULT TOO
-          if (isNetActive()) {
-            Net.setGuns({
-              pistol: pistolIndex,
-              rifle: rifleIndex,
-              shotgun: shotgunIndex
-            });
-          }
-        };
+        // ✅ Sync to server so it persists in multiplayer
+        if (isNetActive()) {
+          Net.setGuns({
+            pistol: pistolIndex,
+            rifle: rifleIndex,
+            shotgun: shotgunIndex
+          });
+        }
+      };
+
       }
 
       if (idx === currentIndex) card.classList.add('selected');
