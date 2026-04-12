@@ -29,6 +29,9 @@
   const btnSettings = document.getElementById('btnSettings');
   const btnHomeCustomize = document.getElementById('homeCustomize');
   let HAS_SERVER_WORLD = false;
+  let _staticWorldCanvas = null;
+  let _staticWorldCtx = null;
+  let _staticWorldKey = '';
   async function leaveMultiplayerAndReturnHome() {
     // Stop gameplay
     try { state.running = false; } catch {}
@@ -166,6 +169,26 @@
     Net.setColor(selectedColor).catch(() => {});
 
     _sentAppearanceOnce = true;
+  }
+  function rebuildStaticWorldIfNeeded() {
+    const snap = Net?.state?.snapshot;
+    const key =
+      isNetActive() && snap
+        ? String(snap.meta?.worldKey ?? '') + ':' + String(snap.meta?.chestVer ?? 0)
+        : 'offline:' + currentTheme.id;
+
+    if (_staticWorldCanvas && key === _staticWorldKey) return;
+
+    _staticWorldKey = key;
+    _staticWorldCanvas = document.createElement('canvas');
+    _staticWorldCanvas.width = canvas.width;
+    _staticWorldCanvas.height = canvas.height;
+
+    _staticWorldCtx = _staticWorldCanvas.getContext('2d', { alpha: false });
+
+    // ✅ draw ONCE
+    world.drawFloor(_staticWorldCtx);
+    world.drawObstacles(_staticWorldCtx);
   }
 
 
@@ -3464,13 +3487,14 @@ window.addEventListener('net:snapshot', () => {
         : ents.enemies;
 
     // World layers
-    world.drawFloor();
-    world.drawHazards();
+    rebuildStaticWorldIfNeeded();
 
-    
-    if (!isNetActive() || HAS_SERVER_WORLD) {
-      world.drawObstacles();
+    if (_staticWorldCanvas) {
+      ctx.drawImage(_staticWorldCanvas, 0, 0);
     }
+
+    // dynamic hazards only
+    world.drawHazards();
 
 
     // ---------------------------
