@@ -3866,7 +3866,7 @@ window.addEventListener('net:snapshot', () => {
     if ((SIM_TICK & 3) === 0) {
       drawMinimap();
     }
-    updateHUD();
+    if ((SIM_TICK & 1) === 0) updateHUD();
     updateNetStatus();
   }
 
