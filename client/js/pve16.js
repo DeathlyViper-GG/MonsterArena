@@ -692,30 +692,8 @@
           // hz.phase is authoritative from server
           // === RENDERING ===
 
-          if (hz.phase === 'idle') {
-            const g = ctx.createLinearGradient(0,y,0,y+hz.h);
-            g.addColorStop(0,'#2a1a12');
-            g.addColorStop(1,'#1a0e08');
-            ctx.fillStyle = g;
-            ctx.fillRect(x,y,hz.w,hz.h);
-
-          } else if (hz.phase === 'warn') {
-            const pulse = hz.timer / warnTime;
-            ctx.fillStyle = `rgba(255,120,40,${0.2 + pulse*0.5})`;
-            ctx.fillRect(x,y,hz.w,hz.h);
-
-            // growing pulse circle
-            ctx.save();
-            ctx.translate(cx,cy);
-            ctx.strokeStyle = `rgba(255,200,80,${0.4 + pulse*0.4})`;
-            ctx.lineWidth = 4;
-            ctx.beginPath();
-            ctx.arc(0,0, Math.min(hz.w,hz.h)*0.3*pulse, 0, Math.PI*2);
-            ctx.stroke();
-            ctx.restore();
-
-          } else if (hz.phase === 'erupt') {
-            // bright vertical geyser
+          if (hz.phase === 'eruption') {
+            // ERUPTION — violent geyser
             const g = ctx.createLinearGradient(cx, cy-hz.h*1.2, cx, cy);
             g.addColorStop(0,'#ffffff');
             g.addColorStop(0.3,'#ffd766');
@@ -729,18 +707,26 @@
             ctx.fill();
             ctx.restore();
 
-          } else if (hz.phase === 'after') {
-            // Scorched DoT zone
+          }
+          else if (hz.phase === 'burn') {
+            // BURNING GROUND — DoT zone
             ctx.fillStyle = '#3a1a0a';
             ctx.fillRect(x,y,hz.w,hz.h);
 
-            // lava flecks
             ctx.fillStyle = 'rgba(255,120,40,0.7)';
             for (let i=0;i<20;i++){
               const fx = x + Math.random()*hz.w;
               const fy = y + Math.random()*hz.h;
               ctx.fillRect(fx, fy, 3, 3);
             }
+          }
+          else { // 'cool'
+            // COOLED CRUST
+            const g = ctx.createLinearGradient(0,y,0,y+hz.h);
+            g.addColorStop(0,'#2a1a12');
+            g.addColorStop(1,'#1a0e08');
+            ctx.fillStyle = g;
+            ctx.fillRect(x,y,hz.w,hz.h);
           }
 
           // outline
