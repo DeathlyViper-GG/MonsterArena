@@ -667,18 +667,37 @@
       return null;
     },
     drawFloor(){
-      const g = ctx.createLinearGradient(0,0,0,canvas.height);
-      g.addColorStop(0, currentTheme.floor.c1); g.addColorStop(1, currentTheme.floor.c2);
-      ctx.fillStyle=g; ctx.fillRect(0,0,canvas.width,canvas.height);
-      const grid=64, ox=-((cam.x+cam.sx)%grid), oy=-((cam.y+cam.sy)%grid);
-      ctx.strokeStyle=currentTheme.floor.grid; ctx.lineWidth=1; ctx.beginPath();
-      for(let x=ox; x<canvas.width; x+=grid){ ctx.moveTo(x,0); ctx.lineTo(x,canvas.height); }
-      for(let y=oy; y<canvas.height; y+=grid){ ctx.moveTo(0,y); ctx.lineTo(canvas.width,y); }
+      // ✅ Use CSS pixel size (VIEW.w/VIEW.h), because ctx is already scaled by DPR
+      const W = VIEW.w;
+      const H = VIEW.h;
+
+      const g = ctx.createLinearGradient(0, 0, 0, H);
+      g.addColorStop(0, currentTheme.floor.c1);
+      g.addColorStop(1, currentTheme.floor.c2);
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, W, H);
+
+      const grid = 64;
+      const ox = -((cam.x + cam.sx) % grid);
+      const oy = -((cam.y + cam.sy) % grid);
+
+      ctx.strokeStyle = currentTheme.floor.grid;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+
+      for (let x = ox; x < W; x += grid) { ctx.moveTo(x, 0); ctx.lineTo(x, H); }
+      for (let y = oy; y < H; y += grid) { ctx.moveTo(0, y); ctx.lineTo(W, y); }
+
       ctx.stroke();
-      const vg = ctx.createRadialGradient(canvas.width/2, canvas.height/2, Math.min(canvas.width,canvas.height)/3,
-                                          canvas.width/2, canvas.height/2, Math.max(canvas.width,canvas.height)/1.1);
-      vg.addColorStop(0,'rgba(0,0,0,0)'); vg.addColorStop(1,'rgba(0,0,0,0.35)');
-      ctx.fillStyle=vg; ctx.fillRect(0,0,canvas.width,canvas.height);
+
+      const vg = ctx.createRadialGradient(
+        W / 2, H / 2, Math.min(W, H) / 3,
+        W / 2, H / 2, Math.max(W, H) / 1.1
+      );
+      vg.addColorStop(0, 'rgba(0,0,0,0)');
+      vg.addColorStop(1, 'rgba(0,0,0,0.35)');
+      ctx.fillStyle = vg;
+      ctx.fillRect(0, 0, W, H);
     },
     drawHazards(){
       const t = performance.now()/1000;
@@ -3903,18 +3922,6 @@ window.addEventListener('net:snapshot', () => {
     const tx = x => offsetX + x * scale;
     const ty = y => offsetY + y * scale;
 
-    // ===============================
-    // ✅ DEBUG PURPLE BOX (FULL MAP)
-    // ===============================
-    mctx.strokeStyle = '#ff00ff';
-    mctx.lineWidth = 2;
-    mctx.strokeRect(0, 0, mw, mh);
-    // 🔴 mark minimap corners
-    mctx.fillStyle = '#ff0000';
-    mctx.fillRect(0, 0, 6, 6);                 // top-left
-    mctx.fillRect(mw - 6, 0, 6, 6);            // top-right
-    mctx.fillRect(0, mh - 6, 6, 6);            // bottom-left
-    mctx.fillRect(mw - 6, mh - 6, 6, 6);       // bottom-right
 
     // Arena border (scaled world bounds)
     mctx.strokeStyle = '#5ad2ff';

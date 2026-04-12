@@ -178,7 +178,10 @@
             { cache: 'no-store' }
           );
 
-          if (r.status === 204) continue;
+          if (r.status === 204) {
+            await new Promise(res => setTimeout(res, 60)); 
+            continue; 
+          }
           const snap = await r.json();
           this.state.snapshot = snap;
           window.dispatchEvent(new CustomEvent('net:snapshot', { detail: snap }));
@@ -218,7 +221,7 @@
     sendInput(ix, iy, ang, x, y, weapon) {
       // ✅ throttle input sends (reduces lag massively)
       const now = performance.now();
-      const MIN_MS = 33; // ~30 sends/sec (try 50 for ~20/sec if still heavy)
+      const MIN_MS = 50; // ~30 sends/sec (try 50 for ~20/sec if still heavy)
       if (this._lastInputAt && (now - this._lastInputAt) < MIN_MS) return;
       this._lastInputAt = now;
 
