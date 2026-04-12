@@ -687,30 +687,9 @@
       const t = performance.now()/1000;
       for(const hz of this.hazards){
         const x=hz.x - cam.x - cam.sx, y=hz.y - cam.y - cam.sy;
-        if(hz.type==='lava') {
-          
+        if (hz.type === 'lava') {
           const cx = x + hz.w/2, cy = y + hz.h/2;
-
-          // Rendering-only delta (draw loop has no dt)
-          const dt2 = 1/60;
-
-          // Initialize geyser cycle
-          hz.phase = hz.phase || 'idle';   // idle → warn → erupt → after
-          hz.timer = hz.timer || 0;
-          hz.timer += dt2;
-
-          // Timings
-          const idleTime  = 1.4;
-          const warnTime  = 1.0;
-          const eruptTime = 0.35;
-          const afterTime = 2.5;
-
-          // Cycle transitions
-          if (hz.phase === 'idle'  && hz.timer >= idleTime)  { hz.phase='warn';  hz.timer=0; }
-          else if (hz.phase === 'warn'  && hz.timer >= warnTime)  { hz.phase='erupt'; hz.timer=0; }
-          else if (hz.phase === 'erupt' && hz.timer >= eruptTime) { hz.phase='after'; hz.timer=0; }
-          else if (hz.phase === 'after' && hz.timer >= afterTime) { hz.phase='idle';  hz.timer=0; }
-
+          // hz.phase is authoritative from server
           // === RENDERING ===
 
           if (hz.phase === 'idle') {

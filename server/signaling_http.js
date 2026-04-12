@@ -236,10 +236,18 @@ function applyEnemyHazards(lobby, e, dt){
     return false;
   }
 
-  if (hz.type === 'lava'){
-    // server has no phase state; treat lava as lethal contact (matches your help text)
-    e.hp = 0;
-    return true;
+  if (hz.type === 'lava') {
+    hz.lavaT = hz.lavaT ?? 0;
+
+    if (hz.phase === 'eruption') {
+      e.hp = 0;               // instant kill
+      return true;
+    }
+
+    if (hz.phase === 'burn') {
+      e.hp -= 35 * dt;        // continuous damage
+      return false;
+    }
   }
 
   if (hz.type === 'void'){
@@ -1864,6 +1872,30 @@ setInterval(() => {
     // Compute dt first (safe)
     const dt = Math.min(0.03, (t - lobby.lastTick) / 1000);
     lobby.lastTick = t;
+
+    // ---- Lava phase update ----
+    if (lobby.world?.hazards) {
+      for (const hz of lobby.world.hazards) {
+        if (hz.type !== 'lava') continue;
+
+        hz.phase = hz.phase ?? 'eruption';
+        hz.lavaT = (hz.lavaT ?? 0) + dt;
+
+        // Eruption → Burning ground
+        if (hz.phase === 'eruption' && hz.lavaT > 0.7) {
+          hz.phase = 'burn';
+          hz.lavaT = 0;
+          lobby.chestVer++; // force world refresh
+        }
+
+        // Burning → Cooled crust
+        else if (hz.phase === 'burn' && hz.lavaT > 6.5) {
+          hz.phase = 'cool';
+          hz.lavaT = 0;
+          lobby.chestVer++; // force world refresh
+        }
+      }
+    }
 
     // Start lobby when countdown ends
     // Start lobby when countdown ends
