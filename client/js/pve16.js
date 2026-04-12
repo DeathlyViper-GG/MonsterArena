@@ -688,51 +688,65 @@
       for(const hz of this.hazards){
         const x=hz.x - cam.x - cam.sx, y=hz.y - cam.y - cam.sy;
         if (hz.type === 'lava') {
-          const cx = x + hz.w/2, cy = y + hz.h/2;
-          // hz.phase is authoritative from server
-          // === RENDERING ===
+          const cx = x + hz.w / 2;
+          const cy = y + hz.h / 2;
 
-          if (hz.phase === 'eruption') {
-            // ERUPTION — violent geyser
-            const g = ctx.createLinearGradient(cx, cy-hz.h*1.2, cx, cy);
-            g.addColorStop(0,'#ffffff');
-            g.addColorStop(0.3,'#ffd766');
-            g.addColorStop(1,'#ff6a00');
+          // 🔔 WARNING PHASE — glow ring, no damage
+          if (hz.phase === 'warn') {
+            const pulse = (Math.sin(performance.now() * 0.004) * 0.5 + 0.5);
+
+            ctx.fillStyle = `rgba(255,140,40,${0.15 + pulse * 0.25})`;
+            ctx.fillRect(x, y, hz.w, hz.h);
+
+            ctx.save();
+            ctx.translate(cx, cy);
+            ctx.beginPath();
+            ctx.strokeStyle = `rgba(255,200,80,${0.5 + pulse * 0.3})`;
+            ctx.lineWidth = 4;
+            ctx.arc(0, 0, Math.min(hz.w, hz.h) * 0.35, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.restore();
+          }
+
+          // 🌋 ERUPTION — instant‑kill blast
+          else if (hz.phase === 'eruption') {
+            const g = ctx.createLinearGradient(cx, cy - hz.h, cx, cy);
+            g.addColorStop(0, '#ffffff');
+            g.addColorStop(0.3, '#ffd766');
+            g.addColorStop(1, '#ff6a00');
             ctx.fillStyle = g;
 
             ctx.save();
-            ctx.translate(cx,cy);
+            ctx.translate(cx, cy);
             ctx.beginPath();
-            ctx.ellipse(0,0, hz.w*0.45, hz.h*1.25, 0, 0, Math.PI*2);
+            ctx.ellipse(0, 0, hz.w * 0.45, hz.h * 1.25, 0, 0, Math.PI * 2);
             ctx.fill();
             ctx.restore();
-
           }
+
+          // 🔥 BURN PHASE — chip damage only
           else if (hz.phase === 'burn') {
-            // BURNING GROUND — DoT zone
             ctx.fillStyle = '#3a1a0a';
-            ctx.fillRect(x,y,hz.w,hz.h);
+            ctx.fillRect(x, y, hz.w, hz.h);
 
             ctx.fillStyle = 'rgba(255,120,40,0.7)';
-            for (let i=0;i<20;i++){
-              const fx = x + Math.random()*hz.w;
-              const fy = y + Math.random()*hz.h;
-              ctx.fillRect(fx, fy, 3, 3);
+            for (let i = 0; i < 18; i++) {
+              ctx.fillRect(
+                x + Math.random() * hz.w,
+                y + Math.random() * hz.h,
+                3, 3
+              );
             }
           }
-          else { // 'cool'
-            // COOLED CRUST
-            const g = ctx.createLinearGradient(0,y,0,y+hz.h);
-            g.addColorStop(0,'#2a1a12');
-            g.addColorStop(1,'#1a0e08');
-            ctx.fillStyle = g;
-            ctx.fillRect(x,y,hz.w,hz.h);
-          }
 
-          // outline
-          ctx.strokeStyle='#ff7a6644';
-          ctx.lineWidth=2;
-          ctx.strokeRect(x+1,y+1,hz.w-2,hz.h-2);
+          // 🧱 COOL PHASE
+          else {
+            const g = ctx.createLinearGradient(0, y, 0, y + hz.h);
+            g.addColorStop(0, '#2a1a12');
+            g.addColorStop(1, '#1a0e08');
+            ctx.fillStyle = g;
+            ctx.fillRect(x, y, hz.w, hz.h);
+          }
 
           
         } else if(hz.type==='ice'){

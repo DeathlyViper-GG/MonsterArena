@@ -237,17 +237,28 @@ function applyEnemyHazards(lobby, e, dt){
   }
 
   if (hz.type === 'lava') {
-    hz.lavaT = hz.lavaT ?? 0;
 
-    if (hz.phase === 'eruption') {
-      e.hp = 0;               // instant kill
+    const phase = hz.phase;
+
+    // 🔔 Warning: no damage
+    if (phase === 'warn') {
+      return false;
+    }
+
+    // 🌋 Eruption: instant kill
+    if (phase === 'eruption') {
+      e.hp = 0;
       return true;
     }
 
-    if (hz.phase === 'burn') {
-      e.hp -= 35 * dt;        // continuous damage
+    // 🔥 Burning ground: chip damage only
+    if (phase === 'burn') {
+      e.hp -= 20 * dt;
       return false;
     }
+
+    // 🧱 Cool phase: harmless
+    return false;
   }
 
   if (hz.type === 'void'){
@@ -1878,21 +1889,28 @@ setInterval(() => {
       for (const hz of lobby.world.hazards) {
         if (hz.type !== 'lava') continue;
 
-        hz.phase = hz.phase ?? 'eruption';
+        hz.phase = hz.phase ?? 'warn';
         hz.lavaT = (hz.lavaT ?? 0) + dt;
 
-        // Eruption → Burning ground
-        if (hz.phase === 'eruption' && hz.lavaT > 0.7) {
-          hz.phase = 'burn';
+        // warn → eruption (visual warning, no damage)
+        if (hz.phase === 'warn' && hz.lavaT > 1.2) {
+          hz.phase = 'eruption';
           hz.lavaT = 0;
-          lobby.chestVer++; // force world refresh
+          lobby.chestVer++;
         }
 
-        // Burning → Cooled crust
-        else if (hz.phase === 'burn' && hz.lavaT > 6.5) {
+        // eruption → burn (instant kill window)
+        else if (hz.phase === 'eruption' && hz.lavaT > 0.4) {
+          hz.phase = 'burn';
+          hz.lavaT = 0;
+          lobby.chestVer++;
+        }
+
+        // burn → cool (chip damage only)
+        else if (hz.phase === 'burn' && hz.lavaT > 6.0) {
           hz.phase = 'cool';
           hz.lavaT = 0;
-          lobby.chestVer++; // force world refresh
+          lobby.chestVer++;
         }
       }
     }
