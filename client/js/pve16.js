@@ -3178,8 +3178,13 @@ window.addEventListener('net:snapshot', () => {
     if (!online) {
       state.spawnT += dt;
 
-      while (spawnQueue.length && state.spawnT >= spawnQueue[0].t) {
-        const s = spawnQueue.shift();
+      if (state.spawnIdx == null) state.spawnIdx = 0;
+
+        while (
+          state.spawnIdx < spawnQueue.length &&
+          state.spawnT >= spawnQueue[state.spawnIdx].t
+        ) {
+          const s = spawnQueue[state.spawnIdx++];
         const cNow = nav.cellFrom(player.x, player.y);
         nav.floodFrom(cNow.ix, cNow.iy);
         let x = s.x, y = s.y;
