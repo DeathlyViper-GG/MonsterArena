@@ -31,7 +31,7 @@ app.get('/player/guns',   (req, res) => res.status(405).json({ ok:false, error:'
 // --- required: design endpoint (prevents 404 + enables appearance sync) ---
 // ✅ SERVE THE GAME CLIENT
 
-const TICK_MS = 15; // 100Hz
+const TICK_MS = 30; // 100Hz
 const LOBBY_INTERVAL = 10_000;
 const WORLD = { w: 4000, h: 2800 };
 const DISCONNECT_TIMEOUT = 1_000; // 0.1 seconds
