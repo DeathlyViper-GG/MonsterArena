@@ -1892,23 +1892,30 @@ setInterval(() => {
         hz.phase = hz.phase ?? 'warn';
         hz.lavaT = (hz.lavaT ?? 0) + dt;
 
-        // warn → eruption (visual warning, no damage)
+        // 🔔 warn → eruption
         if (hz.phase === 'warn' && hz.lavaT > 1.2) {
           hz.phase = 'eruption';
           hz.lavaT = 0;
           lobby.chestVer++;
         }
 
-        // eruption → burn (instant kill window)
+        // 🌋 eruption → burn
         else if (hz.phase === 'eruption' && hz.lavaT > 0.4) {
           hz.phase = 'burn';
           hz.lavaT = 0;
           lobby.chestVer++;
         }
 
-        // burn → cool (chip damage only)
+        // 🔥 burn → cool
         else if (hz.phase === 'burn' && hz.lavaT > 6.0) {
           hz.phase = 'cool';
+          hz.lavaT = 0;
+          lobby.chestVer++;
+        }
+
+        // 🧱 cool → warn (REPEAT)
+        else if (hz.phase === 'cool' && hz.lavaT > 3.5) {
+          hz.phase = 'warn';
           hz.lavaT = 0;
           lobby.chestVer++;
         }
