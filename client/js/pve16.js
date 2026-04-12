@@ -170,38 +170,6 @@
 
     _sentAppearanceOnce = true;
   }
-  function rebuildStaticWorldIfNeeded() {
-    const snap = Net?.state?.snapshot;
-    const key =
-      isNetActive() && snap
-        ? String(snap.meta?.worldKey ?? '') + ':' + String(snap.meta?.chestVer ?? 0)
-        : 'offline:' + currentTheme.id;
-
-    if (_staticWorldCanvas && key === _staticWorldKey) return;
-
-    _staticWorldKey = key;
-
-    _staticWorldCanvas = document.createElement('canvas');
-    _staticWorldCanvas.width  = VIEW.w;
-    _staticWorldCanvas.height = VIEW.h;
-
-    _staticWorldCtx = _staticWorldCanvas.getContext('2d', { alpha: false });
-
-    // Match main canvas transform
-    _staticWorldCtx.setTransform(VIEW.dpr, 0, 0, VIEW.dpr, 0, 0);
-    _staticWorldCtx.clearRect(0, 0, VIEW.w, VIEW.h);
-
-    // ✅ TEMPORARY CONTEXT SWAP (KEY FIX)
-    const savedCtx = ctx;
-    ctx = _staticWorldCtx;
-
-    try {
-      world.drawFloor();
-      world.drawObstacles();
-    } finally {
-      ctx = savedCtx;
-    }
-  }
 
 
   let _sentGunsOnce = false;
@@ -502,13 +470,7 @@
 
   let selectedDesign = getTabDesign();
   let selectedColor  = getTabColor();
-  console.log('[BOOT DESIGN]', {
-    tabId: crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2),
-    selectedDesign,
-    selectedColor,
-    sessionDesign: sessionStorage.getItem('design'),
-    sessionColor: sessionStorage.getItem('color')
-  });
+  
  // Gun variant indices (persisted)
  // -1 means "Default sprite"
  let pistolIndex  = parseInt(store.read('pistolIndex',  '-1'),10);
@@ -1645,11 +1607,6 @@ function buildSkins(){
 
         // ✅ MULTIPLAYER: sync body design to server
         if (isNetActive()) {
-          console.log('[SEND DESIGN]', {
-            peerId: Net.state?.peerId,
-            design: selectedDesign,
-            color: selectedColor
-          });
 
           Net.setDesign(selectedDesign);
           Net.setColor(selectedColor);
@@ -2810,12 +2767,6 @@ window.addEventListener('net:snapshot', () => {
   const snap = Net?.state?.snapshot;
   if (!snap || !Array.isArray(snap.players)) return;
 
-  console.log('[CLIENT SNAPSHOT]', snap.players.map(p => ({
-    id: p.id,
-    design: p.design,
-    color: p.color,
-    designType: typeof p.design
-  })));
 
   renderLobbyPlayers();
 
@@ -3499,14 +3450,13 @@ window.addEventListener('net:snapshot', () => {
         : ents.enemies;
 
     // World layers
-    rebuildStaticWorldIfNeeded();
-
-    if (_staticWorldCanvas) {
-      ctx.drawImage(_staticWorldCanvas, 0, 0);
-    }
-
-    // dynamic hazards only
+    world.drawFloor();
     world.drawHazards();
+
+    
+    if (!isNetActive() || HAS_SERVER_WORLD) {
+      world.drawObstacles();
+    }
 
 
     // ---------------------------
@@ -3731,12 +3681,6 @@ window.addEventListener('net:snapshot', () => {
         ctx.translate(px, py);
         ctx.rotate(rp.ang ?? 0);
         
-        console.log('[DRAW REMOTE]', {
-          viewer: Net.state.peerId,
-          target: rp.id,
-          design,
-          color: colIdx
-        });
         // ✅ BODY ONLY — no gun, no local state
         drawDesign(
           design,
