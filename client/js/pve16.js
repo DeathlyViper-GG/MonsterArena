@@ -3863,7 +3863,9 @@ window.addEventListener('net:snapshot', () => {
     // Chests, minimap, HUD
     // ---------------------------
     world.drawChests();
-    drawMinimap();
+    if ((SIM_TICK & 3) === 0) {
+      drawMinimap();
+    }
     updateHUD();
     updateNetStatus();
   }
