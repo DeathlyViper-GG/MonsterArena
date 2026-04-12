@@ -180,13 +180,21 @@
     if (_staticWorldCanvas && key === _staticWorldKey) return;
 
     _staticWorldKey = key;
+
+    // ✅ IMPORTANT: use CSS pixel size, not device pixels
     _staticWorldCanvas = document.createElement('canvas');
-    _staticWorldCanvas.width = canvas.width;
-    _staticWorldCanvas.height = canvas.height;
+    _staticWorldCanvas.width  = VIEW.w;
+    _staticWorldCanvas.height = VIEW.h;
 
     _staticWorldCtx = _staticWorldCanvas.getContext('2d', { alpha: false });
 
-    // ✅ draw ONCE
+    // ✅ MATCH main canvas transform (CRITICAL)
+    _staticWorldCtx.setTransform(VIEW.dpr, 0, 0, VIEW.dpr, 0, 0);
+
+    // Clear
+    _staticWorldCtx.clearRect(0, 0, VIEW.w, VIEW.h);
+
+    // ✅ draw static layers once
     world.drawFloor(_staticWorldCtx);
     world.drawObstacles(_staticWorldCtx);
   }
