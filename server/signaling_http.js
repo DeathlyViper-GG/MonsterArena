@@ -2024,6 +2024,32 @@ setInterval(() => {
 
       p.x = clamp(p.x, 30, WORLD.w - 30);
       p.y = clamp(p.y, 30, WORLD.h - 30);
+      // ---- Lava hazard (players) ----
+      if (lobby.world?.hazards) {
+        for (const hz of lobby.world.hazards) {
+          if (hz.type !== 'lava') continue;
+
+          // player radius ~16
+          if (!circleRectCollide(p.x, p.y, 16, hz)) continue;
+
+          const phase = hz.phase;
+
+          // 🔔 warn = no damage
+          if (phase === 'warn') continue;
+
+          // 🌋 eruption = instant kill
+          if (phase === 'eruption') {
+            p.hp = 0;
+            break;
+          }
+
+          // 🔥 burn = chip damage
+          if (phase === 'burn') {
+            p.hp -= 20 * dt;
+            clampHp(p);
+          }
+        }
+      }
 
       // ✅ velocity for sniper lead aim
       p.vx = (p.x - prevX) / dt;
