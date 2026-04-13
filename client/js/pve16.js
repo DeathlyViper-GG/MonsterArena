@@ -3481,7 +3481,7 @@ window.addEventListener('net:snapshot', () => {
    
     // World layers (floor + obstacles must stay in sync)
    // --- World layers (must stay in sync to avoid flashing/shudder) ---
-    if ((SIM_TICK & 15) === 0) {
+    if ((SIM_TICK & 1) === 0) {
       world.drawFloor();
       world.drawHazards();
 
