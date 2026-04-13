@@ -29,7 +29,9 @@
   const btnSettings = document.getElementById('btnSettings');
   const btnHomeCustomize = document.getElementById('homeCustomize');
   let HAS_SERVER_WORLD = false;
-  let WORLD_DRAWN_ONCE = false;
+  let STATIC_WORLD_CANVAS = null;
+  let STATIC_WORLD_CTX = null;
+  let STATIC_WORLD_KEY = '';
   async function leaveMultiplayerAndReturnHome() {
     // Stop gameplay
     try { state.running = false; } catch {}
@@ -167,49 +169,6 @@
     Net.setColor(selectedColor).catch(() => {});
 
     _sentAppearanceOnce = true;
-  }
-  function drawWorldOnce() {
-    if (WORLD_DRAWN_ONCE) return;
-    WORLD_DRAWN_ONCE = true;
-
-    // ---- FLOOR ----
-    const g = ctx.createLinearGradient(0, 0, 0, VIEW.h);
-    g.addColorStop(0, currentTheme.floor.c1);
-    g.addColorStop(1, currentTheme.floor.c2);
-    ctx.fillStyle = g;
-    ctx.fillRect(0, 0, VIEW.w, VIEW.h);
-
-    // ---- GRID ----
-    const grid = 64;
-    ctx.strokeStyle = currentTheme.floor.grid;
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    for (let x = 0; x < VIEW.w; x += grid) {
-      ctx.moveTo(x, 0);
-      ctx.lineTo(x, VIEW.h);
-    }
-    for (let y = 0; y < VIEW.h; y += grid) {
-      ctx.moveTo(0, y);
-      ctx.lineTo(VIEW.w, y);
-    }
-    ctx.stroke();
-
-    // ---- OBSTACLES / BUILDINGS ----
-    ctx.fillStyle = currentTheme.obs.fill;
-    ctx.strokeStyle = currentTheme.obs.stroke;
-    ctx.lineWidth = 2;
-
-    for (const s of world.solids) {
-      roundRect(ctx, s.x - cam.x, s.y - cam.y, s.w, s.h, 10);
-      ctx.fill();
-      ctx.stroke();
-    }
-
-    for (const b of world.buildings) {
-      roundRect(ctx, b.x - cam.x, b.y - cam.y, b.w, b.h, 10);
-      ctx.fill();
-      ctx.stroke();
-    }
   }
 
 
@@ -2652,8 +2611,6 @@ if (btnHomeCustomize){
     updateHudButtonsForMode();                // ← lets update() run
     if (audio.musicOn) audio.startMusic();
     canvas.focus();
-    WORLD_DRAWN_ONCE = false;
-    drawWorldOnce();
   }
   function applyTheme(theme){ currentTheme=theme; state.diff=parseFloat(selDiff.value||'1.0')||1.0; lvlEl.textContent=`${currentTheme.id} — ${currentTheme.name}` 
     if (!window.Net || !Net.state || !Net.state.lobbyId) {
@@ -3520,7 +3477,13 @@ window.addEventListener('net:snapshot', () => {
         : ents.enemies;
 
     // World layers
+    world.drawFloor();
+    world.drawHazards();
+
     
+    if (!isNetActive() || HAS_SERVER_WORLD) {
+      world.drawObstacles();
+    }
 
 
     // ---------------------------
