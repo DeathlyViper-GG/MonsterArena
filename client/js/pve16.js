@@ -3468,8 +3468,6 @@ window.addEventListener('net:snapshot', () => {
 
 
   function draw(dt) {
-    // --- FRAME CLEAR (every frame) ---
-    ctx.clearRect(0, 0, VIEW.w, VIEW.h);
     const online = isNetActive();
     const snap = online ? (Net.state && Net.state.snapshot) : null;
 
@@ -3483,15 +3481,13 @@ window.addEventListener('net:snapshot', () => {
    
     // World layers (floor + obstacles must stay in sync)
    // --- World layers (must stay in sync to avoid flashing/shudder) ---
-    // --- World layers (safe: clear is done above) ---
-    if ((SIM_TICK & 3) === 0) {
+    if ((SIM_TICK & 0) === 0) {
       world.drawFloor();
-    }
+      world.drawHazards();
 
-    world.drawHazards();
-
-    if (!isNetActive() || HAS_SERVER_WORLD) {
-      world.drawObstacles();
+      if (!isNetActive() || HAS_SERVER_WORLD) {
+        world.drawObstacles(); // ✅ always redraw on top of floor
+      }
     }
 
 
