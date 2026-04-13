@@ -3478,9 +3478,9 @@ window.addEventListener('net:snapshot', () => {
 
     // World layers
     // Floor does not need 60Hz redraw
-    if ((SIM_TICK & 3) === 0) {
-      world.drawFloor();
-    }
+   
+    world.drawFloor();
+
     world.drawHazards();
 
     
