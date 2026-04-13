@@ -3480,13 +3480,16 @@ window.addEventListener('net:snapshot', () => {
     // Floor does not need 60Hz redraw
    
     // World layers (floor + obstacles must stay in sync)
+   // --- World layers (must stay in sync to avoid flashing/shudder) ---
     if ((SIM_TICK & 3) === 0) {
       world.drawFloor();
       world.drawHazards();
+
       if (!isNetActive() || HAS_SERVER_WORLD) {
-        world.drawObstacles();
+        world.drawObstacles(); // ✅ always redraw on top of floor
       }
     }
+
 
 
     // ---------------------------
