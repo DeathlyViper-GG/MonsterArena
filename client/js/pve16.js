@@ -1916,7 +1916,7 @@ if (btnHomeCustomize){
 }
 
   // ===== AI Helpers: tiers, buildings, doors, line-of-sight, squads =====
-  let DEBUG_AI = true;
+  let DEBUG_AI = false;
 
   // Progressive AI tiers by wave
   function aiTier() {
@@ -3477,7 +3477,10 @@ window.addEventListener('net:snapshot', () => {
         : ents.enemies;
 
     // World layers
-    world.drawFloor();
+    // ✅ Draw static floor only every 4 frames
+    if ((SIM_TICK & 3) === 0) {
+      world.drawFloor();
+    }
     world.drawHazards();
 
     
