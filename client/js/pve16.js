@@ -29,9 +29,7 @@
   const btnSettings = document.getElementById('btnSettings');
   const btnHomeCustomize = document.getElementById('homeCustomize');
   let HAS_SERVER_WORLD = false;
-  let STATIC_WORLD_CANVAS = null;
-  let STATIC_WORLD_CTX = null;
-  let STATIC_WORLD_KEY = '';
+  let WORLD_DRAWN_ONCE = false;
   async function leaveMultiplayerAndReturnHome() {
     // Stop gameplay
     try { state.running = false; } catch {}
@@ -170,59 +168,48 @@
 
     _sentAppearanceOnce = true;
   }
+  function drawWorldOnce() {
+    if (WORLD_DRAWN_ONCE) return;
+    WORLD_DRAWN_ONCE = true;
 
-  function rebuildStaticWorldIfNeeded(worldKey) {
-    if (STATIC_WORLD_KEY === worldKey && STATIC_WORLD_CANVAS) return;
-
-    STATIC_WORLD_KEY = worldKey;
-
-    // Create offscreen canvas in WORLD space
-    const c = document.createElement('canvas');
-    c.width = world.w;
-    c.height = world.h;
-    const cctx = c.getContext('2d');
-
-    // --- draw floor (ONCE) ---
-    const g = cctx.createLinearGradient(0, 0, 0, world.h);
+    // ---- FLOOR ----
+    const g = ctx.createLinearGradient(0, 0, 0, VIEW.h);
     g.addColorStop(0, currentTheme.floor.c1);
     g.addColorStop(1, currentTheme.floor.c2);
-    cctx.fillStyle = g;
-    cctx.fillRect(0, 0, world.w, world.h);
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, VIEW.w, VIEW.h);
 
-    // Grid
+    // ---- GRID ----
     const grid = 64;
-    cctx.strokeStyle = currentTheme.floor.grid;
-    cctx.lineWidth = 1;
-    cctx.beginPath();
-    for (let x = 0; x <= world.w; x += grid) {
-      cctx.moveTo(x, 0);
-      cctx.lineTo(x, world.h);
+    ctx.strokeStyle = currentTheme.floor.grid;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (let x = 0; x < VIEW.w; x += grid) {
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, VIEW.h);
     }
-    for (let y = 0; y <= world.h; y += grid) {
-      cctx.moveTo(0, y);
-      cctx.lineTo(world.w, y);
+    for (let y = 0; y < VIEW.h; y += grid) {
+      ctx.moveTo(0, y);
+      ctx.lineTo(VIEW.w, y);
     }
-    cctx.stroke();
+    ctx.stroke();
 
-    // --- draw obstacles (ONCE) ---
-    cctx.fillStyle = currentTheme.obs.fill;
-    cctx.strokeStyle = currentTheme.obs.stroke;
-    cctx.lineWidth = 2;
+    // ---- OBSTACLES / BUILDINGS ----
+    ctx.fillStyle = currentTheme.obs.fill;
+    ctx.strokeStyle = currentTheme.obs.stroke;
+    ctx.lineWidth = 2;
 
     for (const s of world.solids) {
-      roundRect(cctx, s.x, s.y, s.w, s.h, 10);
-      cctx.fill();
-      cctx.stroke();
+      roundRect(ctx, s.x - cam.x, s.y - cam.y, s.w, s.h, 10);
+      ctx.fill();
+      ctx.stroke();
     }
 
     for (const b of world.buildings) {
-      roundRect(cctx, b.x, b.y, b.w, b.h, 10);
-      cctx.fill();
-      cctx.stroke();
+      roundRect(ctx, b.x - cam.x, b.y - cam.y, b.w, b.h, 10);
+      ctx.fill();
+      ctx.stroke();
     }
-
-    STATIC_WORLD_CANVAS = c;
-    STATIC_WORLD_CTX = cctx;
   }
 
 
@@ -345,7 +332,6 @@
 
     _lastServerWorldKey = wk;
     _lastServerHadBuildings = world.buildings.length > 0;
-    rebuildStaticWorldIfNeeded(_lastServerWorldKey);
   }
   // -----------------------------------------------------------------------------
   // HTTP MODE COMPATIBILITY SHIMS (no WebRTC host/peer)
@@ -2666,6 +2652,8 @@ if (btnHomeCustomize){
     updateHudButtonsForMode();                // ← lets update() run
     if (audio.musicOn) audio.startMusic();
     canvas.focus();
+    WORLD_DRAWN_ONCE = false;
+    drawWorldOnce();
   }
   function applyTheme(theme){ currentTheme=theme; state.diff=parseFloat(selDiff.value||'1.0')||1.0; lvlEl.textContent=`${currentTheme.id} — ${currentTheme.name}` 
     if (!window.Net || !Net.state || !Net.state.lobbyId) {
@@ -3532,24 +3520,7 @@ window.addEventListener('net:snapshot', () => {
         : ents.enemies;
 
     // World layers
-    if (STATIC_WORLD_CANVAS) {
-      ctx.drawImage(
-        STATIC_WORLD_CANVAS,
-        cam.x + cam.sx,
-        cam.y + cam.sy,
-        VIEW.w,
-        VIEW.h,
-        0,
-        0,
-        VIEW.w,
-        VIEW.h
-      );
-    } else {
-      // fallback (before world arrives)
-      world.drawFloor();
-      world.drawObstacles();
-    }
-
+    
 
 
     // ---------------------------
