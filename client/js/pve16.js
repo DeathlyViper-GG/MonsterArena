@@ -29,9 +29,9 @@
   const btnSettings = document.getElementById('btnSettings');
   const btnHomeCustomize = document.getElementById('homeCustomize');
   let HAS_SERVER_WORLD = false;
-  let _staticWorldCanvas = null;
-  let _staticWorldCtx = null;
-  let _staticWorldKey = '';
+  let STATIC_WORLD_CANVAS = null;
+  let STATIC_WORLD_CTX = null;
+  let STATIC_WORLD_KEY = '';
   async function leaveMultiplayerAndReturnHome() {
     // Stop gameplay
     try { state.running = false; } catch {}
@@ -171,6 +171,60 @@
     _sentAppearanceOnce = true;
   }
 
+  function rebuildStaticWorldIfNeeded(worldKey) {
+    if (STATIC_WORLD_KEY === worldKey && STATIC_WORLD_CANVAS) return;
+
+    STATIC_WORLD_KEY = worldKey;
+
+    // Create offscreen canvas in WORLD space
+    const c = document.createElement('canvas');
+    c.width = world.w;
+    c.height = world.h;
+    const cctx = c.getContext('2d');
+
+    // --- draw floor (ONCE) ---
+    const g = cctx.createLinearGradient(0, 0, 0, world.h);
+    g.addColorStop(0, currentTheme.floor.c1);
+    g.addColorStop(1, currentTheme.floor.c2);
+    cctx.fillStyle = g;
+    cctx.fillRect(0, 0, world.w, world.h);
+
+    // Grid
+    const grid = 64;
+    cctx.strokeStyle = currentTheme.floor.grid;
+    cctx.lineWidth = 1;
+    cctx.beginPath();
+    for (let x = 0; x <= world.w; x += grid) {
+      cctx.moveTo(x, 0);
+      cctx.lineTo(x, world.h);
+    }
+    for (let y = 0; y <= world.h; y += grid) {
+      cctx.moveTo(0, y);
+      cctx.lineTo(world.w, y);
+    }
+    cctx.stroke();
+
+    // --- draw obstacles (ONCE) ---
+    cctx.fillStyle = currentTheme.obs.fill;
+    cctx.strokeStyle = currentTheme.obs.stroke;
+    cctx.lineWidth = 2;
+
+    for (const s of world.solids) {
+      roundRect(cctx, s.x, s.y, s.w, s.h, 10);
+      cctx.fill();
+      cctx.stroke();
+    }
+
+    for (const b of world.buildings) {
+      roundRect(cctx, b.x, b.y, b.w, b.h, 10);
+      cctx.fill();
+      cctx.stroke();
+    }
+
+    STATIC_WORLD_CANVAS = c;
+    STATIC_WORLD_CTX = cctx;
+  }
+
 
   let _sentGunsOnce = false;
 
@@ -291,6 +345,7 @@
 
     _lastServerWorldKey = wk;
     _lastServerHadBuildings = world.buildings.length > 0;
+    rebuildStaticWorldIfNeeded(_lastServerWorldKey);
   }
   // -----------------------------------------------------------------------------
   // HTTP MODE COMPATIBILITY SHIMS (no WebRTC host/peer)
@@ -3477,13 +3532,24 @@ window.addEventListener('net:snapshot', () => {
         : ents.enemies;
 
     // World layers
-    world.drawFloor();
-    world.drawHazards();
-
-    
-    if (!isNetActive() || HAS_SERVER_WORLD) {
+    if (STATIC_WORLD_CANVAS) {
+      ctx.drawImage(
+        STATIC_WORLD_CANVAS,
+        cam.x + cam.sx,
+        cam.y + cam.sy,
+        VIEW.w,
+        VIEW.h,
+        0,
+        0,
+        VIEW.w,
+        VIEW.h
+      );
+    } else {
+      // fallback (before world arrives)
+      world.drawFloor();
       world.drawObstacles();
     }
+
 
 
     // ---------------------------
