@@ -3477,7 +3477,10 @@ window.addEventListener('net:snapshot', () => {
         : ents.enemies;
 
     // World layers
-    world.drawFloor();
+    // Floor does not need 60Hz redraw
+    if ((SIM_TICK & 3) === 0) {
+      world.drawFloor();
+    }
     world.drawHazards();
 
     
