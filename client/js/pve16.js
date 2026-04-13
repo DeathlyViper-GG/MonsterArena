@@ -3485,7 +3485,9 @@ window.addEventListener('net:snapshot', () => {
 
     
     if (!isNetActive() || HAS_SERVER_WORLD) {
-      world.drawObstacles();
+      if ((SIM_TICK & 3) === 0) {
+        world.drawObstacles();
+      }
     }
 
 
