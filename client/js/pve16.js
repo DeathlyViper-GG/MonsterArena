@@ -3477,10 +3477,7 @@ window.addEventListener('net:snapshot', () => {
         : ents.enemies;
 
     // World layers
-    // ✅ Draw static floor only every 4 frames
-    if ((SIM_TICK & 3) === 0) {
-      world.drawFloor();
-    }
+    world.drawFloor();
     world.drawHazards();
 
     
