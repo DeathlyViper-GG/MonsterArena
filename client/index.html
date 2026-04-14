@@ -41,9 +41,9 @@
         <span id="ammoText" class="chip">15 / 45</span>
       </div>
       <div class="stat">Weapon <span id="weaponName" class="chip">Pistol</span></div>
-      <div class="stat">Wave <span id="wave" class="chip">1</span></div>
-      <div class="stat">Score <span id="score" class="chip">0</span></div>
-      <div class="stat">Best <span id="best" class="chip">0</span></div>
+      <div class="stat pve-only">Wave <span id="wave" class="chip">1</span></div>
+      <div class="stat pve-only">Score <span id="score" class="chip">0</span></div>
+      <div class="stat pve-only">Best <span id="best" class="chip">0</span></div>
       <div class="stat">Shield <span id="shield" class="chip">0</span></div>
       <div class="stat">Speed <span id="spd" class="chip">1.00x</span></div>
       <div class="stat">Level <span id="lvl" class="chip">—</span></div>
@@ -474,8 +474,10 @@
     selectedMode = 'pve';
     window.MENU_CONTEXT = 'multi';
 
-    // ✅ ensure correct mode
     localStorage.setItem('arenaMode', 'pve');
+
+    document.body.classList.remove('mode-pvp');
+    document.body.classList.add('mode-pve');
 
     moveLevelsToMulti();
   });
@@ -484,8 +486,10 @@
     selectedMode = 'pvp';
     window.MENU_CONTEXT = 'multi';
 
-    // ✅ THIS IS CRITICAL
     localStorage.setItem('arenaMode', 'pvp');
+
+    document.body.classList.remove('mode-pve');
+    document.body.classList.add('mode-pvp');
 
     moveLevelsToMulti();
   });
