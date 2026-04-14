@@ -1285,13 +1285,13 @@
     // =========================
     // ✅ SHIELD
     // =========================
-    shieldEl.textContent = Math.round(player.shield);
+
 
     // =========================
     // ✅ SPEED MULTIPLIER
     // =========================
     const slowMul = (player.slowT > 0) ? 0.7 : 1;
-    spdEl.textContent = `${(player.spdMul * slowMul).toFixed(2)}x`;
+
 
     // =========================
     // ✅ WEAPON / AMMO / MELEE
@@ -1369,6 +1369,29 @@
 
         lb.appendChild(row);
       });
+    }
+    // =========================
+    // ✅ HUD Buff Icons (Speed / Shield)
+    // =========================
+    const buffSpeed  = document.getElementById('buffSpeed');
+    const buffShield = document.getElementById('buffShield');
+
+    // ---- SPEED BOOST ----
+    if (player.spdMul > 1.01) {
+      buffSpeed.classList.remove('hidden');
+      buffSpeed.querySelector('.val').textContent =
+        player.spdMul.toFixed(2) + '×';
+    } else {
+      buffSpeed.classList.add('hidden');
+    }
+
+    // ---- SHIELD ----
+    if (player.shield > 0) {
+      buffShield.classList.remove('hidden');
+      buffShield.querySelector('.val').textContent =
+        Math.round(player.shield);
+    } else {
+      buffShield.classList.add('hidden');
     }
   }
   function updateNetStatus(){

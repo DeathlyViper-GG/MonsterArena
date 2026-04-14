@@ -536,3 +536,47 @@ body.mode-pvp .pve-only {
 .rank-1 .rank { color: #ffd166; }
 .rank-2 .rank { color: #cfd9ff; }
 .rank-3 .rank { color: #d19a66; }
+
+/* ===================================================== */
+/* HUD Buff Icons — Speed & Shield                       */
+/* ===================================================== */
+
+.buffBar {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+/* Buff chip */
+.buff {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border-radius: 8px;
+  font-weight: 900;
+  font-size: 13px;
+  background: linear-gradient(180deg,#1b2340,#0f162b);
+  box-shadow: inset 0 0 0 1px rgba(120,180,255,.18);
+}
+
+.buff.hidden {
+  display: none;
+}
+
+.buff .icon {
+  font-size: 16px;
+  filter: drop-shadow(0 0 4px rgba(120,180,255,.45));
+}
+
+/* Speed */
+#buffSpeed {
+  border: 1px solid #66a3ff;
+  color: #66a3ff;
+}
+
+/* Shield */
+#buffShield {
+  border: 1px solid #7dffa3;
+  color: #7dffa3;
+}
