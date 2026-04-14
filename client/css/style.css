@@ -421,3 +421,118 @@ body.mode-pvp .pve-only {
   color: #7dffa3;
   text-shadow: 0 0 6px rgba(125,255,163,.35);
 }
+/* ===================================================== */
+/* PvE Leaderboard — Horizontal layout                   */
+/* ===================================================== */
+
+.leaderboard.leaderboard-horiz {
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+  align-items: stretch;
+  gap: 10px;
+}
+
+.leaderboard.leaderboard-horiz .row {
+  flex: 0 1 180px;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 8px 10px;
+}
+
+.leaderboard.leaderboard-horiz .rank {
+  font-weight: 900;
+  font-size: 1.1em;
+}
+
+.leaderboard.leaderboard-horiz .name {
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.leaderboard.leaderboard-horiz .score {
+  font-size: 1.05em;
+  color: #7dffa3;
+}
+/* ===================================================== */
+/* PvE Leaderboard — Medal Halos + Shimmer                */
+/* ===================================================== */
+
+@keyframes halo-shimmer {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* Common base */
+.leaderboard .row.rank-1,
+.leaderboard .row.rank-2,
+.leaderboard .row.rank-3 {
+  position: relative;
+  overflow: hidden;
+}
+
+/* 🥇 GOLD */
+.leaderboard .row.rank-1 {
+  border-color: #ffd166;
+  box-shadow: 0 0 12px rgba(255,209,102,.55);
+}
+.leaderboard .row.rank-1::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  background: linear-gradient(
+    120deg,
+    rgba(255,209,102,.15),
+    rgba(255,246,190,.45),
+    rgba(255,209,102,.15)
+  );
+  background-size: 200% 200%;
+  animation: halo-shimmer 2.8s ease-in-out infinite;
+}
+
+/* 🥈 SILVER */
+.leaderboard .row.rank-2 {
+  border-color: #cfd9ff;
+  box-shadow: 0 0 10px rgba(207,217,255,.45);
+}
+.leaderboard .row.rank-2::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  background: linear-gradient(
+    120deg,
+    rgba(207,217,255,.12),
+    rgba(235,240,255,.38),
+    rgba(207,217,255,.12)
+  );
+  background-size: 200% 200%;
+  animation: halo-shimmer 3.6s ease-in-out infinite;
+}
+
+/* 🥉 BRONZE */
+.leaderboard .row.rank-3 {
+  border-color: #d19a66;
+  box-shadow: 0 0 8px rgba(209,154,102,.45);
+}
+.leaderboard .row.rank-3::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  background: linear-gradient(
+    120deg,
+    rgba(209,154,102,.12),
+    rgba(230,190,150,.35),
+    rgba(209,154,102,.12)
+  );
+  background-size: 200% 200%;
+  animation: halo-shimmer 4.6s ease-in-out infinite;
+}
+
+/* Rank number colour */
+.rank-1 .rank { color: #ffd166; }
+.rank-2 .rank { color: #cfd9ff; }
+.rank-3 .rank { color: #d19a66; }

@@ -1328,12 +1328,13 @@
     }
     */
     
+   
     // =========================
-    // ✅ PvE LEADERBOARD HUD
+    // =========================
+    // ✅ PvE LEADERBOARD (Top 5, horizontal, ranked)
     // =========================
     const lb = document.getElementById('pveLeaderboard');
     if (lb) {
-      // Prefer server scores when online
       const serverScores =
         (online && snap && snap.scores && typeof snap.scores === 'object')
           ? snap.scores
@@ -1343,21 +1344,31 @@
 
       const entries = Object.entries(scores)
         .filter(([id]) => !!id)
-        .sort((a, b) => (b[1] || 0) - (a[1] || 0));
+        .sort((a, b) => (b[1] || 0) - (a[1] || 0))
+        .slice(0, 5);
 
-      // Names come from snapshot.players (array)
-      const snapPlayers = (online && snap && Array.isArray(snap.players)) ? snap.players : [];
+      const snapPlayers =
+        (online && snap && Array.isArray(snap.players)) ? snap.players : [];
 
       lb.innerHTML = '';
-      for (const [id, pts] of entries) {
+      lb.className = 'leaderboard leaderboard-horiz';
+
+      entries.forEach(([id, pts], index) => {
+        const rank = index + 1;
         const p = snapPlayers.find(x => x && x.id === id);
         const name = p ? (p.name || p.id) : (id === 'local' ? 'You' : id);
 
         const row = document.createElement('div');
-        row.className = 'row';
-        row.innerHTML = `<span class="name">${name}</span><span class="score">${pts || 0}</span>`;
+        row.className = `row rank-${rank}`;
+
+        row.innerHTML = `
+          <span class="rank">${rank}</span>
+          <span class="name">${name}</span>
+          <span class="score">${pts || 0}</span>
+        `;
+
         lb.appendChild(row);
-      }
+      });
     }
   }
   function updateNetStatus(){
