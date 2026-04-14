@@ -434,7 +434,7 @@ body.mode-pvp .pve-only {
 }
 
 .leaderboard.leaderboard-horiz .row {
-  flex: 0 1 180px;
+  flex: 0 1 90px;
   flex-direction: column;
   align-items: center;
   text-align: center;
