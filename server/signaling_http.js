@@ -104,6 +104,33 @@ const SPLASH_BOMB = 140;     // splash radius
 const HEAL_AURA_R   = 260;
 const HEAL_PER_SEC  = 10;
 
+// ✅ PvE point table (server authoritative)
+const PVE_POINTS = {
+  ravener: 1,
+  tank: 3,
+  shooter: 4,
+  sniper: 3,
+  bomber: 5,
+  healer: 2,
+  boss: 15
+};
+
+function pvePointsForType(type) {
+  const key = (type === 'chaser' || type === 'swarm') ? 'ravener' : type;
+  return PVE_POINTS[key] || 0;
+}
+
+function awardPvEPoint(lobby, killerId, enemyType) {
+  if (!lobby || lobby.mode !== 'pve') return;
+  if (!lobby.scores) lobby.scores = new Map();
+  if (!killerId || !lobby.players.has(killerId)) return;
+
+  const pts = pvePointsForType(enemyType);
+  if (!pts) return;
+
+  lobby.scores.set(killerId, (lobby.scores.get(killerId) || 0) + pts);
+}
+
 // -----------------------------------------------------------------------------
 // Difficulty scaling helpers
 // -----------------------------------------------------------------------------
@@ -773,6 +800,7 @@ function createLobby(mode, startTimeOverride = null) {
     created,
     startTime,
     started: false,
+    scores: new Map(),
 
     players: new Map(),
     inputs: new Map(),
@@ -1462,6 +1490,9 @@ app.post('/lobby/join', (req, res) => {
 
     lastSeen: now()
   });
+  // ✅ init leaderboard points
+  if (!lobby.scores) lobby.scores = new Map();
+  if (!lobby.scores.has(peerId)) lobby.scores.set(peerId, 0);
 
   // ✅ FORCE SNAPSHOT UPDATE FOR ALL CLIENTS
   flushWaiters(lobby);
@@ -1491,6 +1522,7 @@ app.post('/lobby/leave', (req, res) => {
   // ✅ Remove player
   lobby.players.delete(peerId);
   lobby.inputs.delete(peerId);
+  if (lobby.scores) lobby.scores.delete(peerId);
 
   // ✅ Remove bullets owned by this player
   lobby.bullets = lobby.bullets.filter(b => b.owner !== peerId);
@@ -1724,8 +1756,14 @@ app.post('/hit', (req, res) => {
     }
 
     if (best >= 0) {
-      lobby.enemies[best].hp -= dd;
-      if (lobby.enemies[best].hp <= 0) lobby.enemies.splice(best, 1);
+      const en = lobby.enemies[best];
+      en.hp -= dd;
+
+      if (en.hp <= 0) {
+        // ✅ melee final-hit credit
+        awardPvEPoint(lobby, peerId, en.type);
+        lobby.enemies.splice(best, 1);
+      }
     }
 
     return res.json({ ok: true });
@@ -1954,6 +1992,7 @@ setInterval(() => {
         players: [...lobby.players.values()],
         enemies: [],
         bullets: [],
+        scores: lobby.scores ? Object.fromEntries(lobby.scores.entries()) : {},
         // ✅ only send world when it changes
         world: worldDelta(lobby, true),
         meta: {
@@ -2198,7 +2237,16 @@ setInterval(() => {
         }
 
         if (hitIndex >= 0) {
-          lobby.enemies[hitIndex].hp -= b.dmg;
+          const en = lobby.enemies[hitIndex];
+
+          en.hp -= b.dmg;
+
+          // ✅ final-hit credit for PvE leaderboard
+          if (en.hp <= 0) {
+            awardPvEPoint(lobby, b.owner, en.type);
+            lobby.enemies.splice(hitIndex, 1);
+          }
+
           lobby.bullets.splice(i, 1); // consume bullet
         }
       }
@@ -2219,6 +2267,9 @@ setInterval(() => {
       players: [...lobby.players.values()],
       enemies: lobby.mode === 'pve' ? lobby.enemies : [],
       bullets: lobby.bullets,
+
+      // ✅ leaderboard points (playerId -> points)
+      scores: lobby.scores ? Object.fromEntries(lobby.scores.entries()) : {},
 
       // ✅ only send world when it changes
       world: worldDelta(lobby, false, lobby.snapshot?.meta?.worldKey),

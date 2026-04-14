@@ -338,6 +338,9 @@
       desc:'Void tiles. Enemies phase-dash at times.' },
   ];
   // ✅ PvE leaderboard scoring per enemy type
+
+  let currentTheme = LEVELS[0];
+  // ✅ PvE leaderboard scoring per enemy type
   const PVE_POINTS = {
     ravener: 1,
     tank: 3,
@@ -348,7 +351,8 @@
     boss: 15
   };
 
-  let currentTheme = LEVELS[0];
+  // ✅ Local fallback (offline) leaderboard
+  const pveLeaderboard = Object.create(null);
   let SIM_TICK = 0;
   const FIXED_DT = 1 / 30; // 30Hz lockstep
   let _accum = 0;
@@ -1326,7 +1330,7 @@
    // =========================
     // ✅ PvE LEADERBOARD HUD
     // =========================
-    const lb = document.getElementById('pveLeaderboard');
+    
     if (lb) {
       lb.innerHTML = '';
 
@@ -1345,6 +1349,36 @@
           <span class="name">${name}</span>
           <span class="score">${pts}</span>
         `;
+        lb.appendChild(row);
+      }
+    }
+    // =========================
+    // ✅ PvE LEADERBOARD HUD
+    // =========================
+    const lb = document.getElementById('pveLeaderboard');
+    if (lb) {
+      // Online: server provides scores
+      const serverScores = (online && snap && snap.scores && typeof snap.scores === 'object')
+        ? snap.scores
+        : null;
+
+      const scores = serverScores || pveLeaderboard;
+
+      const entries = Object.entries(scores)
+        .filter(([id]) => id) // safety
+        .sort((a, b) => (b[1] || 0) - (a[1] || 0));
+
+      // Map ids -> names from snapshot.players (array)
+      const snapPlayers = (online && snap && Array.isArray(snap.players)) ? snap.players : [];
+
+      lb.innerHTML = '';
+      for (const [id, pts] of entries) {
+        const p = snapPlayers.find(x => x && x.id === id);
+        const name = p ? (p.name || p.id) : (id === 'local' ? 'You' : id);
+
+        const row = document.createElement('div');
+        row.className = 'row';
+        row.innerHTML = `<span class="name">${name}</span><span class="score">${pts || 0}</span>`;
         lb.appendChild(row);
       }
     }
@@ -1367,7 +1401,6 @@
     playerExploded:false
   };
   // ✅ PvE leaderboard (playerId → points)
-  const pveLeaderboard = Object.create(null);
 
 
   // Noise events --------------------------------------------------------------
@@ -2615,6 +2648,9 @@ if (btnHomeCustomize){
     state.wave = 1;
     state.score = 0;
     state.playerExploded = false;
+    // ✅ reset PvE leaderboard each run
+    for (const k in pveLeaderboard) delete pveLeaderboard[k];
+    pveLeaderboard.local = 0;
 
     // Clear world and queues
     spawnQueue = [];
@@ -3066,6 +3102,19 @@ window.addEventListener('net:snapshot', () => {
             spawnTriangleBurst(prev.x, prev.y, baseCol, { big:6, small:22 });
             spawnGhostSilhouette(prev.x, prev.y, (prev.r ?? 16) + 10, currentTheme.accent);
             audio.hit();
+            
+            // ✅ PvE leaderboard (online)
+              const typeKey =
+                (prev.type === 'chaser' || prev.type === 'swarm')
+                  ? 'ravener'
+                  : prev.type;
+
+              const pts = PVE_POINTS[typeKey] || 0;
+              const killer = prev.killerId || 'unknown';
+
+              if (!pveLeaderboard[killer]) pveLeaderboard[killer] = 0;
+              pveLeaderboard[killer] += pts;
+
           }
         }
 
