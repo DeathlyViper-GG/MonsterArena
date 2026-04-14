@@ -434,9 +434,9 @@ body.mode-pvp .pve-only {
 }
 
 .leaderboard.leaderboard-horiz .row {
-  flex: 0 0 110px;      /* ✅ REAL tile width (smaller) */
-  padding: 4px 6px;    /* ✅ tighter interior */
-  gap: 2px;            /* ✅ less vertical stretch */
+  flex: 0 0 100px;      /* ✅ REAL tile width (smaller) */
+  padding: 0.0001px 0.0001px;    /* ✅ tighter interior */
+  gap: 0px;            /* ✅ less vertical stretch */
 
   display: flex;
   flex-direction: column;
@@ -444,7 +444,7 @@ body.mode-pvp .pve-only {
   justify-content: center;
   text-align: center;
 
-  min-height: 44px;    /* ✅ clamps height */
+  min-height: 0px;    /* ✅ clamps height */
 }
 
 .leaderboard.leaderboard-horiz .rank {
@@ -585,4 +585,18 @@ body.mode-pvp .pve-only {
 #buffShield {
   border: 1px solid #7dffa3;
   color: #7dffa3;
+}
+.leaderboard.leaderboard-horiz .rank,
+.leaderboard.leaderboard-horiz .name,
+.leaderboard.leaderboard-horiz .score {
+  line-height: 1;
+  margin: 0;
+  padding: 0;
+}
+
+.leaderboard.leaderboard-horiz .rank {
+  position: absolute;
+  top: 2px;
+  left: 4px;
+  font-size: 0.75em;
 }
