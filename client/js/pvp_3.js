@@ -12,6 +12,11 @@
   const waveEl = document.getElementById('wave');
   const scoreEl = document.getElementById('score');
   const bestEl = document.getElementById('best');
+  // ✅ PvP: hide PvE-only HUD elements (waves, best wave)
+  if (isPvPMode()) {
+    if (waveEl) waveEl.style.display = 'none';
+    if (bestEl) bestEl.style.display = 'none';
+  }
   const shieldEl = document.getElementById('shield');
   const spdEl = document.getElementById('spd');
   const lvlEl = document.getElementById('lvl');
@@ -61,6 +66,9 @@
   const Melee = /** @type {any} */ (window).Melee;
   function isNetActive() {
     return !!(window.Net && Net.state && Net.state.myId);
+  }
+  function isPvPMode() {
+    return !!(window.Net?.state?.meta?.mode === 'pvp');
   }
   function hasFreshSnapshot(maxAgeMs = 1200) {
     const s = (window.Net && Net.state && Net.state.snapshot) ? Net.state.snapshot : null;
@@ -885,7 +893,36 @@
   function swapWeapon(d){ setWeapon(player.weapon+d); audio.click(); }
   function playerTryReload(){ const w=weapons[player.weapon]; if(player.reloading||player.ammo>=w.ammo||player.reserve<=0) return; player.reloading=true; player.reloadT=w.reload; audio.reload(); }
   function playerDash(){ if(player.dashCD>0) return; const w=weapons[player.weapon]; const dash=w.dash*(1+(player.shield>0?0.15:0)); const ax=Math.cos(player.angle), ay=Math.sin(player.angle); player.x+=ax*dash; player.y+=ay*dash; player.x=clamp(player.x,60,world.w-60); player.y=clamp(player.y,60,world.h-60); cam.shake=Math.max(cam.shake,8); player.dashCD=1.4; player.dashI=0.15; audio.dash(); }
-  function updateHUD(){ hpFill.style.width=`${(player.hp/player.hpMax)*100}%`; if(equip==='melee'){ ammoFill.style.width='0%'; ammoText.textContent='—'; weaponName.textContent=`Melee: ${melee?.name ?? '—'}`; } else { const w=weapons[player.weapon]; ammoFill.style.width=`${(player.ammo/w.ammo)*100}%`; ammoText.textContent=`${player.ammo} / ${player.reserve}`; weaponName.textContent=w.name; } shieldEl.textContent=player.shield.toFixed(0); spdEl.textContent=`${(player.spdMul*(player.slowT>0?0.7:1)).toFixed(2)}x`; lvlEl.textContent=currentTheme ? `${currentTheme.id} — ${currentTheme.name}` : '—'; }
+  function updateHUD(){
+    // ✅ PvP: ensure PvE-only HUD stays hidden
+    if (isPvPMode()) {
+      if (waveEl) waveEl.style.display = 'none';
+      if (bestEl) bestEl.style.display = 'none';
+    }
+
+    // ✅ Core PvP HUD (shared with PvE where applicable)
+    hpFill.style.width = `${(player.hp / player.hpMax) * 100}%`;
+
+    if (equip === 'melee') {
+      ammoFill.style.width = '0%';
+      ammoText.textContent = '—';
+      weaponName.textContent = `Melee: ${melee?.name ?? '—'}`;
+    } else {
+      const w = weapons[player.weapon];
+      ammoFill.style.width = `${(player.ammo / w.ammo) * 100}%`;
+      ammoText.textContent = `${player.ammo} / ${player.reserve}`;
+      weaponName.textContent = w.name;
+    }
+
+    shieldEl.textContent = player.shield.toFixed(0);
+    spdEl.textContent =
+      `${(player.spdMul * (player.slowT > 0 ? 0.7 : 1)).toFixed(2)}x`;
+
+    // ✅ PvP still shows map/level, just not waves
+    lvlEl.textContent = currentTheme
+      ? `${currentTheme.id} — ${currentTheme.name}`
+      : '—';
+  }
 
   // Game state ----------------------------------------------------------------
   const state={
