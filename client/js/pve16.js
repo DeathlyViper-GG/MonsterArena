@@ -1327,48 +1327,25 @@
       waveEl.textContent = `${wave} (${snap.enemies.length})`;
     }
     */
-   // =========================
-    // ✅ PvE LEADERBOARD HUD
-    // =========================
     
-    if (lb) {
-      lb.innerHTML = '';
-
-      const entries = Object.entries(pveLeaderboard)
-        .sort((a, b) => b[1] - a[1]);
-
-      for (const [id, pts] of entries) {
-        const row = document.createElement('div');
-        row.className = 'row';
-
-        const name =
-          (window.Net?.state?.players?.[id]?.name) ||
-          (id === 'local' ? 'You' : id);
-
-        row.innerHTML = `
-          <span class="name">${name}</span>
-          <span class="score">${pts}</span>
-        `;
-        lb.appendChild(row);
-      }
-    }
     // =========================
     // ✅ PvE LEADERBOARD HUD
     // =========================
     const lb = document.getElementById('pveLeaderboard');
     if (lb) {
-      // Online: server provides scores
-      const serverScores = (online && snap && snap.scores && typeof snap.scores === 'object')
-        ? snap.scores
-        : null;
+      // Prefer server scores when online
+      const serverScores =
+        (online && snap && snap.scores && typeof snap.scores === 'object')
+          ? snap.scores
+          : null;
 
       const scores = serverScores || pveLeaderboard;
 
       const entries = Object.entries(scores)
-        .filter(([id]) => id) // safety
+        .filter(([id]) => !!id)
         .sort((a, b) => (b[1] || 0) - (a[1] || 0));
 
-      // Map ids -> names from snapshot.players (array)
+      // Names come from snapshot.players (array)
       const snapPlayers = (online && snap && Array.isArray(snap.players)) ? snap.players : [];
 
       lb.innerHTML = '';
