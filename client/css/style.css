@@ -309,3 +309,7 @@
   transform:translateY(-2px);
   border-color:#5ad2ff;
 }
+
+body.mode-pvp .pve-only {
+  display: none !important;
+}
