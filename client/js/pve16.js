@@ -470,19 +470,20 @@
     const v = sessionStorage.getItem('design');
     if (v !== null) return parseInt(v, 10);
 
-    // no tab value yet → generate one
-    const d = Math.floor(Math.random() * 15); // 0–14
-    sessionStorage.setItem('design', d);
-    return d;
+    // ✅ FIXED DEFAULT (Basic Core)
+    const DEFAULT_DESIGN = 0;
+    sessionStorage.setItem('design', DEFAULT_DESIGN);
+    return DEFAULT_DESIGN;
   }
 
   function getTabColor() {
     const v = sessionStorage.getItem('color');
     if (v !== null) return parseInt(v, 10);
 
-    const c = Math.floor(Math.random() * COLORS.length);
-    sessionStorage.setItem('color', c);
-    return c;
+    // ✅ FIXED DEFAULT (first colour)
+    const DEFAULT_COLOR = 0;
+    sessionStorage.setItem('color', DEFAULT_COLOR);
+    return DEFAULT_COLOR;
   }
 
   let selectedDesign = getTabDesign();
