@@ -337,6 +337,17 @@
       hazards:{kind:'void', count:16},
       desc:'Void tiles. Enemies phase-dash at times.' },
   ];
+  // ✅ PvE leaderboard scoring per enemy type
+  const PVE_POINTS = {
+    ravener: 1,
+    tank: 3,
+    shooter: 4,
+    sniper: 3,
+    bomber: 5,
+    healer: 2,
+    boss: 15
+  };
+
   let currentTheme = LEVELS[0];
   let SIM_TICK = 0;
   const FIXED_DT = 1 / 30; // 30Hz lockstep
@@ -1312,6 +1323,31 @@
       waveEl.textContent = `${wave} (${snap.enemies.length})`;
     }
     */
+   // =========================
+    // ✅ PvE LEADERBOARD HUD
+    // =========================
+    const lb = document.getElementById('pveLeaderboard');
+    if (lb) {
+      lb.innerHTML = '';
+
+      const entries = Object.entries(pveLeaderboard)
+        .sort((a, b) => b[1] - a[1]);
+
+      for (const [id, pts] of entries) {
+        const row = document.createElement('div');
+        row.className = 'row';
+
+        const name =
+          (window.Net?.state?.players?.[id]?.name) ||
+          (id === 'local' ? 'You' : id);
+
+        row.innerHTML = `
+          <span class="name">${name}</span>
+          <span class="score">${pts}</span>
+        `;
+        lb.appendChild(row);
+      }
+    }
   }
   function updateNetStatus(){
     const el = document.getElementById('netStatus');
@@ -1330,6 +1366,9 @@
     spawnT:0, nextWaveT:0, diff:1.0,
     playerExploded:false
   };
+  // ✅ PvE leaderboard (playerId → points)
+  const pveLeaderboard = Object.create(null);
+
 
   // Noise events --------------------------------------------------------------
   const noiseEvents=[]; // {x,y,r,t}
@@ -2607,7 +2646,11 @@ if (btnHomeCustomize){
     // 👇 IMPORTANT: actually start the simulation
     ovHome.style.display = 'none';
     ovPause.style.display = 'none';
-    state.running = true;     
+    state.running = true;  
+    // ✅ reset PvE leaderboard
+    for (const k in pveLeaderboard) delete pveLeaderboard[k];
+    pveLeaderboard['local'] = 0;
+   
     updateHudButtonsForMode();                // ← lets update() run
     if (audio.musicOn) audio.startMusic();
     canvas.focus();
@@ -3186,6 +3229,10 @@ window.addEventListener('net:snapshot', () => {
           } else {
             // offline damage
             e.hp -= DMG;
+
+            // ✅ track melee kill owner
+            e.lastHitBy = 'local';
+
             if (e.hp <= 0) ents.enemies.splice(i, 1);
           }
 
@@ -3295,13 +3342,21 @@ window.addEventListener('net:snapshot', () => {
 
         // Death & loot
         if (e.hp <= 0) {
-          let sc = 10;
-          if (e.type==='tank')    sc = 28;
-          if (e.type==='shooter') sc = 18;
-          if (e.type==='swarm')   sc = 6;
-          if (e.type==='boss')    sc = 320;
+          const typeKey = (e.type === 'chaser' || e.type === 'swarm')
+            ? 'ravener'
+            : e.type;
 
-          state.score += sc;
+          const pts = PVE_POINTS[typeKey] || 0;
+          const killer = e.lastHitBy || 'local';
+
+          // init bucket
+          if (!pveLeaderboard[killer]) {
+            pveLeaderboard[killer] = 0;
+          }
+
+          // award points
+          pveLeaderboard[killer] += pts;
+
           if (Math.random() < 0.15 || e.type === 'boss') dropPickup(e.x, e.y);
 
           const baseCol = sampleSpriteColor(e.type);
@@ -3315,7 +3370,12 @@ window.addEventListener('net:snapshot', () => {
       }
     }
 
-    for (let i = ents.bullets.length - 1; i >= 0; i--){ const b = ents.bullets[i]; const kill = lineWallHit(b.x, b.y, b.vx, b.vy, dt, b.r); b.x += b.vx * dt; b.y += b.vy * dt; b.life -= dt; if (kill || b.life <= 0){ ents.bullets.splice(i,1); continue; } let hit = -1; for (let j = 0; j < ents.enemies.length; j++){ const e = ents.enemies[j]; const r = e.r + b.r; if (dist2(b.x,b.y,e.x,e.y) < r*r){ hit = j; break; } } if (hit >= 0){ const e = ents.enemies[hit]; e.hp -= b.dmg * (1 + state.wave * 0.02); addEffect(b.x,b.y,'hit',0.15,'#fff'); cam.shake = Math.max(cam.shake,1.5); if (b.pierce > 0) b.pierce--; else ents.bullets.splice(i,1); e.alerted = true; e.alertT = Math.max(e.alertT, 3); broadcastAlertFrom(e.x,e.y); } }
+    for (let i = ents.bullets.length - 1; i >= 0; i--){ const b = ents.bullets[i]; const kill = lineWallHit(b.x, b.y, b.vx, b.vy, dt, b.r); b.x += b.vx * dt; b.y += b.vy * dt; b.life -= dt; if (kill || b.life <= 0){ ents.bullets.splice(i,1); continue; } let hit = -1; for (let j = 0; j < ents.enemies.length; j++){ const e = ents.enemies[j]; const r = e.r + b.r; if (dist2(b.x,b.y,e.x,e.y) < r*r){ hit = j; break; } } if (hit >= 0){ const e = ents.enemies[hit] 
+      e.hp -= b.dmg * (1 + state.wave * 0.02);
+
+      // ✅ track last hitter for PvE leaderboard
+      e.lastHitBy = 'local';
+      addEffect(b.x,b.y,'hit',0.15,'#fff'); cam.shake = Math.max(cam.shake,1.5); if (b.pierce > 0) b.pierce--; else ents.bullets.splice(i,1); e.alerted = true; e.alertT = Math.max(e.alertT, 3); broadcastAlertFrom(e.x,e.y); } }
 
     for (let i = ents.ebullets.length - 1; i >= 0; i--){ const b = ents.ebullets[i]; b.x += b.vx * dt; b.y += b.vy * dt; b.life -= dt; if (b.kind === 'bomb'){ const hitWall = lineWallHit(b.x, b.y, b.vx, b.vy, 0, b.r); const timeUp=(b.life<=0); if (hitWall || timeUp){ const R=(b.splashR||110)+player.r; if(dist2(b.x,b.y,player.x,player.y) < R*R){ hurtPlayer(b.dmg); addEffect(b.x,b.y,'hit',0.12,'#ffd7d7'); } addEffect(b.x,b.y,'pop',0.55,'#ffb38a'); cam.shake=Math.max(cam.shake,5); ents.ebullets.splice(i, 1); continue; } continue; } if (lineWallHit(b.x,b.y,b.vy,b.vx,0,b.r) || b.life <= 0){ ents.ebullets.splice(i,1); continue; } const r = player.r + b.r; if (dist2(b.x,b.y,player.x,player.y) < r*r){ if (currentTheme.id === 3) player.slowT = Math.max(player.slowT, 1.6); hurtPlayer(b.dmg); addEffect(b.x,b.y,'hit',0.1,'#ffd7d7'); ents.ebullets.splice(i,1); } }
 

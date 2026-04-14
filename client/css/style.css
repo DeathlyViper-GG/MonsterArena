@@ -313,3 +313,59 @@
 body.mode-pvp .pve-only {
   display: none !important;
 }
+
+/* ===================================================== */
+/* PvE Leaderboard (HUD-integrated, theme-matched)     */
+/* ===================================================== */
+
+.leaderboardStat {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  min-width: 160px;
+}
+
+.lbTitle {
+  font-size: 0.85em;
+  font-weight: 900;
+  letter-spacing: 0.4px;
+  opacity: 0.85;
+  color: #9fd2ff;
+  text-shadow: 0 0 6px rgba(120,180,255,.35);
+}
+
+.leaderboard {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.leaderboard .row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 6px;
+  border-radius: 6px;
+  background: linear-gradient(
+    180deg,
+    rgba(20,24,35,.55),
+    rgba(13,17,25,.35)
+  );
+  border: 1px solid #273059;
+}
+
+.leaderboard .name {
+  font-weight: 700;
+  opacity: 0.9;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.leaderboard .score {
+  font-weight: 900;
+  color: #7dffa3;
+  text-shadow: 0 0 6px rgba(125,255,163,.35);
+}
