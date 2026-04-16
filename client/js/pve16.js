@@ -2761,30 +2761,47 @@ if (btnHomeCustomize){
     card.appendChild(body)
     
     card.addEventListener('click', async () => {
+      // ✅ OFFLINE (single-player): apply theme immediately
+      if (!isNetActive()) {
+        applyTheme(theme); // sets currentTheme + rebuilds world offline
+      }
 
-      // pick deterministic seed
-
-      // if online, tell server which level everyone should use
+      // ✅ ONLINE (multiplayer): tell server which level to use
       if (window.Net && Net.state && Net.state.lobbyId) {
         await Net.setLevel(theme.id);
       }
 
-      // show joining overlay
+      // show loading overlay (used by both single & multi)
       const ovLoad = document.getElementById('overlayLoading');
-      const text   = document.getElementById('loadingText');
+      const text = document.getElementById('loadingText');
       if (ovLoad) ovLoad.style.display = 'grid';
 
+      // offline uses a short delay; online uses server joinDeadline
       const deadline = Net?.state?.meta?.joinDeadline || (Date.now() + 1500);
 
       const tick = () => {
-        const secs = Math.max(0, Math.ceil((deadline - Date.now())/1000));
-        if (text) text.textContent = `Joining lobby… starting in ${secs}s`;
+        const secs = Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
+        if (text) {
+          text.textContent = isNetActive()
+            ? `Joining lobby… starting in ${secs}s`
+            : `Starting in ${secs}s…`;
+        }
+
         if (secs <= 0) {
-          ovLoad.style.display = 'none';
-          document.getElementById('overlayHome').style.display = 'none';
+          if (ovLoad) ovLoad.style.display = 'none';
+
+          // ✅ hide either menu (single or multi)
+          const oh = document.getElementById('overlayHome');
+          if (oh) oh.style.display = 'none';
+          const os = document.getElementById('overlaySingle');
+          if (os) os.style.display = 'none';
+
           document.getElementById('btnRestart')?.click();
-        } else setTimeout(tick, 250);
+        } else {
+          setTimeout(tick, 250);
+        }
       };
+
       tick();
     });
     grid.appendChild(card); }); }
@@ -3168,10 +3185,11 @@ window.addEventListener('net:snapshot', () => {
       }
     }
     // ✅ Online authoritative: bullets come from snapshot
-    if (online) {
+    if (online && hasFreshSnapshot()) {
       ents.bullets.length = 0;
       ents.ebullets.length = 0;
     }
+
     const isHost = online && amHost();
     const isPeer = online && amPeer();
     // If I'm a peer, I must not keep any locally simulated enemies
@@ -3326,7 +3344,7 @@ window.addEventListener('net:snapshot', () => {
         }
       }
 
-      if (spawnQueue.length === 0 && ents.enemies.length === 0) {
+      if ((state.spawnIdx ?? 0) >= spawnQueue.length && ents.enemies.length === 0) {
         state.nextWaveT -= dt;
         if (state.nextWaveT <= 0) {
           startWave(state.wave + 1);
@@ -3634,26 +3652,27 @@ window.addEventListener('net:snapshot', () => {
     // ---------------------------
     // ✅ Bullets (authoritative online)
     // ---------------------------
-    const allBullets =
+    // Enemy bullets / bombs
+    ctx.fillStyle = '#ffadad';
+
+    // ✅ ONLINE: enemy bullets come from snapshot.bullets
+    // ✅ OFFLINE: enemy bullets come from ents.ebullets
+    const enemyBullets =
       (online && snap && Array.isArray(snap.bullets))
-        ? snap.bullets
-        : ents.bullets;
+        ? snap.bullets.filter(b =>
+            (typeof b.owner === 'string' && b.owner.startsWith('E:')) ||
+            b.kind === 'enemy' ||
+            b.kind === 'enemyBomb'
+          )
+        : ents.ebullets;
 
-    // Player bullets
-    ctx.fillStyle = '#cfe5ff';
-    for (const b of allBullets) {
-      const isEnemy =
-        (typeof b.owner === 'string' && b.owner.startsWith('E:')) ||
-        b.kind === 'enemy' ||
-        b.kind === 'enemyBomb';
-
-      if (isEnemy) continue;
-
+    for (const b of enemyBullets) {
+      const rad = (b.kind === 'enemyBomb') ? 7 : (b.r ?? 4);
       ctx.beginPath();
       ctx.arc(
         b.x - cam.x - cam.sx,
         b.y - cam.y - cam.sy,
-        b.r ?? 4,
+        rad,
         0,
         Math.PI * 2
       );
