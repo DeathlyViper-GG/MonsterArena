@@ -193,6 +193,60 @@
     if (!s || !s.t) return false;
     return (Date.now() - s.t) <= maxAgeMs;
   }
+  // ===== Snapshot interpolation (HTTP smoothness) =====
+  let _snapPrev = null;
+  let _snapCurr = null;
+  let _snapPrevT = 0;
+  let _snapCurrT = 0;
+
+  function storeSnapshot(snap) {
+    _snapPrev = _snapCurr;
+    _snapPrevT = _snapCurrT;
+    _snapCurr = snap;
+    _snapCurrT = performance.now();
+  }
+
+  function getInterpolatedSnapshot(delayMs = 120) {
+    if (!_snapCurr) return Net?.state?.snapshot || null;
+    if (!_snapPrev) return _snapCurr;
+
+    const t = performance.now() - delayMs;
+    const span = Math.max(1, _snapCurrT - _snapPrevT);
+    const a = clamp((t - _snapPrevT) / span, 0, 1);
+
+    const out = { ..._snapCurr };
+
+    // players
+    if (Array.isArray(_snapPrev.players) && Array.isArray(_snapCurr.players)) {
+      const A = new Map(_snapPrev.players.map(p => [p.id, p]));
+      out.players = _snapCurr.players.map(pb => {
+        const pa = A.get(pb.id);
+        if (!pa) return pb;
+        return {
+          ...pb,
+          x: pa.x + (pb.x - pa.x) * a,
+          y: pa.y + (pb.y - pa.y) * a,
+          ang: lerpAngle(pa.ang ?? 0, pb.ang ?? 0, a),
+        };
+      });
+    }
+
+    // enemies
+    if (Array.isArray(_snapPrev.enemies) && Array.isArray(_snapCurr.enemies)) {
+      const A = new Map(_snapPrev.enemies.map(e => [e.id, e]));
+      out.enemies = _snapCurr.enemies.map(eb => {
+        const ea = A.get(eb.id);
+        if (!ea) return eb;
+        return {
+          ...eb,
+          x: ea.x + (eb.x - ea.x) * a,
+          y: ea.y + (eb.y - ea.y) * a,
+        };
+      });
+    }
+
+    return out;
+  }
   function getVisualPlayerPos(){
     if (isNetActive()){
       const me = mySnapshotPlayer();
@@ -2989,23 +3043,19 @@ if (btnHomeCustomize){
   let _lastSeenServerWave = 0;
 
  
-window.addEventListener('net:snapshot', () => {
-  const snap = Net?.state?.snapshot;
+window.addEventListener('net:snapshot', (ev) => {
+  const snap = ev.detail || Net?.state?.snapshot;
   if (!snap || !Array.isArray(snap.players)) return;
 
-
+  storeSnapshot(snap);
   renderLobbyPlayers();
 
-
-    if (!snap) return;
-
-    // ✅ Multiplayer PvE progression
-    if (localStorage.getItem('arenaMode') === 'pve' && typeof snap.wave === 'number') {
-      if (snap.wave > _lastSeenServerWave) {
-        _lastSeenServerWave = snap.wave;
-        updateBestWave(snap.wave);
-      }
+  if (localStorage.getItem('arenaMode') === 'pve' && typeof snap.wave === 'number') {
+    if (snap.wave > _lastSeenServerWave) {
+      _lastSeenServerWave = snap.wave;
+      updateBestWave(snap.wave);
     }
+  }
 });
 
   // If we join late and meta already exists, apply once at startup
@@ -3703,7 +3753,7 @@ window.addEventListener('net:snapshot', () => {
 
   function draw(dt) {
     const online = isNetActive();
-    const snap = online ? (Net.state && Net.state.snapshot) : null;
+    const snap = online ? getInterpolatedSnapshot() : null;
 
     // ✅ DEFINE BULLETS ONCE (used in multiple sections below)
     const allBullets =
@@ -3835,28 +3885,6 @@ if (online && onlineBullets) {
     }
   }
 
-    // Enemy bullets / bombs
-    ctx.fillStyle = '#ffadad';
-    for (const b of allBullets) {
-      const isEnemy =
-        (typeof b.owner === 'string' && b.owner.startsWith('E:')) ||
-        b.kind === 'enemy' ||
-        b.kind === 'enemyBomb';
-
-      if (!isEnemy) continue;
-
-      const rad = (b.kind === 'enemyBomb') ? 7 : (b.r ?? 4);
-
-      ctx.beginPath();
-      ctx.arc(
-        b.x - cam.x - cam.sx,
-        b.y - cam.y - cam.sy,
-        rad,
-        0,
-        Math.PI * 2
-      );
-      ctx.fill();
-    }
 
     // ---------------------------
     // Enemies
