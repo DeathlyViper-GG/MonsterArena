@@ -3650,29 +3650,60 @@ window.addEventListener('net:snapshot', () => {
     }
 
     // ---------------------------
-    // ✅ Bullets (authoritative online)
-    // ---------------------------
-    // ✅ DEFINE BULLET SOURCE (REQUIRED)
-    const allBullets =
-      (online && snap && Array.isArray(snap.bullets))
-        ? snap.bullets
-        : ents.bullets;
-    // Enemy bullets / bombs
-    ctx.fillStyle = '#ffadad';
+// ✅ Bullets (player + enemy)
+// ---------------------------
 
-    // ✅ ONLINE: enemy bullets come from snapshot.bullets
-    // ✅ OFFLINE: enemy bullets come from ents.ebullets
-    const enemyBullets =
-      (online && snap && Array.isArray(snap.bullets))
-        ? snap.bullets.filter(b =>
-            (typeof b.owner === 'string' && b.owner.startsWith('E:')) ||
-            b.kind === 'enemy' ||
-            b.kind === 'enemyBomb'
-          )
-        : ents.ebullets;
+const onlineBullets =
+  (online && snap && Array.isArray(snap.bullets))
+    ? snap.bullets
+    : null;
 
-    for (const b of enemyBullets) {
-      const rad = (b.kind === 'enemyBomb') ? 7 : (b.r ?? 4);
+// ===========================
+// PLAYER BULLETS
+// ===========================
+ctx.fillStyle = '#cfe5ff';
+
+// ✅ OFFLINE: draw local player bullets
+if (!online) {
+  for (const b of ents.bullets) {
+    ctx.beginPath();
+    ctx.arc(
+      b.x - cam.x - cam.sx,
+      b.y - cam.y - cam.sy,
+      b.r ?? 4,
+      0,
+      Math.PI * 2
+    );
+    ctx.fill();
+  }
+}
+
+// ✅ ONLINE: player bullets come from snapshot
+if (online && onlineBullets) {
+  for (const b of onlineBullets) {
+    if (b.kind === 'enemy' || b.kind === 'enemyBomb') continue;
+
+    ctx.beginPath();
+    ctx.arc(
+      b.x - cam.x - cam.sx,
+      b.y - cam.y - cam.sy,
+      b.r ?? 4,
+      0,
+      Math.PI * 2
+    );
+    ctx.fill();
+  }
+}
+
+  // ===========================
+  // ENEMY BULLETS
+  // ===========================
+  ctx.fillStyle = '#ffadad';
+
+  // ✅ OFFLINE: enemy bullets
+  if (!online) {
+    for (const b of ents.ebullets) {
+      const rad = b.kind === 'bomb' ? 7 : (b.r ?? 4);
       ctx.beginPath();
       ctx.arc(
         b.x - cam.x - cam.sx,
@@ -3683,6 +3714,25 @@ window.addEventListener('net:snapshot', () => {
       );
       ctx.fill();
     }
+  }
+
+  // ✅ ONLINE: enemy bullets from snapshot
+  if (online && onlineBullets) {
+    for (const b of onlineBullets) {
+      if (!(b.kind === 'enemy' || b.kind === 'enemyBomb')) continue;
+
+      const rad = b.kind === 'enemyBomb' ? 7 : (b.r ?? 4);
+      ctx.beginPath();
+      ctx.arc(
+        b.x - cam.x - cam.sx,
+        b.y - cam.y - cam.sy,
+        rad,
+        0,
+        Math.PI * 2
+      );
+      ctx.fill();
+    }
+  }
 
     // Enemy bullets / bombs
     ctx.fillStyle = '#ffadad';
