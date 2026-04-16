@@ -184,6 +184,10 @@
           }
           const snap = await r.json();
           this.state.snapshot = snap;
+          // ✅ clock sync: estimate server time offset (serverTime - clientNow)
+          if (snap?.meta && typeof snap.meta.serverTime === 'number') {
+            this.state.serverTimeOffset = snap.meta.serverTime - Date.now();
+          } 
           window.dispatchEvent(new CustomEvent('net:snapshot', { detail: snap }));
 
           if (snap?.meta) {
@@ -242,10 +246,19 @@
     },
 
     sendShoot(x, y, ang, speed, dmg) {
+      // ✅ include estimated server-time-at-fire for rewind validation
+      const off = this.state.serverTimeOffset || 0;
+      const t = Date.now() + off;
+
       fetch(`${BASE}/shoot`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ lobbyId: this.state.lobbyId, peerId: this.state.peerId, x, y, ang, speed, dmg })
+        body: JSON.stringify({
+          lobbyId: this.state.lobbyId,
+          peerId: this.state.peerId,
+          x, y, ang, speed, dmg,
+          t
+        })
       });
     },
 

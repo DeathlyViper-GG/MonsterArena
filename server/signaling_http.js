@@ -390,10 +390,17 @@ function handlePvPPlayerBulletHits(lobby, b, bulletIndex){
   // Only bullets fired by a real player can hurt players
   if (typeof b.owner !== 'string' || !lobby.players.has(b.owner)) return false;
 
+  const tNow = now();
+  const tHit = bulletTimeAt(b, tNow);
+
   for (const [pid, p] of lobby.players){
     if (pid === b.owner) continue; // no self hit
     const rr = (b.r ?? 4) + 16;
-    if (dist2(b.x, b.y, p.x, p.y) <= rr * rr){
+
+    // ✅ rewind victim to bullet time
+    const pos = rewindXY(p, tHit);
+
+    if (dist2(b.x, b.y, pos.x, pos.y) <= rr * rr){
       applyPlayerDamage(lobby, pid, b.dmg ?? 10);
       lobby.bullets.splice(bulletIndex, 1);
       return true;
@@ -436,6 +443,41 @@ const dist2 = (ax, ay, bx, by) => {
   const dx = ax - bx, dy = ay - by;
   return dx * dx + dy * dy;
 };
+
+// ✅ competitive lag compensation: keep short position history
+const HISTORY_MS = 250;
+
+function pushHist(obj, t) {
+  obj._hist = obj._hist || [];
+  obj._hist.push({ t, x: obj.x, y: obj.y });
+  const cut = t - HISTORY_MS;
+  while (obj._hist.length && obj._hist[0].t < cut) obj._hist.shift();
+}
+
+function rewindXY(obj, t) {
+  const h = obj._hist;
+  if (!h || h.length === 0) return { x: obj.x, y: obj.y };
+
+  if (t <= h[0].t) return { x: h[0].x, y: h[0].y };
+  if (t >= h[h.length - 1].t) return { x: h[h.length - 1].x, y: h[h.length - 1].y };
+
+  for (let i = h.length - 2; i >= 0; i--) {
+    const a = h[i], b = h[i + 1];
+    if (a.t <= t && t <= b.t) {
+      const f = (t - a.t) / Math.max(1, (b.t - a.t));
+      return { x: a.x + (b.x - a.x) * f, y: a.y + (b.y - a.y) * f };
+    }
+  }
+  return { x: obj.x, y: obj.y };
+}
+
+function bulletTimeAt(b, tNow) {
+  // bullet time at its current position along flight
+  const life0 = b.life0 ?? 1.2;
+  const elapsedMs = (life0 - (b.life ?? life0)) * 1000;
+  const t0 = b.t0 ?? tNow;
+  return t0 + elapsedMs;
+}
 // -----------------------------------------------------------------------------
 // Enemy collision helpers (SERVER-SIDE)
 // -----------------------------------------------------------------------------
@@ -1691,15 +1733,44 @@ app.post('/shoot', (req, res) => {
   const lobby = LOBBIES.get(lobbyId);
   if (!lobby) return res.json({ ok: false });
 
+  const tNow = now();
+  const fireT = (Number.isFinite(Number(req.body?.t)) ? Number(req.body.t) : tNow);
+
+  // Reject absurdly late shots (anti-cheat + fairness)
+  if (tNow - fireT > HISTORY_MS) {
+    return res.json({ ok:false, error:'late shot' });
+  }
+
+  const vx = Math.cos(ang) * speed;
+  const vy = Math.sin(ang) * speed;
+
+  // ✅ catch-up bullet so it starts where it should be "now"
+  const dtCatch = Math.max(0, (tNow - fireT) / 1000);
+  const xCatch = x + vx * dtCatch;
+  const yCatch = y + vy * dtCatch;
+
   lobby.bullets.push({
     owner: peerId,
-    x, y,
-    vx: Math.cos(ang) * speed,
-    vy: Math.sin(ang) * speed,
+
+    // current position
+    x: xCatch,
+    y: yCatch,
+
+    // store original segment start for swept checks
+    _x0: x,
+    _y0: y,
+
+    vx, vy,
     r: 4,
     dmg,
-    life: 1.2
+
+    life0: 1.2,
+    life: Math.max(0, 1.2 - dtCatch),
+
+    // ✅ used for rewind timing
+    t0: fireT
   });
+
   const p = lobby.players.get(peerId);
   if (p) p.lastShotAt = now();
 
@@ -2097,6 +2168,7 @@ setInterval(() => {
       // ✅ velocity for sniper lead aim
       p.vx = (p.x - prevX) / dt;
       p.vy = (p.y - prevY) / dt;
+      pushHist(p, t);
     }
 
     // ---- PvE: spawn + enemy AI ----
@@ -2128,6 +2200,7 @@ setInterval(() => {
       for (let i = lobby.enemies.length - 1; i >= 0; i--) {
         const e = lobby.enemies[i];
         enemyAI(lobby, e, dt);
+        pushHist(e, t);
 
         const killedByHazard = applyEnemyHazards(lobby, e, dt);
         if (killedByHazard || e.hp <= 0) {
@@ -2233,7 +2306,9 @@ setInterval(() => {
         for (let j = 0; j < lobby.enemies.length; j++) {
           const e = lobby.enemies[j];
           const rr = (b.r + e.r);
-          if (segmentHitsCircle(b._x0 ?? b.x, b._y0 ?? b.y, b.x, b.y, e.x, e.y, rr)) { hitIndex = j; break; }
+          const tHit = bulletTimeAt(b, now());
+          const pos = rewindXY(e, tHit);
+          if (segmentHitsCircle(b._x0 ?? b.x, b._y0 ?? b.y, b.x, b.y, pos.x, pos.y, rr)) { hitIndex = j; break; }
         }
 
         if (hitIndex >= 0) {
@@ -2282,7 +2357,10 @@ setInterval(() => {
         mapSeed: lobby.mapSeed,
         pickupVer: 0,
         chestVer: lobby.chestVer ?? 0,
-        worldKey: lobby.worldKey ?? null
+        worldKey: lobby.worldKey ?? null,
+
+        // ✅ clock sync
+        serverTime: now()
       }
     };
     flushWaiters(lobby);
