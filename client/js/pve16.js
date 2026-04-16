@@ -3611,10 +3611,17 @@ window.addEventListener('net:snapshot', () => {
     const online = isNetActive();
     const snap = online ? (Net.state && Net.state.snapshot) : null;
 
+    // ✅ DEFINE BULLETS ONCE (used in multiple sections below)
+    const allBullets =
+      (online && snap && Array.isArray(snap.bullets))
+        ? snap.bullets
+        : ents.bullets;
+
     const drawEnemies =
       (online && snap && Array.isArray(snap.enemies))
         ? snap.enemies
         : ents.enemies;
+
 
     // World layers
     // Floor does not need 60Hz redraw
