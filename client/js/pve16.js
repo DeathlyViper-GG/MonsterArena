@@ -2463,10 +2463,104 @@ if (btnHomeCustomize){
 
   // Waves & progressive difficulty -------------------------------------------
   let spawnQueue=[];
-  function startWave(n){ state.wave=n; state.spawnT=0; const base=6+Math.floor(n*1.5); let remaining=base; const c0=nav.cellFrom(player.x,player.y); nav.floodFrom(c0.ix, c0.iy);
-    const pos=()=>{ const margin=120; for(let attempts=0; attempts<60; attempts++){ const x=rand(margin, world.w-margin), y=rand(margin, world.h-margin); if(dist2(x,y,player.x,player.y)<520*520) continue; if(world.isBlocked(x,y,20) || world.collideHazard(x,y,20)) continue; if(nav.isReachable(x,y)) return {x,y}; } return {x: clamp(player.x+800, margin, world.w-margin), y: clamp(player.y, margin, world.h-margin)}; };
-    state.nextWaveT=2.0; const toSpawn=[]; const bossWave=(n%5===0); if(bossWave){ const p=pos(); toSpawn.push({t:1.5,type:'boss',...p}); remaining+=2; } for(let i=0;i<remaining;i++){ const p=pos(); toSpawn.push({t:rand(0.5,10), type:pickType(), ...p}); } spawnQueue=toSpawn.sort((a,b)=>a.t-b.t); }
-  function pickType(){ const w = state.wave; let weights = { chaser:6, tank:1, shooter:1, sniper:0, bomber:0, healer:0 }; if (w>=2){ weights.tank+=1; weights.shooter+=1; } if (w>=3){ weights.sniper+=2; } if (w>=4){ weights.bomber+=2; } if (w>=5){ weights.healer+=1; } if (w>=6){ weights.tank+=2; weights.sniper+=2; } if (w>=8){ weights.bomber+=2; weights.healer+=1; } if (w>=10){ weights.sniper+=3; weights.bomber+=3; weights.healer+=2; } let pool=[]; for(const k in weights){ for(let i=0;i<weights[k]; i++) pool.push(k); } return pool[rint(0, pool.length-1)]; }
+  function enemyCountForWave(w) {
+    // Smooth ramp: 5 → 25 by wave 15 (single‑player only)
+    const min = 5;
+    const max = 25;
+
+    if (w >= 15) return max;
+
+    const t = (w - 1) / 14;
+    return Math.round(min + (max - min) * t);
+  }
+  function startWave(n) {
+    // ✅ SINGLE‑PLAYER ONLY
+    if (isNetActive()) return;
+
+    state.wave = n;
+    state.spawnT = 0;
+    state.spawnIdx = 0;
+    spawnQueue = [];
+
+    const maxAlive = 25;
+    const alive = ents.enemies.length;
+    const slots = Math.max(0, maxAlive - alive);
+    const count = Math.min(enemyCountForWave(n), slots);
+
+    const c0 = nav.cellFrom(player.x, player.y);
+    nav.floodFrom(c0.ix, c0.iy);
+
+    const pos = () => {
+      const margin = 120;
+      for (let i = 0; i < 60; i++) {
+        const x = rand(margin, world.w - margin);
+        const y = rand(margin, world.h - margin);
+        if (dist2(x, y, player.x, player.y) < 520 * 520) continue;
+        if (world.isBlocked(x, y, 20) || world.collideHazard(x, y, 20)) continue;
+        if (nav.isReachable(x, y)) return { x, y };
+      }
+      return {
+        x: clamp(player.x + 800, margin, world.w - margin),
+        y: clamp(player.y, margin, world.h - margin)
+      };
+    };
+
+    state.nextWaveT = 2.0;
+
+    // ✅ Boss every 5 waves, same mix as previous wave
+    if (n % 5 === 0) {
+      const p = pos();
+      spawnQueue.push({
+        t: 1.2,
+        type: 'boss',
+        x: p.x,
+        y: p.y
+      });
+    }
+
+    for (let i = 0; i < count; i++) {
+      const p = pos();
+      spawnQueue.push({
+        t: rand(0.5, 10),
+        type: pickType(),
+        x: p.x,
+        y: p.y
+      });
+    }
+
+    spawnQueue.sort((a, b) => a.t - b.t);
+  }
+  const SP_WAVE_COMPOSITION = {
+    1:  ['chaser'],                                   // raveners
+    2:  ['chaser','tank'],
+    3:  ['chaser','tank','shooter'],
+    4:  ['tank','shooter','sniper','chaser'],
+    5:  ['tank','shooter','sniper','chaser'],         // boss added separately
+
+    6:  ['chaser','tank','shooter','sniper','bomber'],
+    7:  ['tank','shooter','sniper','bomber'],
+    8:  ['tank','shooter','sniper','bomber'],
+    9:  ['shooter','sniper','bomber'],
+    10: ['shooter','sniper','bomber','healer']
+  };
+
+  function enemyPoolForWave(w) {
+    if (w <= 10) return SP_WAVE_COMPOSITION[w];
+
+    if (w <= 12) return ['tank','shooter','sniper','bomber','healer'];
+    if (w <= 14) return ['shooter','sniper','bomber','healer'];
+    return ['sniper','bomber','healer'];
+  }
+  function pickType() {
+    // ✅ SINGLE‑PLAYER ONLY
+    if (isNetActive()) {
+      // Safety fallback (should never be used in MP)
+      return 'chaser';
+    }
+
+    const pool = enemyPoolForWave(state.wave);
+    return pool[rint(0, pool.length - 1)];
+  }
 
   // Shooting / collisions -----------------------------------------------------
   function playerShoot(){ 
