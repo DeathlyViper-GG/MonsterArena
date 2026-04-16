@@ -2703,6 +2703,14 @@ if (btnHomeCustomize){
     // ✅ Use the same visual position as the rendered player
     // ✅ Use the same visual position as the rendered player
     const { x: px0, y: py0 } = getVisualPlayerPos();
+    // VISUAL-ONLY instant tracer (does NOT affect damage)
+    addEffect(
+      px0 + Math.cos(base) * player.r,
+      py0 + Math.sin(base) * player.r,
+      'rb',
+      0.08,
+      '#ffffff'
+    );
 
     // ✅ ONLINE: server authoritative bullets
     if (isNetActive()) {
