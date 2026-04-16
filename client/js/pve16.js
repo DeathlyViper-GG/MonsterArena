@@ -1267,11 +1267,17 @@
   const cam = { x:0, y:0, shake:0, sx:0, sy:0 };
   function updateCamera(dt){
     const online = isNetActive();
-    const meSnap = online ? mySnapshotPlayer() : null;
 
     // Use authoritative-me when online (prevents drift)
-    const px = meSnap?.x ?? LS.visualMe?.x ?? player.x;
-    const py = meSnap?.y ?? LS.visualMe?.y ?? player.y;
+    const meSnap = online ? mySnapshotPlayer() : null;
+
+    let px = player.x;
+    let py = player.y;
+
+    if (online && meSnap) {
+      px += (meSnap.x - px) * 0.18;
+      py += (meSnap.y - py) * 0.18;
+    }
     // ✅ Use CSS viewport size (NOT canvas.width/height which are device pixels)
     const targetX = px - VIEW.w / 2;
     const targetY = py - VIEW.h / 2;
