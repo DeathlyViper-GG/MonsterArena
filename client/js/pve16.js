@@ -348,6 +348,39 @@
     _lastServerWorldKey = wk;
     _lastServerHadBuildings = world.buildings.length > 0;
   }
+
+  // ===== Local player visual smoothing =====
+  let _mePrev = null;
+  let _meCurr = null;
+  let _mePrevT = 0;
+  let _meCurrT = 0;
+
+  function storeMeFromSnapshot(snap) {
+    if (!snap || !Array.isArray(snap.players)) return;
+    const me = snap.players.find(p => p.id === Net.state?.peerId);
+    if (!me) return;
+
+    _mePrev = _meCurr;
+    _mePrevT = _meCurrT;
+    _meCurr = me;
+    _meCurrT = performance.now();
+  }
+
+  function getSmoothedMe(delayMs = 90) {
+    if (!_meCurr) return null;
+    if (!_mePrev) return _meCurr;
+
+    const t = performance.now() - delayMs;
+    const span = Math.max(1, _meCurrT - _mePrevT);
+    const a = clamp((t - _mePrevT) / span, 0, 1);
+
+    return {
+      ..._meCurr,
+      x: _mePrev.x + (_meCurr.x - _mePrev.x) * a,
+      y: _mePrev.y + (_meCurr.y - _mePrev.y) * a,
+      ang: lerpAngle(_mePrev.ang ?? 0, _meCurr.ang ?? 0, a)
+    };
+  }
   // -----------------------------------------------------------------------------
   // HTTP MODE COMPATIBILITY SHIMS (no WebRTC host/peer)
   // -----------------------------------------------------------------------------
@@ -3048,6 +3081,7 @@ window.addEventListener('net:snapshot', (ev) => {
   if (!snap || !Array.isArray(snap.players)) return;
 
   storeSnapshot(snap);
+  storeMeFromSnapshot(snap); // ✅ ADD THIS
   renderLobbyPlayers();
 
   if (localStorage.getItem('arenaMode') === 'pve' && typeof snap.wave === 'number') {
@@ -4079,9 +4113,9 @@ if (online && onlineBullets) {
     // Local player
     // ---------------------------
     {
-      const meSnap = online ? mySnapshotPlayer() : null;
-      const lx = meSnap ? meSnap.x : player.x;
-      const ly = meSnap ? meSnap.y : player.y;
+      const meSmooth = online ? getSmoothedMe() : null;
+      const lx = meSmooth ? meSmooth.x : player.x;
+      const ly = meSmooth ? meSmooth.y : player.y;
 
       const px = lx - cam.x - cam.sx;
       const py = ly - cam.y - cam.sy;
