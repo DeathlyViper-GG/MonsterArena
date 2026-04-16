@@ -4113,9 +4113,21 @@ if (online && onlineBullets) {
     // Local player
     // ---------------------------
     {
-      const meSmooth = online ? getSmoothedMe() : null;
-      const lx = meSmooth ? meSmooth.x : player.x;
-      const ly = meSmooth ? meSmooth.y : player.y;
+      const meSnap = online ? mySnapshotPlayer() : null;
+
+      // Start from immediate local state (NO DELAY)
+      let lx = player.x;
+      let ly = player.y;
+
+      // Apply gentle error correction toward server (visual only)
+      if (online && meSnap) {
+        const dx = meSnap.x - lx;
+        const dy = meSnap.y - ly;
+
+        const CORRECT_RATE = 0.18; // 0.12–0.25 sweet spot
+        lx += dx * CORRECT_RATE;
+        ly += dy * CORRECT_RATE;
+      }
 
       const px = lx - cam.x - cam.sx;
       const py = ly - cam.y - cam.sy;
