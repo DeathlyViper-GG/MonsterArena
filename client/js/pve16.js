@@ -3652,6 +3652,11 @@ window.addEventListener('net:snapshot', () => {
     // ---------------------------
     // ✅ Bullets (authoritative online)
     // ---------------------------
+    // ✅ DEFINE BULLET SOURCE (REQUIRED)
+    const allBullets =
+      (online && snap && Array.isArray(snap.bullets))
+        ? snap.bullets
+        : ents.bullets;
     // Enemy bullets / bombs
     ctx.fillStyle = '#ffadad';
 
