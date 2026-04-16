@@ -206,6 +206,25 @@
     _snapCurrT = performance.now();
   }
 
+  // ===== Bullet render interpolation (VISUAL ONLY) =====
+  function drawInterpolatedBullet(ctx, b, cam) {
+    // Predict a tiny bit forward to hide tick stepping
+    const PREDICT_MS = 16; // ~1 frame @ 60Hz
+
+    const px = b.x + (b.vx ?? 0) * (PREDICT_MS / 1000);
+    const py = b.y + (b.vy ?? 0) * (PREDICT_MS / 1000);
+
+    ctx.beginPath();
+    ctx.arc(
+      px - cam.x - cam.sx,
+      py - cam.y - cam.sy,
+      b.r ?? 4,
+      0,
+      Math.PI * 2
+    );
+    ctx.fill();
+  }
+
   function getInterpolatedSnapshot(delayMs = 120) {
     if (!_snapCurr) return Net?.state?.snapshot || null;
     if (!_snapPrev) return _snapCurr;
@@ -3854,35 +3873,18 @@ const onlineBullets =
 // ===========================
 ctx.fillStyle = '#cfe5ff';
 
-// ✅ OFFLINE: draw local player bullets
+// OFFLINE
 if (!online) {
   for (const b of ents.bullets) {
-    ctx.beginPath();
-    ctx.arc(
-      b.x - cam.x - cam.sx,
-      b.y - cam.y - cam.sy,
-      b.r ?? 4,
-      0,
-      Math.PI * 2
-    );
-    ctx.fill();
+    drawInterpolatedBullet(ctx, b, cam);
   }
 }
 
-// ✅ ONLINE: player bullets come from snapshot
-if (online && onlineBullets) {
-  for (const b of onlineBullets) {
+// ONLINE (snapshot bullets)
+if (online && snap?.bullets) {
+  for (const b of snap.bullets) {
     if (b.kind === 'enemy' || b.kind === 'enemyBomb') continue;
-
-    ctx.beginPath();
-    ctx.arc(
-      b.x - cam.x - cam.sx,
-      b.y - cam.y - cam.sy,
-      b.r ?? 4,
-      0,
-      Math.PI * 2
-    );
-    ctx.fill();
+    drawInterpolatedBullet(ctx, b, cam);
   }
 }
 
@@ -3891,37 +3893,18 @@ if (online && onlineBullets) {
   // ===========================
   ctx.fillStyle = '#ffadad';
 
-  // ✅ OFFLINE: enemy bullets
+  // OFFLINE
   if (!online) {
     for (const b of ents.ebullets) {
-      const rad = b.kind === 'bomb' ? 7 : (b.r ?? 4);
-      ctx.beginPath();
-      ctx.arc(
-        b.x - cam.x - cam.sx,
-        b.y - cam.y - cam.sy,
-        rad,
-        0,
-        Math.PI * 2
-      );
-      ctx.fill();
+      drawInterpolatedBullet(ctx, b, cam);
     }
   }
 
-  // ✅ ONLINE: enemy bullets from snapshot
-  if (online && onlineBullets) {
-    for (const b of onlineBullets) {
+  // ONLINE
+  if (online && snap?.bullets) {
+    for (const b of snap.bullets) {
       if (!(b.kind === 'enemy' || b.kind === 'enemyBomb')) continue;
-
-      const rad = b.kind === 'enemyBomb' ? 7 : (b.r ?? 4);
-      ctx.beginPath();
-      ctx.arc(
-        b.x - cam.x - cam.sx,
-        b.y - cam.y - cam.sy,
-        rad,
-        0,
-        Math.PI * 2
-      );
-      ctx.fill();
+      drawInterpolatedBullet(ctx, b, cam);
     }
   }
 
