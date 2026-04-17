@@ -3241,7 +3241,7 @@ if (btnHomeCustomize){
         x: e.x,
         y: e.y,
         type: 'rb',
-        life: 0.35,
+        life: 1.2,
         t: 0,
         color: '#cfe5ff',
         vx: Math.cos(a) * sp,
