@@ -2573,78 +2573,119 @@ if (btnHomeCustomize){
   function spawnEBullet(x,y,a, speed,dmg){ ents.ebullets.push({x,y,vx:Math.cos(a)*speed, vy:Math.sin(a)*speed, r:4, dmg, life:2.5}); }
   function spawnBomb(x,y,a, speed,dmg, splashR=110, fuse=0.75){ ents.ebullets.push({ x,y, vx:Math.cos(a)*speed, vy:Math.sin(a)*speed, r:6, dmg, life:fuse, kind:'bomb', splashR }); }
   function addEffect(x,y,type,life=0.4,color='#9cf'){ ents.effects.push({x,y,type,life,color,t:0,r:6}); }
-  // ===== VISUAL-ONLY CLIENT BULLETS (smooth, no damage) =====
+  // ===== SYNCED CLIENT BULLETS (visual-only, server authoritative) =====
+  // Goal: client draws ONE smooth bullet immediately, then snaps/locks to the server bullet by id.
 
-  // Fast segment-circle check (prevents tunnelling at high speed)
-  function segHitsCircle(x0, y0, x1, y1, cx, cy, r) {
-    const dx = x1 - x0, dy = y1 - y0;
-    const fx = x0 - cx, fy = y0 - cy;
-    const a = dx*dx + dy*dy;
-    if (a < 1e-6) return (fx*fx + fy*fy) <= r*r;
-    let t = -(fx*dx + fy*dy) / a;
-    t = clamp(t, 0, 1);
-    const px = x0 + dx*t, py = y0 + dy*t;
-    return dist2(px, py, cx, cy) <= r*r;
+  let _shotSeq = 0;
+  function makeShotId() {
+    const me = (window.Net && Net.state && Net.state.peerId) ? Net.state.peerId : 'P';
+    _shotSeq = (_shotSeq + 1) >>> 0;
+    return `${me}:${Date.now().toString(36)}:${_shotSeq.toString(36)}`;
   }
 
-  // Spawn a client-only visual bullet (local shooter only)
-  function spawnVBullet(x, y, ang, speed, life = 0.35) {
+  // Create a predicted bullet with a stable id
+  function spawnVBullet(id, x, y, ang, speed, life = 1.2) {
     const vx = Math.cos(ang) * speed;
     const vy = Math.sin(ang) * speed;
     ents.vbullets.push({
-      x, y, vx, vy,
+      id,
+      x, y,
+      vx, vy,
       r: 4,
       life,
-      _x0: x, _y0: y
+      confirmed: false,
+      srvX: x,
+      srvY: y,
+      miss: 0
     });
   }
 
-  // Move & visually collide client bullets against interpolated enemies
+  // Step once per render frame (NOT in updateFixed, NOT per-effect)
   function stepVBullets(dt) {
     if (!ents.vbullets.length) return;
-
-    // Use interpolated enemies for VISUAL hit sparks (not authoritative)
-    const snap = isNetActive() ? getInterpolatedSnapshot() : null;
-    const enemies = (snap && Array.isArray(snap.enemies)) ? snap.enemies : null;
 
     for (let i = ents.vbullets.length - 1; i >= 0; i--) {
       const b = ents.vbullets[i];
 
-      const x0 = b.x, y0 = b.y;
-      const x1 = x0 + b.vx * dt;
-      const y1 = y0 + b.vy * dt;
+      // predicted motion
+      b.x += b.vx * dt;
+      b.y += b.vy * dt;
 
-      // Wall stop (visual only)
-      if (lineWallHit(x0, y0, b.vx, b.vy, dt, b.r)) {
-        ents.vbullets.splice(i, 1);
-        continue;
+      // once server confirms, keep it tightly synced
+      if (b.confirmed) {
+        const CORRECT = 0.45; // tighten/loosen 0.25..0.60
+        b.x += (b.srvX - b.x) * CORRECT;
+        b.y += (b.srvY - b.y) * CORRECT;
       }
 
-      b.x = x1; b.y = y1;
       b.life -= dt;
       if (b.life <= 0) {
         ents.vbullets.splice(i, 1);
-        continue;
       }
+    }
+  }
 
-      // Visual enemy hit (spark + remove bullet)
-      if (enemies) {
-        for (let j = 0; j < enemies.length; j++) {
-          const e = enemies[j];
-          const rr = (e.r ?? 16) + (b.r ?? 4);
-          if (segHitsCircle(x0, y0, x1, y1, e.x, e.y, rr)) {
-            // spark at enemy centre (cheap); you can refine to intersection point later
-            addEffect(e.x, e.y, 'hit', 0.12, '#fff');
-            cam.shake = Math.max(cam.shake, 1.0);
-            ents.vbullets.splice(i, 1);
-            break;
+  // Called from net:snapshot to lock predicted bullets to authoritative bullets
+  function syncVBulletsFromSnapshot(snap) {
+    if (!isNetActive()) return;
+    if (!snap || !Array.isArray(snap.bullets)) return;
+
+    const myId = Net.state.peerId;
+
+    // index vbullets by id
+    const V = new Map();
+    for (const vb of ents.vbullets) {
+      if (vb && vb.id) V.set(vb.id, vb);
+    }
+
+    const aliveMine = new Set();
+
+    // update vbullets from authoritative bullets
+    for (const sb of snap.bullets) {
+      if (!sb || sb.owner !== myId || !sb.id) continue;
+      aliveMine.add(sb.id);
+
+      const vb = V.get(sb.id);
+      if (!vb) continue;
+
+      vb.confirmed = true;
+      vb.srvX = sb.x;
+      vb.srvY = sb.y;
+
+      if (typeof sb.vx === 'number') vb.vx = sb.vx;
+      if (typeof sb.vy === 'number') vb.vy = sb.vy;
+      if (typeof sb.life === 'number') vb.life = Math.min(vb.life, sb.life);
+
+      vb.miss = 0;
+    }
+
+    // remove vbullets when the server bullet disappears (hit/wall/expired)
+    // allow 1 missed snapshot to avoid flicker on poll gaps
+    for (let i = ents.vbullets.length - 1; i >= 0; i--) {
+      const vb = ents.vbullets[i];
+      if (!vb || !vb.id) continue;
+
+      if (!aliveMine.has(vb.id)) {
+        vb.miss = (vb.miss || 0) + 1;
+        if (vb.miss >= 2) {
+          // optional: spawn a hit spark if bullet vanished near an enemy
+          const es = Array.isArray(snap.enemies) ? snap.enemies : [];
+          for (const e of es) {
+            const rr = (e.r ?? 16) + (vb.r ?? 4) + 12;
+            if (dist2(vb.x, vb.y, e.x, e.y) <= rr * rr) {
+              addEffect(e.x, e.y, 'hit', 0.12, '#fff');
+              cam.shake = Math.max(cam.shake, 1.0);
+              break;
+            }
           }
+
+          ents.vbullets.splice(i, 1);
         }
       }
     }
   }
 
-  // Draw client bullets (already smooth because they move every frame)
+  // Draw vbullets
   function drawVBullet(ctx, b, cam) {
     ctx.beginPath();
     ctx.arc(
@@ -2837,20 +2878,18 @@ if (btnHomeCustomize){
     if (isNetActive()) {
       for (let i = 0; i < w.shots; i++){
         const a = base + rand(-w.spread, w.spread);
-        Net.sendShoot(
-          px0 + Math.cos(a) * player.r,
-          py0 + Math.sin(a) * player.r,
-          a,
-          w.speed,
-          w.dmg
-        );
-        spawnVBullet(
-          px0 + Math.cos(a) * player.r,
-          py0 + Math.sin(a) * player.r,
-          a,
-          w.speed,
-          0.35
-        );
+        
+        const sx = px0 + Math.cos(a) * player.r;
+        const sy = py0 + Math.sin(a) * player.r;
+
+        const shotId = makeShotId();
+
+        // send authoritative bullet WITH id
+        Net.sendShoot(sx, sy, a, w.speed, w.dmg, shotId);
+
+        // spawn predicted bullet with SAME id and SAME lifetime as server bullet
+        spawnVBullet(shotId, sx, sy, a, w.speed, 1.2);
+
       }
       // ✅ Immediate muzzle flash at true local position
       addEffect(
@@ -3264,6 +3303,7 @@ window.addEventListener('net:snapshot', (ev) => {
       if (!alive.has(k)) _bulletCache.delete(k);
     }
   }
+  syncVBulletsFromSnapshot(snap);
   storeMeFromSnapshot(snap); // ✅ ADD THIS
   renderLobbyPlayers();
 
@@ -3451,11 +3491,16 @@ window.addEventListener('net:snapshot', (ev) => {
         updateFixed(dt, ++SIM_TICK);
       }
     }
+   
     _renderAlpha = dt / FIXED_DT;
     if (_renderAlpha > 1) _renderAlpha = 1;
 
+    // ✅ step synced visual bullets once per frame
+    stepVBullets(dt);
+
     draw(dt);
     requestAnimationFrame(loop);
+
   }
   requestAnimationFrame(loop);
 
