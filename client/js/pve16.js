@@ -360,6 +360,7 @@
     ents.ebullets.length = 0;
     ents.effects.length = 0;
     ents.pickups.length = 0;
+    ents.vbullets.length = 0;
 
     // Reset player locally (no more movement/shooting)
     player.hp = 0;
@@ -1341,7 +1342,7 @@
   }
 
   // Entities ------------------------------------------------------------------
-  const ents = { bullets:[], ebullets:[], effects:[], enemies:[], pickups:[] };
+  const ents = { bullets:[], ebullets:[], vbullets:[], effects:[], enemies:[], pickups:[] };
   window._ents = ents;
 
   // Weapons & player ----------------------------------------------------------
@@ -2572,6 +2573,89 @@ if (btnHomeCustomize){
   function spawnEBullet(x,y,a, speed,dmg){ ents.ebullets.push({x,y,vx:Math.cos(a)*speed, vy:Math.sin(a)*speed, r:4, dmg, life:2.5}); }
   function spawnBomb(x,y,a, speed,dmg, splashR=110, fuse=0.75){ ents.ebullets.push({ x,y, vx:Math.cos(a)*speed, vy:Math.sin(a)*speed, r:6, dmg, life:fuse, kind:'bomb', splashR }); }
   function addEffect(x,y,type,life=0.4,color='#9cf'){ ents.effects.push({x,y,type,life,color,t:0,r:6}); }
+  // ===== VISUAL-ONLY CLIENT BULLETS (smooth, no damage) =====
+
+  // Fast segment-circle check (prevents tunnelling at high speed)
+  function segHitsCircle(x0, y0, x1, y1, cx, cy, r) {
+    const dx = x1 - x0, dy = y1 - y0;
+    const fx = x0 - cx, fy = y0 - cy;
+    const a = dx*dx + dy*dy;
+    if (a < 1e-6) return (fx*fx + fy*fy) <= r*r;
+    let t = -(fx*dx + fy*dy) / a;
+    t = clamp(t, 0, 1);
+    const px = x0 + dx*t, py = y0 + dy*t;
+    return dist2(px, py, cx, cy) <= r*r;
+  }
+
+  // Spawn a client-only visual bullet (local shooter only)
+  function spawnVBullet(x, y, ang, speed, life = 0.35) {
+    const vx = Math.cos(ang) * speed;
+    const vy = Math.sin(ang) * speed;
+    ents.vbullets.push({
+      x, y, vx, vy,
+      r: 4,
+      life,
+      _x0: x, _y0: y
+    });
+  }
+
+  // Move & visually collide client bullets against interpolated enemies
+  function stepVBullets(dt) {
+    if (!ents.vbullets.length) return;
+
+    // Use interpolated enemies for VISUAL hit sparks (not authoritative)
+    const snap = isNetActive() ? getInterpolatedSnapshot() : null;
+    const enemies = (snap && Array.isArray(snap.enemies)) ? snap.enemies : null;
+
+    for (let i = ents.vbullets.length - 1; i >= 0; i--) {
+      const b = ents.vbullets[i];
+
+      const x0 = b.x, y0 = b.y;
+      const x1 = x0 + b.vx * dt;
+      const y1 = y0 + b.vy * dt;
+
+      // Wall stop (visual only)
+      if (lineWallHit(x0, y0, b.vx, b.vy, dt, b.r)) {
+        ents.vbullets.splice(i, 1);
+        continue;
+      }
+
+      b.x = x1; b.y = y1;
+      b.life -= dt;
+      if (b.life <= 0) {
+        ents.vbullets.splice(i, 1);
+        continue;
+      }
+
+      // Visual enemy hit (spark + remove bullet)
+      if (enemies) {
+        for (let j = 0; j < enemies.length; j++) {
+          const e = enemies[j];
+          const rr = (e.r ?? 16) + (b.r ?? 4);
+          if (segHitsCircle(x0, y0, x1, y1, e.x, e.y, rr)) {
+            // spark at enemy centre (cheap); you can refine to intersection point later
+            addEffect(e.x, e.y, 'hit', 0.12, '#fff');
+            cam.shake = Math.max(cam.shake, 1.0);
+            ents.vbullets.splice(i, 1);
+            break;
+          }
+        }
+      }
+    }
+  }
+
+  // Draw client bullets (already smooth because they move every frame)
+  function drawVBullet(ctx, b, cam) {
+    ctx.beginPath();
+    ctx.arc(
+      b.x - cam.x - cam.sx,
+      b.y - cam.y - cam.sy,
+      b.r ?? 4,
+      0,
+      Math.PI * 2
+    );
+    ctx.fill();
+  }
   function dropPickup(x,y, forcedType=null){
     const opts=['health','speed','shield','ammo']; 
     const type = forcedType || opts[rint(0,opts.length-1)]; 
@@ -2760,6 +2844,13 @@ if (btnHomeCustomize){
           w.speed,
           w.dmg
         );
+        spawnVBullet(
+          px0 + Math.cos(a) * player.r,
+          py0 + Math.sin(a) * player.r,
+          a,
+          w.speed,
+          0.35
+        );
       }
       // ✅ Immediate muzzle flash at true local position
       addEffect(
@@ -2933,6 +3024,7 @@ if (btnHomeCustomize){
     ents.enemies = [];
     ents.effects = [];
     ents.pickups = [];
+    ents.vbullets = [];
     noiseEvents.length = 0;
 
     // Rebuild map & nav
@@ -3795,6 +3887,8 @@ window.addEventListener('net:snapshot', (ev) => {
     }
 
     if (e.t >= e.life) ents.effects.splice(i, 1);
+    // ✅ advance client visual bullets every frame (smooth)
+    stepVBullets(dt);
   }
 
     {
@@ -3932,33 +4026,42 @@ window.addEventListener('net:snapshot', (ev) => {
     }
 
     // ---------------------------
-// ✅ Bullets (player + enemy)
-// ---------------------------
+    // ✅ Bullets (player + enemy)
+    // ---------------------------
 
-const onlineBullets =
-  (online && snap && Array.isArray(snap.bullets))
-    ? snap.bullets
-    : null;
+    const onlineBullets =
+      (online && snap && Array.isArray(snap.bullets))
+        ? snap.bullets
+        : null;
 
-// ===========================
-// PLAYER BULLETS
-// ===========================
-ctx.fillStyle = '#cfe5ff';
+    // ===========================
+    // PLAYER BULLETS
+    // ===========================
+    ctx.fillStyle = '#cfe5ff';
 
-// OFFLINE
-if (!online) {
-  for (const b of ents.bullets) {
-    drawInterpolatedBullet(ctx, b, cam);
-  }
-}
+    // OFFLINE
+    if (!online) {
+      for (const b of ents.bullets) {
+        drawInterpolatedBullet(ctx, b, cam);
+      }
+    }
 
-// ONLINE (snapshot bullets)
-if (online && snap?.bullets) {
-  for (const b of snap.bullets) {
-    if (b.kind === 'enemy' || b.kind === 'enemyBomb') continue;
-    drawInterpolatedBullet(ctx, b, cam);
-  }
-}
+    // ONLINE (snapshot bullets)
+    if (online && snap?.bullets) {
+      for (const b of snap.bullets) {
+        if (b.kind === 'enemy' || b.kind === 'enemyBomb') continue;
+        // ✅ hide *my* server bullets (I use vbullets instead)
+        if (b.owner && b.owner === Net.state.peerId) continue;
+        drawInterpolatedBullet(ctx, b, cam);
+      }
+    }
+    // ✅ draw my smooth client bullets (visual only)
+    if (online && ents.vbullets.length) {
+      ctx.fillStyle = '#cfe5ff';
+      for (const b of ents.vbullets) {
+        drawVBullet(ctx, b, cam);
+      }
+    }
 
   // ===========================
   // ENEMY BULLETS
