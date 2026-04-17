@@ -2610,16 +2610,12 @@ if (btnHomeCustomize){
     for (let i = ents.vbullets.length - 1; i >= 0; i--) {
       const b = ents.vbullets[i];
 
-      // predicted motion
+      // ✅ pure predicted forward motion only
       b.x += b.vx * dt;
       b.y += b.vy * dt;
 
-      // once server confirms, keep it tightly synced
-      if (b.confirmed) {
-        const CORRECT = 0.45; // tighten/loosen 0.25..0.60
-        b.x += (b.srvX - b.x) * CORRECT;
-        b.y += (b.srvY - b.y) * CORRECT;
-      }
+      // ❌ NO positional correction here
+      // ❌ do NOT pull toward srvX/srvY
 
       b.life -= dt;
       if (b.life <= 0) {
@@ -2651,13 +2647,23 @@ if (btnHomeCustomize){
       const vb = V.get(sb.id);
       if (!vb) continue;
 
-      vb.confirmed = true;
-      vb.srvX = sb.x;
-      vb.srvY = sb.y;
+      // ✅ first confirmation only
+      if (!vb.confirmed) {
+        vb.confirmed = true;
 
-      if (typeof sb.vx === 'number') vb.vx = sb.vx;
-      if (typeof sb.vy === 'number') vb.vy = sb.vy;
-      if (typeof sb.life === 'number') vb.life = Math.min(vb.life, sb.life);
+        // SNAP ONCE to authoritative position
+        vb.x = sb.x;
+        vb.y = sb.y;
+
+        // trust server velocity going forward
+        if (typeof sb.vx === 'number') vb.vx = sb.vx;
+        if (typeof sb.vy === 'number') vb.vy = sb.vy;
+      }
+
+      // keep authoritative lifetime only
+      if (typeof sb.life === 'number') {
+        vb.life = Math.min(vb.life, sb.life);
+      }
 
       vb.miss = 0;
     }
