@@ -199,6 +199,8 @@
   let _snapCurr = null;
   let _snapPrevT = 0;
   let _snapCurrT = 0;
+  // ===== Snapshot bullet render cache (VISUAL ONLY) =====
+  const _bulletCache = new Map(); // key -> { x, y }
 
   function storeSnapshot(snap) {
     _snapPrev = _snapCurr;
@@ -209,12 +211,15 @@
 
   // ===== Bullet render interpolation (VISUAL ONLY) =====
   function drawInterpolatedBullet(ctx, b, cam) {
-    // fall back if first frame
-    const x0 = b._px ?? b.x;
-    const y0 = b._py ?? b.y;
+    // Stable key for snapshot bullets (server recreates objects every tick)
+    const key =
+      b.id ??
+      (b._rk ??= `${Math.round(b.x)}|${Math.round(b.y)}|${Math.round(b.vx)}|${Math.round(b.vy)}`);
 
-    const x = x0 + (b.x - x0) * _renderAlpha;
-    const y = y0 + (b.y - y0) * _renderAlpha;
+    const prev = _bulletCache.get(key) ?? { x: b.x, y: b.y };
+
+    const x = prev.x + (b.x - prev.x) * _renderAlpha;
+    const y = prev.y + (b.y - prev.y) * _renderAlpha;
 
     ctx.beginPath();
     ctx.arc(
@@ -225,6 +230,9 @@
       Math.PI * 2
     );
     ctx.fill();
+
+    // Store for next frame
+    _bulletCache.set(key, { x: b.x, y: b.y });
   }
 
   function getInterpolatedSnapshot(delayMs = 120) {
@@ -3127,6 +3135,18 @@ window.addEventListener('net:snapshot', (ev) => {
   if (!snap || !Array.isArray(snap.players)) return;
 
   storeSnapshot(snap);
+  // ✅ Prune snapshot bullet cache (prevents jumps + memory leak)
+  if (Array.isArray(snap.bullets)) {
+    const alive = new Set(
+      snap.bullets.map(
+        b => b.id ?? `${Math.round(b.x)}|${Math.round(b.y)}|${Math.round(b.vx)}|${Math.round(b.vy)}`
+      )
+    );
+
+    for (const k of _bulletCache.keys()) {
+      if (!alive.has(k)) _bulletCache.delete(k);
+    }
+  }
   storeMeFromSnapshot(snap); // ✅ ADD THIS
   renderLobbyPlayers();
 
