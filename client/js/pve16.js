@@ -34,6 +34,9 @@
   let STATIC_WORLD_KEY = '';
   let _lastHUDUpdate = 0;
   let _renderAlpha = 0;
+  // Match server bullet simulation rate
+  const BULLET_FIXED_DT = 1 / 20; // 50ms, same as server
+  let _bulletAcc = 0;
   const HUD_INTERVAL = 100; // ms (10 times per second)
   async function leaveMultiplayerAndReturnHome() {
     // Stop gameplay
@@ -3933,7 +3936,6 @@ window.addEventListener('net:snapshot', (ev) => {
 
     if (e.t >= e.life) ents.effects.splice(i, 1);
     // ✅ advance client visual bullets every frame (smooth)
-    stepVBullets(dt);
   }
 
     {
