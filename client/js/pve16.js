@@ -273,6 +273,31 @@
         };
       });
     }
+    // bullets ✅ FIX
+    if (Array.isArray(_snapCurr.bullets)) {
+      const A = new Map(
+        Array.isArray(_snapPrev?.bullets)
+          ? _snapPrev.bullets.map(b => [
+              b.id ?? `${b.x}|${b.y}|${b.vx}|${b.vy}`,
+              b
+            ])
+          : []
+      );
+
+      out.bullets = _snapCurr.bullets.map(cb => {
+        const id = cb.id ?? `${cb.x}|${cb.y}|${cb.vx}|${cb.vy}`;
+        const pb = A.get(id);
+
+        // first snapshot frame → no interpolation (prevents jump)
+        if (!pb) return cb;
+
+        return {
+          ...cb,
+          x: pb.x + (cb.x - pb.x) * a,
+          y: pb.y + (cb.y - pb.y) * a
+        };
+      });
+    }
 
     return out;
   }
