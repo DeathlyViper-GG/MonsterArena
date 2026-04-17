@@ -33,6 +33,7 @@
   let STATIC_WORLD_CTX = null;
   let STATIC_WORLD_KEY = '';
   let _lastHUDUpdate = 0;
+  let _renderAlpha = 0;
   const HUD_INTERVAL = 100; // ms (10 times per second)
   async function leaveMultiplayerAndReturnHome() {
     // Stop gameplay
@@ -208,16 +209,17 @@
 
   // ===== Bullet render interpolation (VISUAL ONLY) =====
   function drawInterpolatedBullet(ctx, b, cam) {
-    // Predict a tiny bit forward to hide tick stepping
-    const PREDICT_MS = 16; // ~1 frame @ 60Hz
+    // fall back if first frame
+    const x0 = b._px ?? b.x;
+    const y0 = b._py ?? b.y;
 
-    const px = b.x + (b.vx ?? 0) * (PREDICT_MS / 1000);
-    const py = b.y + (b.vy ?? 0) * (PREDICT_MS / 1000);
+    const x = x0 + (b.x - x0) * _renderAlpha;
+    const y = y0 + (b.y - y0) * _renderAlpha;
 
     ctx.beginPath();
     ctx.arc(
-      px - cam.x - cam.sx,
-      py - cam.y - cam.sy,
+      x - cam.x - cam.sx,
+      y - cam.y - cam.sy,
       b.r ?? 4,
       0,
       Math.PI * 2
@@ -2702,7 +2704,9 @@ if (btnHomeCustomize){
 
     // ✅ Use the same visual position as the rendered player
     // ✅ Use the same visual position as the rendered player
-    const { x: px0, y: py0 } = getVisualPlayerPos();
+    // ✅ Fire from immediate local player position (NO SNAPSHOT)
+    const px0 = player.x;
+    const py0 = player.y;
     // VISUAL-ONLY instant tracer (does NOT affect damage)
     addEffect(
       px0 + Math.cos(base) * player.r,
@@ -2724,7 +2728,14 @@ if (btnHomeCustomize){
           w.dmg
         );
       }
-      addEffect(px0 + Math.cos(base) * player.r, py0 + Math.sin(base) * player.r, 'muzzle', 0.1, '#fff');
+      // ✅ Immediate muzzle flash at true local position
+      addEffect(
+        px0 + Math.cos(base) * player.r,
+        py0 + Math.sin(base) * player.r,
+        'muzzle',
+        0.1,
+        '#fff'
+      );
       noiseEvents.push({ x: px0, y: py0, r: 720, t: 1.2 });
       return;
     }
@@ -2747,8 +2758,10 @@ if (btnHomeCustomize){
   function lineWallHit(px,py,vx,vy, dt, r){ const nx=px+vx*dt, ny=py+vy*dt; for(const o of world.walls){ const cx=clamp(nx,o.x,o.x+o.w), cy=clamp(ny,o.y,o.y+o.h); const dx=nx-cx, dy=ny-cy; if(dx*dx+dy*dy < r*r) return true; } return false; }
   function stepProjectiles(dt){
     // player bullets 
-    for (let i = ents.bullets.length - 1; i >= 0; i--){ 
-    const b = ents.bullets[i]; 
+    for (let i = ents.bullets.length - 1; i >= 0; i--){     
+    const b = ents.bullets[i];    
+    b._px = b.x;
+    b._py = b.y;
     const kill = lineWallHit(b.x, b.y, b.vx, b.vy, dt, b.r); 
     b.x += b.vx * dt; 
     b.y += b.vy * dt; 
@@ -3301,6 +3314,8 @@ window.addEventListener('net:snapshot', (ev) => {
         updateFixed(dt, ++SIM_TICK);
       }
     }
+    _renderAlpha = dt / FIXED_DT;
+    if (_renderAlpha > 1) _renderAlpha = 1;
 
     draw(dt);
     requestAnimationFrame(loop);
@@ -3662,7 +3677,11 @@ window.addEventListener('net:snapshot', (ev) => {
       }
     }
 
-    for (let i = ents.bullets.length - 1; i >= 0; i--){ const b = ents.bullets[i]; const kill = lineWallHit(b.x, b.y, b.vx, b.vy, dt, b.r); b.x += b.vx * dt; b.y += b.vy * dt; b.life -= dt; if (kill || b.life <= 0){ ents.bullets.splice(i,1); continue; } let hit = -1; for (let j = 0; j < ents.enemies.length; j++){ const e = ents.enemies[j]; const r = e.r + b.r; if (dist2(b.x,b.y,e.x,e.y) < r*r){ hit = j; break; } } if (hit >= 0){ const e = ents.enemies[hit] 
+    for (let i = ents.bullets.length - 1; i >= 0; i--){ 
+      const b = ents.bullets[i]   
+      b._px = b.x;
+      b._py = b.y; 
+      const kill = lineWallHit(b.x, b.y, b.vx, b.vy, dt, b.r); b.x += b.vx * dt; b.y += b.vy * dt; b.life -= dt; if (kill || b.life <= 0){ ents.bullets.splice(i,1); continue; } let hit = -1; for (let j = 0; j < ents.enemies.length; j++){ const e = ents.enemies[j]; const r = e.r + b.r; if (dist2(b.x,b.y,e.x,e.y) < r*r){ hit = j; break; } } if (hit >= 0){ const e = ents.enemies[hit] 
       e.hp -= b.dmg * (1 + state.wave * 0.02);
 
       // ✅ track last hitter for PvE leaderboard
