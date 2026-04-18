@@ -247,6 +247,61 @@
       });
     }
 
+    // bullets (smooth the server "jumps")
+    // NOTE: server bullets currently have no stable id, so we match by owner + similar velocity + nearest position.
+    if (Array.isArray(_snapPrev.bullets) && Array.isArray(_snapCurr.bullets)) {
+      const prev = _snapPrev.bullets.filter(Boolean);
+      const used = new Set();
+
+      const MAX_DIST2 = 160 * 160;      // tune: max distance between snapshots for same bullet
+      const MAX_DV2   = 220 * 220;      // tune: max (dvx,dvy) difference to consider same bullet
+
+      out.bullets = _snapCurr.bullets.map(cb => {
+        if (!cb) return cb;
+
+        let bestIdx = -1;
+        let bestD2 = Infinity;
+
+        for (let i = 0; i < prev.length; i++) {
+          if (used.has(i)) continue;
+          const pb = prev[i];
+          if (!pb) continue;
+
+          // must be same owner when present
+          if (pb.owner && cb.owner && pb.owner !== cb.owner) continue;
+
+          // velocity similarity (helps avoid mismatching rapid-fire bullets)
+          const dvx = (pb.vx ?? 0) - (cb.vx ?? 0);
+          const dvy = (pb.vy ?? 0) - (cb.vy ?? 0);
+          if (dvx * dvx + dvy * dvy > MAX_DV2) continue;
+
+          // choose the nearest previous bullet position
+          const dx = (pb.x ?? 0) - (cb.x ?? 0);
+          const dy = (pb.y ?? 0) - (cb.y ?? 0);
+          const d2 = dx * dx + dy * dy;
+
+          if (d2 < bestD2) {
+            bestD2 = d2;
+            bestIdx = i;
+          }
+        }
+
+        // if we found a plausible match, interpolate x/y between prev and curr
+        if (bestIdx !== -1 && bestD2 <= MAX_DIST2) {
+          const pb = prev[bestIdx];
+          used.add(bestIdx);
+          return {
+            ...cb,
+            x: (pb.x ?? cb.x) + ((cb.x ?? 0) - (pb.x ?? cb.x)) * a,
+            y: (pb.y ?? cb.y) + ((cb.y ?? 0) - (pb.y ?? cb.y)) * a,
+          };
+        }
+
+        // new bullet this snapshot → no smoothing on first frame
+        return cb;
+      });
+    }
+
     return out;
   }
   function getVisualPlayerPos(){
@@ -3843,89 +3898,152 @@ window.addEventListener('net:snapshot', (ev) => {
     }
 
     // ---------------------------
-// ✅ Bullets (player + enemy)
-// ---------------------------
+    // ✅ Bullets (player + enemy)
+    // ---------------------------
 
-const onlineBullets =
-  (online && snap && Array.isArray(snap.bullets))
-    ? snap.bullets
-    : null;
+    // smoothed/interpolated snapshot bullets (once you add bullet smoothing into getInterpolatedSnapshot)
+    const onlineBullets =
+      (online && snap && Array.isArray(snap.bullets))
+        ? snap.bullets
+        : null;
 
-// ===========================
-// PLAYER BULLETS
-// ===========================
-ctx.fillStyle = '#cfe5ff';
+    // raw/latest snapshot bullets (jumpy) for debug overlay
+    const rawSnap = online ? Net.state?.snapshot : null;
+    const rawBullets =
+      (online && rawSnap && Array.isArray(rawSnap.bullets))
+        ? rawSnap.bullets
+        : null;
 
-// ✅ OFFLINE: draw local player bullets
-if (!online) {
-  for (const b of ents.bullets) {
-    ctx.beginPath();
-    ctx.arc(
-      b.x - cam.x - cam.sx,
-      b.y - cam.y - cam.sy,
-      b.r ?? 4,
-      0,
-      Math.PI * 2
-    );
-    ctx.fill();
-  }
-}
+    // ===========================
+    // PLAYER BULLETS
+    // ===========================
+    ctx.fillStyle = '#cfe5ff';
 
-// ✅ ONLINE: player bullets come from snapshot
-if (online && onlineBullets) {
-  for (const b of onlineBullets) {
-    if (b.kind === 'enemy' || b.kind === 'enemyBomb') continue;
-
-    ctx.beginPath();
-    ctx.arc(
-      b.x - cam.x - cam.sx,
-      b.y - cam.y - cam.sy,
-      b.r ?? 4,
-      0,
-      Math.PI * 2
-    );
-    ctx.fill();
-  }
-}
-
-  // ===========================
-  // ENEMY BULLETS
-  // ===========================
-  ctx.fillStyle = '#ffadad';
-
-  // ✅ OFFLINE: enemy bullets
-  if (!online) {
-    for (const b of ents.ebullets) {
-      const rad = b.kind === 'bomb' ? 7 : (b.r ?? 4);
-      ctx.beginPath();
-      ctx.arc(
-        b.x - cam.x - cam.sx,
-        b.y - cam.y - cam.sy,
-        rad,
-        0,
-        Math.PI * 2
-      );
-      ctx.fill();
+    // ✅ OFFLINE: draw local player bullets
+    if (!online) {
+      for (const b of ents.bullets) {
+        ctx.beginPath();
+        ctx.arc(
+          b.x - cam.x - cam.sx,
+          b.y - cam.y - cam.sy,
+          b.r ?? 4,
+          0,
+          Math.PI * 2
+        );
+        ctx.fill();
+      }
     }
-  }
 
-  // ✅ ONLINE: enemy bullets from snapshot
-  if (online && onlineBullets) {
-    for (const b of onlineBullets) {
-      if (!(b.kind === 'enemy' || b.kind === 'enemyBomb')) continue;
+    // ✅ ONLINE: draw RAW bullets in red (debug), then smoothed bullets in normal colour
+    if (online) {
+      // raw (jumpy) — debug
+      if (rawBullets) {
+        ctx.save();
+        ctx.globalAlpha = 0.45;
+        ctx.fillStyle = '#ff4040'; // red
+        for (const b of rawBullets) {
+          if (!b) continue;
+          if (b.kind === 'enemy' || b.kind === 'enemyBomb') continue;
 
-      const rad = b.kind === 'enemyBomb' ? 7 : (b.r ?? 4);
-      ctx.beginPath();
-      ctx.arc(
-        b.x - cam.x - cam.sx,
-        b.y - cam.y - cam.sy,
-        rad,
-        0,
-        Math.PI * 2
-      );
-      ctx.fill();
+          ctx.beginPath();
+          ctx.arc(
+            b.x - cam.x - cam.sx,
+            b.y - cam.y - cam.sy,
+            b.r ?? 4,
+            0,
+            Math.PI * 2
+          );
+          ctx.fill();
+        }
+        ctx.restore();
+      }
+
+      // smoothed (interpolated) — main
+      if (onlineBullets) {
+        ctx.fillStyle = '#cfe5ff';
+        for (const b of onlineBullets) {
+          if (!b) continue;
+          if (b.kind === 'enemy' || b.kind === 'enemyBomb') continue;
+
+          ctx.beginPath();
+          ctx.arc(
+            b.x - cam.x - cam.sx,
+            b.y - cam.y - cam.sy,
+            b.r ?? 4,
+            0,
+            Math.PI * 2
+          );
+          ctx.fill();
+        }
+      }
     }
-  }
+
+    // ===========================
+    // ENEMY BULLETS
+    // ===========================
+    ctx.fillStyle = '#ffadad';
+
+    // ✅ OFFLINE: enemy bullets
+    if (!online) {
+      for (const b of ents.ebullets) {
+        const rad = b.kind === 'bomb' ? 7 : (b.r ?? 4);
+        ctx.beginPath();
+        ctx.arc(
+          b.x - cam.x - cam.sx,
+          b.y - cam.y - cam.sy,
+          rad,
+          0,
+          Math.PI * 2
+        );
+        ctx.fill();
+      }
+    }
+
+    // ✅ ONLINE: draw RAW enemy bullets in magenta (debug), then smoothed in normal colour
+    if (online) {
+      // raw (jumpy) — debug
+      if (rawBullets) {
+        ctx.save();
+        ctx.globalAlpha = 0.45;
+        ctx.fillStyle = '#ff40ff'; // magenta
+        for (const b of rawBullets) {
+          if (!b) continue;
+          if (!(b.kind === 'enemy' || b.kind === 'enemyBomb')) continue;
+
+          const rad = b.kind === 'enemyBomb' ? 7 : (b.r ?? 4);
+          ctx.beginPath();
+          ctx.arc(
+            b.x - cam.x - cam.sx,
+            b.y - cam.y - cam.sy,
+            rad,
+            0,
+            Math.PI * 2
+          );
+          ctx.fill();
+        }
+        ctx.restore();
+      }
+
+      // smoothed (interpolated) — main
+      if (onlineBullets) {
+        ctx.fillStyle = '#ffadad';
+        for (const b of onlineBullets) {
+          if (!b) continue;
+          if (!(b.kind === 'enemy' || b.kind === 'enemyBomb')) continue;
+
+          const rad = b.kind === 'enemyBomb' ? 7 : (b.r ?? 4);
+          ctx.beginPath();
+          ctx.arc(
+            b.x - cam.x - cam.sx,
+            b.y - cam.y - cam.sy,
+            rad,
+            0,
+            Math.PI * 2
+          );
+          ctx.fill();
+        }
+      }
+    }
 
 
     // ---------------------------
