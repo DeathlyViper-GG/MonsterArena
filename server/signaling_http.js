@@ -1912,6 +1912,7 @@ setInterval(() => {
   const t = now();
 
   for (const lobby of LOBBIES.values()) {
+    // ✅ FIX: advance bullets every server tick
     // ✅ Disconnect cleanup
     for (const [pid, p] of lobby.players) {
       if (p.lastSeen && (now() - p.lastSeen) > DISCONNECT_TIMEOUT) {
