@@ -238,7 +238,7 @@
     _bulletCache.set(key, { x: b.x, y: b.y });
   }
 
-  function getInterpolatedSnapshot(delayMs = 120) {
+  function getInterpolatedSnapshot(delayMs = 1) {
     if (!_snapCurr) return Net?.state?.snapshot || null;
     if (!_snapPrev) return _snapCurr;
 
