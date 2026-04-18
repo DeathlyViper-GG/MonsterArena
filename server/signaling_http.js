@@ -1912,7 +1912,6 @@ setInterval(() => {
   const t = now();
 
   for (const lobby of LOBBIES.values()) {
-    // ✅ FIX: advance bullets every server tick
     // ✅ Disconnect cleanup
     for (const [pid, p] of lobby.players) {
       if (p.lastSeen && (now() - p.lastSeen) > DISCONNECT_TIMEOUT) {
@@ -1924,7 +1923,7 @@ setInterval(() => {
       }
     }
     // Compute dt first (safe)
-    const dt = Math.min(0.03, (t - lobby.lastTick) / 1000);
+    const dt = (t - lobby.lastTick) / 1000;
     lobby.lastTick = t;
 
     // ---- Lava phase update ----
