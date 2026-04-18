@@ -2597,7 +2597,8 @@ if (btnHomeCustomize){
       r: 4,
       life,
       confirmed: false,
-      miss: 0
+      miss: 0,
+      delay: BULLET_FIXED_DT    // ✅ delay one server tick (50ms)
     });
   }
 
@@ -2607,6 +2608,7 @@ if (btnHomeCustomize){
 
   function stepVBullets(dt) {
     if (!ents.vbullets.length) return;
+    
 
     _vbulletAcc += dt;
     if (_vbulletAcc > 0.25) _vbulletAcc = 0.25;
@@ -2618,6 +2620,11 @@ if (btnHomeCustomize){
     while (_vbulletAcc >= VBULLET_DT) {
       for (let i = ents.vbullets.length - 1; i >= 0; i--) {
         const b = ents.vbullets[i];
+
+        if (b.delay > 0) {
+          b.delay -= VBULLET_DT;
+          continue; // ✅ bullet exists visually but does not move yet
+        }
 
         const x0 = b.x;
         const y0 = b.y;
