@@ -387,13 +387,16 @@ function applyPlayerDamage(lobby, playerId, dmg){
 function handlePvPPlayerBulletHits(lobby, b, bulletIndex){
   if (lobby.mode !== 'pvp') return false;
 
-  // Only bullets fired by a real player can hurt players
   if (typeof b.owner !== 'string' || !lobby.players.has(b.owner)) return false;
 
+  const x0 = b._x0 ?? b.x;
+  const y0 = b._y0 ?? b.y;
+
   for (const [pid, p] of lobby.players){
-    if (pid === b.owner) continue; // no self hit
+    if (pid === b.owner) continue;
+
     const rr = (b.r ?? 4) + 16;
-    if (dist2(b.x, b.y, p.x, p.y) <= rr * rr){
+    if (segmentHitsCircle(x0, y0, b.x, b.y, p.x, p.y, rr)) {
       applyPlayerDamage(lobby, pid, b.dmg ?? 10);
       lobby.bullets.splice(bulletIndex, 1);
       return true;
