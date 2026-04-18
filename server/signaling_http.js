@@ -2142,17 +2142,20 @@ setInterval(() => {
         const bossV = (e.type === 'boss') ? (e.bossVariant ?? 1) : 0;
         const dps = touchDps(e.type, bossV);
 
+        const CONTACT_PAD = 6;
+
         for (const [pid, p] of lobby.players) {
-          const rr = (e.r ?? 16) + 16;
+          const rr = (e.r ?? 16) + 16 - CONTACT_PAD;
 
-          // ✅ rewind player slightly to match client-side smoothing
-          const rewind = dt * 0.5; // half-tick rewind
-          const px = p.x - (p.vx || 0) * rewind;
-          const py = p.y - (p.vy || 0) * rewind;
+          const dx = p.x - e.x;
+          const dy = p.y - e.y;
+          const dist = Math.hypot(dx, dy);
 
-          if (dist2(e.x, e.y, px, py) <= rr * rr) {
-            applyPlayerDamage(lobby, pid, dps * dt * 1.4);
-          }
+          // penetration depth (must be meaningful)
+          const penetration = rr - dist;
+          if (penetration <= 4) continue;
+
+          applyPlayerDamage(lobby, pid, dps * dt * 1.4);
         }
       }
 
