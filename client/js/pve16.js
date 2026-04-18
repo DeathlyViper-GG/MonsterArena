@@ -198,6 +198,9 @@
   let _snapCurr = null;
   let _snapPrevT = 0;
   let _snapCurrT = 0;
+  // Client-side bullet render state (constant speed)
+  const bulletRender = new Map();
+  // id -> { sx, sy, vx, vy, t0 }
 
   function storeSnapshot(snap) {
     _snapPrev = _snapCurr;
@@ -249,56 +252,37 @@
 
     // bullets (smooth the server "jumps")
     // NOTE: server bullets currently have no stable id, so we match by owner + similar velocity + nearest position.
-    if (Array.isArray(_snapPrev.bullets) && Array.isArray(_snapCurr.bullets)) {
-      const prev = _snapPrev.bullets.filter(Boolean);
-      const used = new Set();
+    // bullets (constant-speed, time-anchored)
+    if (Array.isArray(_snapCurr.bullets)) {
+      const now = performance.now();
 
-      const MAX_DIST2 = 160 * 160;      // tune: max distance between snapshots for same bullet
-      const MAX_DV2   = 220 * 220;      // tune: max (dvx,dvy) difference to consider same bullet
+      out.bullets = _snapCurr.bullets.map(sb => {
+        if (!sb) return sb;
 
-      out.bullets = _snapCurr.bullets.map(cb => {
-        if (!cb) return cb;
+        // Build a stable key (no ids yet)
+        const key = `${sb.owner ?? 'x'}|${sb.vx}|${sb.vy}`;
 
-        let bestIdx = -1;
-        let bestD2 = Infinity;
+        let r = bulletRender.get(key);
 
-        for (let i = 0; i < prev.length; i++) {
-          if (used.has(i)) continue;
-          const pb = prev[i];
-          if (!pb) continue;
-
-          // must be same owner when present
-          if (pb.owner && cb.owner && pb.owner !== cb.owner) continue;
-
-          // velocity similarity (helps avoid mismatching rapid-fire bullets)
-          const dvx = (pb.vx ?? 0) - (cb.vx ?? 0);
-          const dvy = (pb.vy ?? 0) - (cb.vy ?? 0);
-          if (dvx * dvx + dvy * dvy > MAX_DV2) continue;
-
-          // choose the nearest previous bullet position
-          const dx = (pb.x ?? 0) - (cb.x ?? 0);
-          const dy = (pb.y ?? 0) - (cb.y ?? 0);
-          const d2 = dx * dx + dy * dy;
-
-          if (d2 < bestD2) {
-            bestD2 = d2;
-            bestIdx = i;
-          }
-        }
-
-        // if we found a plausible match, interpolate x/y between prev and curr
-        if (bestIdx !== -1 && bestD2 <= MAX_DIST2) {
-          const pb = prev[bestIdx];
-          used.add(bestIdx);
-          return {
-            ...cb,
-            x: (pb.x ?? cb.x) + ((cb.x ?? 0) - (pb.x ?? cb.x)) * a,
-            y: (pb.y ?? cb.y) + ((cb.y ?? 0) - (pb.y ?? cb.y)) * a,
+        if (!r) {
+          // First time seeing this bullet
+          r = {
+            sx: sb.x,
+            sy: sb.y,
+            vx: sb.vx,
+            vy: sb.vy,
+            t0: now
           };
+          bulletRender.set(key, r);
         }
 
-        // new bullet this snapshot → no smoothing on first frame
-        return cb;
+        const dt = (now - r.t0) * 0.001;
+
+        return {
+          ...sb,
+          x: r.sx + r.vx * dt,
+          y: r.sy + r.vy * dt
+        };
       });
     }
 
