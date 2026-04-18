@@ -2676,6 +2676,7 @@ if (btnHomeCustomize){
     }
 
     const aliveMine = new Set();
+    
 
     // update vbullets from authoritative bullets
     for (const sb of snap.bullets) {
@@ -2683,20 +2684,35 @@ if (btnHomeCustomize){
       aliveMine.add(sb.id);
 
       const vb = V.get(sb.id);
-      if (!vb) continue;
 
-      // ✅ first confirmation only
+      // ✅ SPAWN VISUAL BULLET ONLY WHEN SERVER BULLET EXISTS
+      if (!vb) {
+        ents.vbullets.push({
+          id: sb.id,
+          x: sb.x,
+          y: sb.y,
+          vx: sb.vx,
+          vy: sb.vy,
+          r: 4,
+          life: sb.life,
+          confirmed: true,
+          miss: 0
+        });
+        continue; // ✅ VERY IMPORTANT
+      }
+
+      // ✅ SERVER CONFIRMATION / UPDATE
       if (!vb.confirmed) {
         vb.confirmed = true;
 
-        // SNAP ONCE to authoritative position
+        // ✅ SNAP ONCE TO SERVER POSITION
+        vb.x = sb.x;
+        vb.y = sb.y;
 
-        // trust server velocity going forward
         if (typeof sb.vx === 'number') vb.vx = sb.vx;
         if (typeof sb.vy === 'number') vb.vy = sb.vy;
       }
 
-      // keep authoritative lifetime only
       if (typeof sb.life === 'number') {
         vb.life = Math.min(vb.life, sb.life);
       }
@@ -2933,7 +2949,7 @@ if (btnHomeCustomize){
         Net.sendShoot(sx, sy, a, w.speed, w.dmg, shotId);
 
         // spawn predicted bullet with SAME id and SAME lifetime as server bullet
-        spawnVBullet(shotId, sx, sy, a, w.speed, 1.2);
+
 
       }
       // ✅ Immediate muzzle flash at true local position
