@@ -2138,9 +2138,16 @@ setInterval(() => {
       for (const e of lobby.enemies) {
         const bossV = (e.type === 'boss') ? (e.bossVariant ?? 1) : 0;
         const dps = touchDps(e.type, bossV);
+
         for (const [pid, p] of lobby.players) {
           const rr = (e.r ?? 16) + 16;
-          if (dist2(e.x, e.y, p.x, p.y) <= rr * rr) {
+
+          // ✅ rewind player slightly to match client-side smoothing
+          const rewind = dt * 0.5; // half-tick rewind
+          const px = p.x - (p.vx || 0) * rewind;
+          const py = p.y - (p.vy || 0) * rewind;
+
+          if (dist2(e.x, e.y, px, py) <= rr * rr) {
             applyPlayerDamage(lobby, pid, dps * dt * 1.4);
           }
         }
