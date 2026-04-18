@@ -2740,7 +2740,8 @@ if (btnHomeCustomize){
 
     // ✅ Use the same visual position as the rendered player
     // ✅ Use the same visual position as the rendered player
-    const { x: px0, y: py0 } = getVisualPlayerPos();
+    const px0 = player.x;
+    const py0 = player.y;
 
     // ✅ ONLINE: server authoritative bullets
     if (isNetActive()) {
