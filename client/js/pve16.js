@@ -305,11 +305,21 @@
     return out;
   }
   function getVisualPlayerPos(){
+    // Always start from immediate local state (instant)
+    let x = player.x;
+    let y = player.y;
+
+    // If online, gently bias toward server (matches draw() behaviour)
     if (isNetActive()){
       const me = mySnapshotPlayer();
-      if (me) return { x: me.x, y: me.y };
+      if (me){
+        const CORRECT_RATE = 0.18; // keep in sync with draw()
+        x += (me.x - x) * CORRECT_RATE;
+        y += (me.y - y) * CORRECT_RATE;
+      }
     }
-    return { x: player.x, y: player.y };
+
+    return { x, y };
   }
 
   function mySnapshotPlayer() {
