@@ -1686,18 +1686,12 @@ app.post('/input', (req, res) => {
   res.json();
 });
 
-
 app.post('/shoot', (req, res) => {
-  const { lobbyId, peerId, x, y, ang, speed, dmg, shotId } = req.body;
-
+  const { lobbyId, peerId, x, y, ang, speed, dmg } = req.body;
   const lobby = LOBBIES.get(lobbyId);
-  if (!lobby) return res.json();
-
-  // ✅ stable id so clients can sync predicted bullets to authoritative bullets
-  const id = String(shotId || makeId(10));
+  if (!lobby) return res.json({ ok: false });
 
   lobby.bullets.push({
-    id,
     owner: peerId,
     x, y,
     vx: Math.cos(ang) * speed,
@@ -1706,13 +1700,11 @@ app.post('/shoot', (req, res) => {
     dmg,
     life: 1.2
   });
-
   const p = lobby.players.get(peerId);
   if (p) p.lastShotAt = now();
 
-  res.json({ ok: true, id });
+  res.json({ ok: true });
 });
-
 app.post('/hit', (req, res) => {
   const { lobbyId, peerId, target, x, y, dmg, kind } = req.body;
   const lobby = LOBBIES.get(lobbyId);

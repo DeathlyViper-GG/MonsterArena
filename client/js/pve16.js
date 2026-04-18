@@ -33,10 +33,6 @@
   let STATIC_WORLD_CTX = null;
   let STATIC_WORLD_KEY = '';
   let _lastHUDUpdate = 0;
-  let _renderAlpha = 0;
-  // Match server bullet simulation rate
-  const BULLET_FIXED_DT = 1 / 20; // 50ms, same as server
-  let _bulletAcc = 0;
   const HUD_INTERVAL = 100; // ms (10 times per second)
   async function leaveMultiplayerAndReturnHome() {
     // Stop gameplay
@@ -202,8 +198,6 @@
   let _snapCurr = null;
   let _snapPrevT = 0;
   let _snapCurrT = 0;
-  // ===== Snapshot bullet render cache (VISUAL ONLY) =====
-  const _bulletCache = new Map(); // key -> { x, y }
 
   function storeSnapshot(snap) {
     _snapPrev = _snapCurr;
@@ -212,33 +206,9 @@
     _snapCurrT = performance.now();
   }
 
-  // ===== Bullet render interpolation (VISUAL ONLY) =====
-  function drawInterpolatedBullet(ctx, b, cam) {
-    // Stable key for snapshot bullets (server recreates objects every tick)
-    const key =
-      b.id ??
-      (b._rk ??= `${Math.round(b.x)}|${Math.round(b.y)}|${Math.round(b.vx)}|${Math.round(b.vy)}`);
+  
 
-    const prev = _bulletCache.get(key) ?? { x: b.x, y: b.y };
-
-    const x = prev.x + (b.x - prev.x) * _renderAlpha;
-    const y = prev.y + (b.y - prev.y) * _renderAlpha;
-
-    ctx.beginPath();
-    ctx.arc(
-      x - cam.x - cam.sx,
-      y - cam.y - cam.sy,
-      b.r ?? 4,
-      0,
-      Math.PI * 2
-    );
-    ctx.fill();
-
-    // Store for next frame
-    _bulletCache.set(key, { x: b.x, y: b.y });
-  }
-
-  function getInterpolatedSnapshot(delayMs = 1) {
+  function getInterpolatedSnapshot(delayMs = 120) {
     if (!_snapCurr) return Net?.state?.snapshot || null;
     if (!_snapPrev) return _snapCurr;
 
@@ -273,31 +243,6 @@
           ...eb,
           x: ea.x + (eb.x - ea.x) * a,
           y: ea.y + (eb.y - ea.y) * a,
-        };
-      });
-    }
-    // bullets ✅ FIX
-    if (Array.isArray(_snapCurr.bullets)) {
-      const A = new Map(
-        Array.isArray(_snapPrev?.bullets)
-          ? _snapPrev.bullets.map(b => [
-              b.id ?? `${b.x}|${b.y}|${b.vx}|${b.vy}`,
-              b
-            ])
-          : []
-      );
-
-      out.bullets = _snapCurr.bullets.map(cb => {
-        const id = cb.id ?? `${cb.x}|${cb.y}|${cb.vx}|${cb.vy}`;
-        const pb = A.get(id);
-
-        // first snapshot frame → no interpolation (prevents jump)
-        if (!pb) return cb;
-
-        return {
-          ...cb,
-          x: pb.x + (cb.x - pb.x) * a,
-          y: pb.y + (cb.y - pb.y) * a
         };
       });
     }
@@ -363,7 +308,6 @@
     ents.ebullets.length = 0;
     ents.effects.length = 0;
     ents.pickups.length = 0;
-    ents.vbullets.length = 0;
 
     // Reset player locally (no more movement/shooting)
     player.hp = 0;
@@ -1345,7 +1289,7 @@
   }
 
   // Entities ------------------------------------------------------------------
-  const ents = { bullets:[], ebullets:[], vbullets:[], effects:[], enemies:[], pickups:[] };
+  const ents = { bullets:[], ebullets:[], effects:[], enemies:[], pickups:[] };
   window._ents = ents;
 
   // Weapons & player ----------------------------------------------------------
@@ -2576,188 +2520,6 @@ if (btnHomeCustomize){
   function spawnEBullet(x,y,a, speed,dmg){ ents.ebullets.push({x,y,vx:Math.cos(a)*speed, vy:Math.sin(a)*speed, r:4, dmg, life:2.5}); }
   function spawnBomb(x,y,a, speed,dmg, splashR=110, fuse=0.75){ ents.ebullets.push({ x,y, vx:Math.cos(a)*speed, vy:Math.sin(a)*speed, r:6, dmg, life:fuse, kind:'bomb', splashR }); }
   function addEffect(x,y,type,life=0.4,color='#9cf'){ ents.effects.push({x,y,type,life,color,t:0,r:6}); }
-  // ===== SYNCED CLIENT BULLETS (visual-only, server authoritative) =====
-  // Goal: client draws ONE smooth bullet immediately, then snaps/locks to the server bullet by id.
-
-  let _shotSeq = 0;
-  function makeShotId() {
-    const me = (window.Net && Net.state && Net.state.peerId) ? Net.state.peerId : 'P';
-    _shotSeq = (_shotSeq + 1) >>> 0;
-    return `${me}:${Date.now().toString(36)}:${_shotSeq.toString(36)}`;
-  }
-
-  // Create a predicted bullet with a stable id
-  function spawnVBullet(id, x, y, ang, speed, life = 1.2) {
-    const vx = Math.cos(ang) * speed;
-    const vy = Math.sin(ang) * speed;
-    ents.vbullets.push({
-      id,
-      x, y,
-      vx, vy,
-      r: 4,
-      life,
-      confirmed: false,
-      miss: 0,
-    });
-  }
-
-  // Step once per render frame (NOT in updateFixed, NOT per-effect)
-  const VBULLET_DT = BULLET_FIXED_DT; // 1 / 20 — MATCH SERVER
-  let _vbulletAcc = 0;
-
-  function stepVBullets(dt) {
-    if (!ents.vbullets.length) return;
-    
-
-    _vbulletAcc += dt;
-    if (_vbulletAcc > 0.25) _vbulletAcc = 0.25;
-
-    // ✅ use the SAME snapshot timing as the rest of the client
-    const snap = isNetActive() ? getInterpolatedSnapshot() : null;
-    const enemies = snap?.enemies ?? ents.enemies;
-
-    while (_vbulletAcc >= VBULLET_DT) {
-      for (let i = ents.vbullets.length - 1; i >= 0; i--) {
-        const b = ents.vbullets[i];
-
-        const x0 = b.x;
-        const y0 = b.y;
-
-        // ✅ WALL SWEEP — matches server
-        if (lineWallHit(x0, y0, b.vx, b.vy, VBULLET_DT, b.r)) {
-          ents.vbullets.splice(i, 1);
-          continue;
-        }
-
-        // ✅ MOVE (fixed tick)
-        // ✅ ONLY advance after server bullet exists
-        if (b.confirmed) {
-          b.x = x0 + b.vx * VBULLET_DT;
-          b.y = y0 + b.vy * VBULLET_DT;
-        }
-
-        // ✅ ENEMY HIT (visual-only) — IMPORTANT: if removed, continue immediately
-        let removed = false;
-        for (const e of enemies) {
-          if (!e) continue;
-          const rr = (e.r ?? 16) + b.r;
-          if (dist2(b.x, b.y, e.x, e.y) <= rr * rr) {
-            addEffect(e.x, e.y, 'hit', 0.12, '#fff');
-            cam.shake = Math.max(cam.shake, 1.0);
-            ents.vbullets.splice(i, 1);
-            removed = true;
-            break;
-          }
-        }
-        if (removed) continue; // ✅ prevents deleting the wrong bullet later
-
-        b.life -= VBULLET_DT;
-        if (b.life <= 0) {
-          ents.vbullets.splice(i, 1);
-          continue;
-        }
-      }
-
-      _vbulletAcc -= VBULLET_DT;
-    }
-  }
-
-  // Called from net:snapshot to lock predicted bullets to authoritative bullets
-  function syncVBulletsFromSnapshot(snap) {
-    if (!isNetActive()) return;
-    if (!snap || !Array.isArray(snap.bullets)) return;
-
-    const myId = Net.state.peerId;
-
-    // index vbullets by id
-    const V = new Map();
-    for (const vb of ents.vbullets) {
-      if (vb && vb.id) V.set(vb.id, vb);
-    }
-
-    const aliveMine = new Set();
-    
-
-    // update vbullets from authoritative bullets
-    for (const sb of snap.bullets) {
-      if (!sb || sb.owner !== myId || !sb.id) continue;
-      aliveMine.add(sb.id);
-
-      const vb = V.get(sb.id);
-
-      // ✅ SPAWN VISUAL BULLET ONLY WHEN SERVER BULLET EXISTS
-      if (!vb) {
-        ents.vbullets.push({
-          id: sb.id,
-          x: sb.x,
-          y: sb.y,
-          vx: sb.vx,
-          vy: sb.vy,
-          r: 4,
-          life: sb.life,
-          confirmed: true,
-          miss: 0
-        });
-        continue; // ✅ VERY IMPORTANT
-      }
-
-      // ✅ SERVER CONFIRMATION / UPDATE
-      if (!vb.confirmed) {
-        vb.confirmed = true;
-
-        // ✅ SNAP ONCE TO SERVER POSITION
-        vb.x = sb.x;
-        vb.y = sb.y;
-
-        if (typeof sb.vx === 'number') vb.vx = sb.vx;
-        if (typeof sb.vy === 'number') vb.vy = sb.vy;
-      }
-
-      if (typeof sb.life === 'number') {
-        vb.life = Math.min(vb.life, sb.life);
-      }
-
-      vb.miss = 0;
-    }
-
-    // remove vbullets when the server bullet disappears (hit/wall/expired)
-    // allow 1 missed snapshot to avoid flicker on poll gaps
-    for (let i = ents.vbullets.length - 1; i >= 0; i--) {
-      const vb = ents.vbullets[i];
-      if (!vb || !vb.id) continue;
-
-      if (!aliveMine.has(vb.id)) {
-        vb.miss = (vb.miss || 0) + 1;
-        if (vb.miss >= 2) {
-          // optional: spawn a hit spark if bullet vanished near an enemy
-          const es = Array.isArray(snap.enemies) ? snap.enemies : [];
-          for (const e of es) {
-            const rr = (e.r ?? 16) + (vb.r ?? 4) + 12;
-            if (dist2(vb.x, vb.y, e.x, e.y) <= rr * rr) {
-              addEffect(e.x, e.y, 'hit', 0.12, '#fff');
-              cam.shake = Math.max(cam.shake, 1.0);
-              break;
-            }
-          }
-
-          ents.vbullets.splice(i, 1);
-        }
-      }
-    }
-  }
-
-  // Draw vbullets
-  function drawVBullet(ctx, b, cam) {
-    ctx.beginPath();
-    ctx.arc(
-      b.x - cam.x - cam.sx,
-      b.y - cam.y - cam.sy,
-      b.r ?? 4,
-      0,
-      Math.PI * 2
-    );
-    ctx.fill();
-  }
   function dropPickup(x,y, forcedType=null){
     const opts=['health','speed','shield','ammo']; 
     const type = forcedType || opts[rint(0,opts.length-1)]; 
@@ -2923,43 +2685,21 @@ if (btnHomeCustomize){
 
     // ✅ Use the same visual position as the rendered player
     // ✅ Use the same visual position as the rendered player
-    // ✅ Fire from immediate local player position (NO SNAPSHOT)
-    const px0 = player.x;
-    const py0 = player.y;
-    // VISUAL-ONLY instant tracer (does NOT affect damage)
-    addEffect(
-      px0 + Math.cos(base) * player.r,
-      py0 + Math.sin(base) * player.r,
-      'rb',
-      0.08,
-      '#ffffff'
-    );
+    const { x: px0, y: py0 } = getVisualPlayerPos();
 
     // ✅ ONLINE: server authoritative bullets
     if (isNetActive()) {
       for (let i = 0; i < w.shots; i++){
         const a = base + rand(-w.spread, w.spread);
-        
-        const sx = px0 + Math.cos(a) * player.r;
-        const sy = py0 + Math.sin(a) * player.r;
-
-        const shotId = makeShotId();
-
-        // send authoritative bullet WITH id
-        Net.sendShoot(sx, sy, a, w.speed, w.dmg, shotId);
-
-        // spawn predicted bullet with SAME id and SAME lifetime as server bullet
-
-
+        Net.sendShoot(
+          px0 + Math.cos(a) * player.r,
+          py0 + Math.sin(a) * player.r,
+          a,
+          w.speed,
+          w.dmg
+        );
       }
-      // ✅ Immediate muzzle flash at true local position
-      addEffect(
-        px0 + Math.cos(base) * player.r,
-        py0 + Math.sin(base) * player.r,
-        'muzzle',
-        0.1,
-        '#fff'
-      );
+      addEffect(px0 + Math.cos(base) * player.r, py0 + Math.sin(base) * player.r, 'muzzle', 0.1, '#fff');
       noiseEvents.push({ x: px0, y: py0, r: 720, t: 1.2 });
       return;
     }
@@ -2982,10 +2722,8 @@ if (btnHomeCustomize){
   function lineWallHit(px,py,vx,vy, dt, r){ const nx=px+vx*dt, ny=py+vy*dt; for(const o of world.walls){ const cx=clamp(nx,o.x,o.x+o.w), cy=clamp(ny,o.y,o.y+o.h); const dx=nx-cx, dy=ny-cy; if(dx*dx+dy*dy < r*r) return true; } return false; }
   function stepProjectiles(dt){
     // player bullets 
-    for (let i = ents.bullets.length - 1; i >= 0; i--){     
-    const b = ents.bullets[i];    
-    b._px = b.x;
-    b._py = b.y;
+    for (let i = ents.bullets.length - 1; i >= 0; i--){ 
+    const b = ents.bullets[i]; 
     const kill = lineWallHit(b.x, b.y, b.vx, b.vy, dt, b.r); 
     b.x += b.vx * dt; 
     b.y += b.vy * dt; 
@@ -3124,7 +2862,6 @@ if (btnHomeCustomize){
     ents.enemies = [];
     ents.effects = [];
     ents.pickups = [];
-    ents.vbullets = [];
     noiseEvents.length = 0;
 
     // Rebuild map & nav
@@ -3302,7 +3039,7 @@ if (btnHomeCustomize){
         x: e.x,
         y: e.y,
         type: 'rb',
-        life: 1.2,
+        life: 0.35,
         t: 0,
         color: '#cfe5ff',
         vx: Math.cos(a) * sp,
@@ -3352,19 +3089,6 @@ window.addEventListener('net:snapshot', (ev) => {
   if (!snap || !Array.isArray(snap.players)) return;
 
   storeSnapshot(snap);
-  // ✅ Prune snapshot bullet cache (prevents jumps + memory leak)
-  if (Array.isArray(snap.bullets)) {
-    const alive = new Set(
-      snap.bullets.map(
-        b => b.id ?? `${Math.round(b.x)}|${Math.round(b.y)}|${Math.round(b.vx)}|${Math.round(b.vy)}`
-      )
-    );
-
-    for (const k of _bulletCache.keys()) {
-      if (!alive.has(k)) _bulletCache.delete(k);
-    }
-  }
-  syncVBulletsFromSnapshot(snap);
   storeMeFromSnapshot(snap); // ✅ ADD THIS
   renderLobbyPlayers();
 
@@ -3552,16 +3276,9 @@ window.addEventListener('net:snapshot', (ev) => {
         updateFixed(dt, ++SIM_TICK);
       }
     }
-   
-    _renderAlpha = dt / FIXED_DT;
-    if (_renderAlpha > 1) _renderAlpha = 1;
-
-    // ✅ step synced visual bullets once per frame
-    stepVBullets(dt);
 
     draw(dt);
     requestAnimationFrame(loop);
-
   }
   requestAnimationFrame(loop);
 
@@ -3920,11 +3637,7 @@ window.addEventListener('net:snapshot', (ev) => {
       }
     }
 
-    for (let i = ents.bullets.length - 1; i >= 0; i--){ 
-      const b = ents.bullets[i]   
-      b._px = b.x;
-      b._py = b.y; 
-      const kill = lineWallHit(b.x, b.y, b.vx, b.vy, dt, b.r); b.x += b.vx * dt; b.y += b.vy * dt; b.life -= dt; if (kill || b.life <= 0){ ents.bullets.splice(i,1); continue; } let hit = -1; for (let j = 0; j < ents.enemies.length; j++){ const e = ents.enemies[j]; const r = e.r + b.r; if (dist2(b.x,b.y,e.x,e.y) < r*r){ hit = j; break; } } if (hit >= 0){ const e = ents.enemies[hit] 
+    for (let i = ents.bullets.length - 1; i >= 0; i--){ const b = ents.bullets[i]; const kill = lineWallHit(b.x, b.y, b.vx, b.vy, dt, b.r); b.x += b.vx * dt; b.y += b.vy * dt; b.life -= dt; if (kill || b.life <= 0){ ents.bullets.splice(i,1); continue; } let hit = -1; for (let j = 0; j < ents.enemies.length; j++){ const e = ents.enemies[j]; const r = e.r + b.r; if (dist2(b.x,b.y,e.x,e.y) < r*r){ hit = j; break; } } if (hit >= 0){ const e = ents.enemies[hit] 
       e.hp -= b.dmg * (1 + state.wave * 0.02);
 
       // ✅ track last hitter for PvE leaderboard
@@ -3993,7 +3706,6 @@ window.addEventListener('net:snapshot', (ev) => {
     }
 
     if (e.t >= e.life) ents.effects.splice(i, 1);
-    // ✅ advance client visual bullets every frame (smooth)
   }
 
     {
@@ -4131,60 +3843,87 @@ window.addEventListener('net:snapshot', (ev) => {
     }
 
     // ---------------------------
-    // ✅ Bullets (player + enemy)
-    // ---------------------------
+// ✅ Bullets (player + enemy)
+// ---------------------------
 
-    const onlineBullets =
-      (online && snap && Array.isArray(snap.bullets))
-        ? snap.bullets
-        : null;
+const onlineBullets =
+  (online && snap && Array.isArray(snap.bullets))
+    ? snap.bullets
+    : null;
 
-    // ===========================
-    // PLAYER BULLETS
-    // ===========================
-    ctx.fillStyle = '#cfe5ff';
+// ===========================
+// PLAYER BULLETS
+// ===========================
+ctx.fillStyle = '#cfe5ff';
 
-    // OFFLINE
-    if (!online) {
-      for (const b of ents.bullets) {
-        drawInterpolatedBullet(ctx, b, cam);
-      }
-    }
+// ✅ OFFLINE: draw local player bullets
+if (!online) {
+  for (const b of ents.bullets) {
+    ctx.beginPath();
+    ctx.arc(
+      b.x - cam.x - cam.sx,
+      b.y - cam.y - cam.sy,
+      b.r ?? 4,
+      0,
+      Math.PI * 2
+    );
+    ctx.fill();
+  }
+}
 
-    // ONLINE (snapshot bullets)
-    if (online && snap?.bullets) {
-      for (const b of snap.bullets) {
-        if (b.kind === 'enemy' || b.kind === 'enemyBomb') continue;
-        // ✅ hide *my* server bullets (I use vbullets instead)
-        if (b.owner && b.owner === Net.state.peerId) continue;
-        drawInterpolatedBullet(ctx, b, cam);
-      }
-    }
-    // ✅ draw my smooth client bullets (visual only)
-    if (online && ents.vbullets.length) {
-      ctx.fillStyle = '#cfe5ff';
-      for (const b of ents.vbullets) {
-        drawVBullet(ctx, b, cam);
-      }
-    }
+// ✅ ONLINE: player bullets come from snapshot
+if (online && onlineBullets) {
+  for (const b of onlineBullets) {
+    if (b.kind === 'enemy' || b.kind === 'enemyBomb') continue;
+
+    ctx.beginPath();
+    ctx.arc(
+      b.x - cam.x - cam.sx,
+      b.y - cam.y - cam.sy,
+      b.r ?? 4,
+      0,
+      Math.PI * 2
+    );
+    ctx.fill();
+  }
+}
 
   // ===========================
   // ENEMY BULLETS
   // ===========================
   ctx.fillStyle = '#ffadad';
 
-  // OFFLINE
+  // ✅ OFFLINE: enemy bullets
   if (!online) {
     for (const b of ents.ebullets) {
-      drawInterpolatedBullet(ctx, b, cam);
+      const rad = b.kind === 'bomb' ? 7 : (b.r ?? 4);
+      ctx.beginPath();
+      ctx.arc(
+        b.x - cam.x - cam.sx,
+        b.y - cam.y - cam.sy,
+        rad,
+        0,
+        Math.PI * 2
+      );
+      ctx.fill();
     }
   }
 
-  // ONLINE
-  if (online && snap?.bullets) {
-    for (const b of snap.bullets) {
+  // ✅ ONLINE: enemy bullets from snapshot
+  if (online && onlineBullets) {
+    for (const b of onlineBullets) {
       if (!(b.kind === 'enemy' || b.kind === 'enemyBomb')) continue;
-      drawInterpolatedBullet(ctx, b, cam);
+
+      const rad = b.kind === 'enemyBomb' ? 7 : (b.r ?? 4);
+      ctx.beginPath();
+      ctx.arc(
+        b.x - cam.x - cam.sx,
+        b.y - cam.y - cam.sy,
+        rad,
+        0,
+        Math.PI * 2
+      );
+      ctx.fill();
     }
   }
 

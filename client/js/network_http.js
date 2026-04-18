@@ -241,20 +241,13 @@
       }).catch(() => {});
     },
 
-    
-    sendShoot(x, y, ang, speed, dmg, shotId) {
+    sendShoot(x, y, ang, speed, dmg) {
       fetch(`${BASE}/shoot`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          lobbyId: this.state.lobbyId,
-          peerId: this.state.peerId,
-          x, y, ang, speed, dmg,
-          shotId: shotId || null
-        })
+        body: JSON.stringify({ lobbyId: this.state.lobbyId, peerId: this.state.peerId, x, y, ang, speed, dmg })
       });
     },
-
 
     sendHit(target, x, y, dmg, kind = "") {
         fetch(`${BASE}/hit`, {
