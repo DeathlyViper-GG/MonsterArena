@@ -2598,7 +2598,6 @@ if (btnHomeCustomize){
       life,
       confirmed: false,
       miss: 0,
-      delay: BULLET_FIXED_DT    // ✅ delay one server tick (50ms)
     });
   }
 
@@ -2621,11 +2620,6 @@ if (btnHomeCustomize){
       for (let i = ents.vbullets.length - 1; i >= 0; i--) {
         const b = ents.vbullets[i];
 
-        if (b.delay > 0) {
-          b.delay -= VBULLET_DT;
-          continue; // ✅ bullet exists visually but does not move yet
-        }
-
         const x0 = b.x;
         const y0 = b.y;
 
@@ -2636,8 +2630,11 @@ if (btnHomeCustomize){
         }
 
         // ✅ MOVE (fixed tick)
-        b.x = x0 + b.vx * VBULLET_DT;
-        b.y = y0 + b.vy * VBULLET_DT;
+        // ✅ ONLY advance after server bullet exists
+        if (b.confirmed) {
+          b.x = x0 + b.vx * VBULLET_DT;
+          b.y = y0 + b.vy * VBULLET_DT;
+        }
 
         // ✅ ENEMY HIT (visual-only) — IMPORTANT: if removed, continue immediately
         let removed = false;
