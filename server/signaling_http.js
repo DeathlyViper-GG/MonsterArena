@@ -2059,12 +2059,14 @@ setInterval(() => {
       p.ang = inp.ang;
 
       // trust client-collided position if provided
-      // ✅ SERVER‑AUTHORITATIVE movement (never trust client position)
-      const m = Math.hypot(inp.ix, inp.iy) || 1;
-      const dx = (inp.ix / m) * PLAYER_SPEED * dt;
-      const dy = (inp.iy / m) * PLAYER_SPEED * dt;
-
-      movePlayerWithCollide(lobby, p, dx, dy);
+      if (typeof inp.x === 'number' && typeof inp.y === 'number') {
+        p.x = inp.x;
+        p.y = inp.y;
+      } else {
+        const m = Math.hypot(inp.ix, inp.iy) || 1;
+        p.x += (inp.ix / m) * PLAYER_SPEED * dt;
+        p.y += (inp.iy / m) * PLAYER_SPEED * dt;
+      }
 
       p.x = clamp(p.x, 30, WORLD.w - 30);
       p.y = clamp(p.y, 30, WORLD.h - 30);
