@@ -2142,7 +2142,7 @@ setInterval(() => {
         const bossV = (e.type === 'boss') ? (e.bossVariant ?? 1) : 0;
         const dps = touchDps(e.type, bossV);
 
-        const CONTACT_PAD = 6;
+        const CONTACT_PAD = 2;
 
         for (const [pid, p] of lobby.players) {
           const rr = (e.r ?? 16) + 16 - CONTACT_PAD;
