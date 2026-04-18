@@ -172,6 +172,31 @@
 
     _sentAppearanceOnce = true;
   }
+  function clipBulletToWalls(world, x0, y0, x1, y1) {
+    let hx = x1;
+    let hy = y1;
+
+    for (const w of world.walls) {
+      // step along segment and stop at first hit
+      const steps = Math.max(1, Math.ceil(Math.hypot(x1 - x0, y1 - y0) / 4));
+      for (let i = 1; i <= steps; i++) {
+        const t = i / steps;
+        const x = x0 + (x1 - x0) * t;
+        const y = y0 + (y1 - y0) * t;
+
+        if (
+          x >= w.x &&
+          x <= w.x + w.w &&
+          y >= w.y &&
+          y <= w.y + w.h
+        ) {
+          return { hit: true, x, y };
+        }
+      }
+    }
+
+    return { hit: false, x: hx, y: hy };
+  }
 
 
   let _sentGunsOnce = false;
@@ -3929,7 +3954,7 @@ window.addEventListener('net:snapshot', (ev) => {
       }
     }
 
-    // ✅ ONLINE: draw RAW bullets in red (debug), then smoothed bullets in normal colour
+    // ✅ ONLINE: draw RAW bullets in red (debug), then WALL‑CLIPPED bullets in normal colour
     if (online) {
       // raw (jumpy) — debug
       if (rawBullets) {
@@ -3953,22 +3978,58 @@ window.addEventListener('net:snapshot', (ev) => {
         ctx.restore();
       }
 
-      // smoothed (interpolated) — main
+      // ✅ HARD‑CLIPPED BULLETS (server walls are final)
       if (onlineBullets) {
         ctx.fillStyle = '#cfe5ff';
+
         for (const b of onlineBullets) {
           if (!b) continue;
           if (b.kind === 'enemy' || b.kind === 'enemyBomb') continue;
 
+          // previous position (fallback safe)
+          const x0 = b._x0 ?? b.x;
+          const y0 = b._y0 ?? b.y;
+
+          // clip against authoritative server walls
+          let hit = false;
+          let fx = b.x;
+          let fy = b.y;
+
+          for (const w of world.walls) {
+            const steps = Math.max(1, Math.ceil(Math.hypot(b.x - x0, b.y - y0) / 4));
+            for (let i = 1; i <= steps; i++) {
+              const t = i / steps;
+              const x = x0 + (b.x - x0) * t;
+              const y = y0 + (b.y - y0) * t;
+
+              if (
+                x >= w.x &&
+                x <= w.x + w.w &&
+                y >= w.y &&
+                y <= w.y + w.h
+              ) {
+                fx = x;
+                fy = y;
+                hit = true;
+                break;
+              }
+            }
+            if (hit) break;
+          }
+
+          // draw bullet (clamped if needed)
           ctx.beginPath();
           ctx.arc(
-            b.x - cam.x - cam.sx,
-            b.y - cam.y - cam.sy,
+            fx - cam.x - cam.sx,
+            fy - cam.y - cam.sy,
             b.r ?? 4,
             0,
             Math.PI * 2
           );
           ctx.fill();
+
+          // ✅ do NOT render past the wall
+          if (hit) continue;
         }
       }
     }
