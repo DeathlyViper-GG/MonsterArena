@@ -2597,8 +2597,6 @@ if (btnHomeCustomize){
       r: 4,
       life,
       confirmed: false,
-      srvX: x,
-      srvY: y,
       miss: 0
     });
   }
@@ -2613,8 +2611,8 @@ if (btnHomeCustomize){
     _vbulletAcc += dt;
     if (_vbulletAcc > 0.25) _vbulletAcc = 0.25;
 
-    // ✅ use delayed enemies so visuals line up with server damage
-    const snap = isNetActive() ? getInterpolatedSnapshot(120) : null;
+    // ✅ use the SAME snapshot timing as the rest of the client
+    const snap = isNetActive() ? getInterpolatedSnapshot() : null;
     const enemies = snap?.enemies ?? ents.enemies;
 
     while (_vbulletAcc >= VBULLET_DT) {
@@ -2634,20 +2632,25 @@ if (btnHomeCustomize){
         b.x = x0 + b.vx * VBULLET_DT;
         b.y = y0 + b.vy * VBULLET_DT;
 
-        // ✅ ENEMY HIT (visual-only)
+        // ✅ ENEMY HIT (visual-only) — IMPORTANT: if removed, continue immediately
+        let removed = false;
         for (const e of enemies) {
+          if (!e) continue;
           const rr = (e.r ?? 16) + b.r;
           if (dist2(b.x, b.y, e.x, e.y) <= rr * rr) {
             addEffect(e.x, e.y, 'hit', 0.12, '#fff');
             cam.shake = Math.max(cam.shake, 1.0);
             ents.vbullets.splice(i, 1);
+            removed = true;
             break;
           }
         }
+        if (removed) continue; // ✅ prevents deleting the wrong bullet later
 
         b.life -= VBULLET_DT;
         if (b.life <= 0) {
           ents.vbullets.splice(i, 1);
+          continue;
         }
       }
 
@@ -2683,8 +2686,6 @@ if (btnHomeCustomize){
         vb.confirmed = true;
 
         // SNAP ONCE to authoritative position
-        vb.x = sb.x;
-        vb.y = sb.y;
 
         // trust server velocity going forward
         if (typeof sb.vx === 'number') vb.vx = sb.vx;
