@@ -2142,18 +2142,29 @@ setInterval(() => {
         const bossV = (e.type === 'boss') ? (e.bossVariant ?? 1) : 0;
         const dps = touchDps(e.type, bossV);
 
-        const CONTACT_PAD = 2;
-
         for (const [pid, p] of lobby.players) {
-          const rr = (e.r ?? 16) + 16 - CONTACT_PAD;
+          const rr = (e.r ?? 16) + 16 - 6; // keep your reduced radius
 
+          // vector enemy → player
           const dx = p.x - e.x;
           const dy = p.y - e.y;
           const dist = Math.hypot(dx, dy);
 
-          // penetration depth (must be meaningful)
-          const penetration = rr - dist;
-          if (penetration <= 4) continue;
+          if (dist > rr) continue;
+
+          // ✅ NEW: enemy must be moving toward the player
+          const evx = e.vx || 0;
+          const evy = e.vy || 0;
+
+          // normalise vectors
+          const nx = dx / (dist || 1);
+          const ny = dy / (dist || 1);
+
+          // dot product: enemy velocity toward player
+          const approach = evx * nx + evy * ny;
+
+          // if enemy is not moving INTO the player, no damage
+          if (approach <= 0) continue;
 
           applyPlayerDamage(lobby, pid, dps * dt * 1.4);
         }
