@@ -114,6 +114,8 @@ const PVE_POINTS = {
   healer: 2,
   boss: 15
 };
+// ✅ must match client interpolation buffer (~2 ticks)
+const INTERP_DELAY = TICK_MS * 2 / 1000; // ≈ 0.1 seconds
 
 function pvePointsForType(type) {
   const key = (type === 'chaser' || type === 'swarm') ? 'ravener' : type;
@@ -2142,32 +2144,21 @@ setInterval(() => {
         const bossV = (e.type === 'boss') ? (e.bossVariant ?? 1) : 0;
         const dps = touchDps(e.type, bossV);
 
-        const CONTACT_PAD = 6;        // trims edge hits
-        const MIN_PENETRATION = 4;    // requires real overlap
-
         for (const [pid, p] of lobby.players) {
-          const rr = (e.r ?? 16) + 16 - CONTACT_PAD;
 
-          const dx = p.x - e.x;
-          const dy = p.y - e.y;
-          const dist = Math.hypot(dx, dy);
+          // ✅ rewind BOTH enemy and player to VISUAL time
+          const ex = e.x - (e.vx || 0) * INTERP_DELAY;
+          const ey = e.y - (e.vy || 0) * INTERP_DELAY;
 
-          if (dist > rr) continue;
+          const px = p.x - (p.vx || 0) * INTERP_DELAY;
+          const py = p.y - (p.vy || 0) * INTERP_DELAY;
 
-          // how deep we're overlapping
-          const penetration = rr - dist;
+          // slightly trimmed contact radius
+          const rr = (e.r ?? 16) + 16 - 6;
 
-          // enemy velocity toward player
-          const nx = dx / (dist || 1);
-          const ny = dy / (dist || 1);
-          const approach = (e.vx || 0) * nx + (e.vy || 0) * ny;
-
-          const movingIntoPlayer = approach > 20;            // moving in
-          const deeplyOverlapping = penetration > MIN_PENETRATION; // already on top
-
-          if (!movingIntoPlayer && !deeplyOverlapping) continue;
-
-          applyPlayerDamage(lobby, pid, dps * dt * 1.4);
+          if (dist2(ex, ey, px, py) <= rr * rr) {
+            applyPlayerDamage(lobby, pid, dps * dt * 1.4);
+          }
         }
       }
 
