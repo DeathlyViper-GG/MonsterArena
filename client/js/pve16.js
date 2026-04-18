@@ -2604,23 +2604,54 @@ if (btnHomeCustomize){
   }
 
   // Step once per render frame (NOT in updateFixed, NOT per-effect)
+  const VBULLET_DT = BULLET_FIXED_DT; // 1 / 20 — MATCH SERVER
+  let _vbulletAcc = 0;
+
   function stepVBullets(dt) {
     if (!ents.vbullets.length) return;
 
-    for (let i = ents.vbullets.length - 1; i >= 0; i--) {
-      const b = ents.vbullets[i];
+    _vbulletAcc += dt;
+    if (_vbulletAcc > 0.25) _vbulletAcc = 0.25;
 
-      // ✅ pure predicted forward motion only
-      b.x += b.vx * dt;
-      b.y += b.vy * dt;
+    // ✅ use delayed enemies so visuals line up with server damage
+    const snap = isNetActive() ? getInterpolatedSnapshot(120) : null;
+    const enemies = snap?.enemies ?? ents.enemies;
 
-      // ❌ NO positional correction here
-      // ❌ do NOT pull toward srvX/srvY
+    while (_vbulletAcc >= VBULLET_DT) {
+      for (let i = ents.vbullets.length - 1; i >= 0; i--) {
+        const b = ents.vbullets[i];
 
-      b.life -= dt;
-      if (b.life <= 0) {
-        ents.vbullets.splice(i, 1);
+        const x0 = b.x;
+        const y0 = b.y;
+
+        // ✅ WALL SWEEP — matches server
+        if (lineWallHit(x0, y0, b.vx, b.vy, VBULLET_DT, b.r)) {
+          ents.vbullets.splice(i, 1);
+          continue;
+        }
+
+        // ✅ MOVE (fixed tick)
+        b.x = x0 + b.vx * VBULLET_DT;
+        b.y = y0 + b.vy * VBULLET_DT;
+
+        // ✅ ENEMY HIT (visual-only)
+        for (const e of enemies) {
+          const rr = (e.r ?? 16) + b.r;
+          if (dist2(b.x, b.y, e.x, e.y) <= rr * rr) {
+            addEffect(e.x, e.y, 'hit', 0.12, '#fff');
+            cam.shake = Math.max(cam.shake, 1.0);
+            ents.vbullets.splice(i, 1);
+            break;
+          }
+        }
+
+        b.life -= VBULLET_DT;
+        if (b.life <= 0) {
+          ents.vbullets.splice(i, 1);
+        }
       }
+
+      _vbulletAcc -= VBULLET_DT;
     }
   }
 
