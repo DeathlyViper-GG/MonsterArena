@@ -2142,29 +2142,30 @@ setInterval(() => {
         const bossV = (e.type === 'boss') ? (e.bossVariant ?? 1) : 0;
         const dps = touchDps(e.type, bossV);
 
-        for (const [pid, p] of lobby.players) {
-          const rr = (e.r ?? 16) + 16 - 6; // keep your reduced radius
+        const CONTACT_PAD = 6;        // trims edge hits
+        const MIN_PENETRATION = 4;    // requires real overlap
 
-          // vector enemy → player
+        for (const [pid, p] of lobby.players) {
+          const rr = (e.r ?? 16) + 16 - CONTACT_PAD;
+
           const dx = p.x - e.x;
           const dy = p.y - e.y;
           const dist = Math.hypot(dx, dy);
 
           if (dist > rr) continue;
 
-          // ✅ NEW: enemy must be moving toward the player
-          const evx = e.vx || 0;
-          const evy = e.vy || 0;
+          // how deep we're overlapping
+          const penetration = rr - dist;
 
-          // normalise vectors
+          // enemy velocity toward player
           const nx = dx / (dist || 1);
           const ny = dy / (dist || 1);
+          const approach = (e.vx || 0) * nx + (e.vy || 0) * ny;
 
-          // dot product: enemy velocity toward player
-          const approach = evx * nx + evy * ny;
+          const movingIntoPlayer = approach > 20;            // moving in
+          const deeplyOverlapping = penetration > MIN_PENETRATION; // already on top
 
-          // if enemy is not moving INTO the player, no damage
-          if (approach <= 0) continue;
+          if (!movingIntoPlayer && !deeplyOverlapping) continue;
 
           applyPlayerDamage(lobby, pid, dps * dt * 1.4);
         }
