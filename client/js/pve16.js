@@ -4041,9 +4041,11 @@ window.addEventListener('net:snapshot', (ev) => {
             y0 = prev[bestIdx].y;
             suppressed = !!prev[bestIdx].suppressed;
           } else {
-            // no match last frame → start segment at current
-            x0 = b.x;
-            y0 = b.y;
+            // no match last frame → backtrack along velocity so we still sweep across walls
+            // IMPORTANT: bullet snapshots can "jump", so a zero-length segment will miss walls.
+            const BACKTRACK = 0.12; // seconds (matches your 120ms interp buffer)
+            x0 = b.x - (b.vx ?? 0) * BACKTRACK;
+            y0 = b.y - (b.vy ?? 0) * BACKTRACK;
             suppressed = false;
           }
 
@@ -4068,7 +4070,22 @@ window.addEventListener('net:snapshot', (ev) => {
             }
             if (hitWall) break;
           }
+          // ✅ If we hit a wall, draw ONLY at the impact point and stop forever
+          if (hitWall) {
+            // draw at wall contact (never beyond)
+            ctx.beginPath();
+            ctx.arc(
+              fx - cam.x - cam.sx,
+              fy - cam.y - cam.sy,
+              b.r ?? 4,
+              0,
+              Math.PI * 2
+            );
+            ctx.fill();
 
+            // ✅ do NOT carry this bullet forward
+            continue;
+          }
           // ---- Client-only swept hit vs the SAME enemies you draw (drawEnemies is interpolated snapshot) ----
           if (!suppressed && Array.isArray(drawEnemies) && drawEnemies.length) {
             let hitE = false;
@@ -4116,7 +4133,7 @@ window.addEventListener('net:snapshot', (ev) => {
           // ✅ IMPORTANT: bullets that hit a WALL are PERMANENTLY suppressed
           if (!hitWall) {
             next.push({
-              x: b.x, y: b.y,
+              x: fx, y: fy,       // ✅ store the drawn position
               vx: b.vx, vy: b.vy,
               owner: b.owner ?? null,
               suppressed
