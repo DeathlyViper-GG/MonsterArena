@@ -379,7 +379,6 @@
     // Clear gameplay entities (visual safety)
     ents.enemies.length = 0;
     ents.bullets.length = 0;
-    ents.vbullets.length = 0;   // ✅ add this
     ents.ebullets.length = 0;
     ents.effects.length = 0;
     ents.pickups.length = 0;
@@ -1364,7 +1363,7 @@
   }
 
   // Entities ------------------------------------------------------------------
-  const ents = { bullets:[], vbullets:[], ebullets:[], effects:[], enemies:[], pickups:[] };
+  const ents = { bullets:[], ebullets:[], effects:[], enemies:[], pickups:[] };
   window._ents = ents;
 
   // Weapons & player ----------------------------------------------------------
@@ -2765,27 +2764,16 @@ if (btnHomeCustomize){
 
     // ✅ ONLINE: server authoritative bullets
     if (isNetActive()) {
-      for (let i = 0; i < w.shots; i++) {
+      for (let i = 0; i < w.shots; i++){
         const a = base + rand(-w.spread, w.spread);
-
-        // ✅ VIRTUAL bullet (visual-only, no damage)
-        const sx = px0 + Math.cos(a) * player.r;
-        const sy = py0 + Math.sin(a) * player.r;
-        ents.vbullets.push({
-          x: sx,
-          y: sy,
-          vx: Math.cos(a) * w.speed,
-          vy: Math.sin(a) * w.speed,
-          r: 4,
-          life: 0.35,
-          _x0: sx,
-          _y0: sy
-        });
-
-        // ✅ SERVER-authoritative bullet (damage comes from this)
-        Net.sendShoot(sx, sy, a, w.speed, w.dmg);
+        Net.sendShoot(
+          px0 + Math.cos(a) * player.r,
+          py0 + Math.sin(a) * player.r,
+          a,
+          w.speed,
+          w.dmg
+        );
       }
-
       addEffect(px0 + Math.cos(base) * player.r, py0 + Math.sin(base) * player.r, 'muzzle', 0.1, '#fff');
       noiseEvents.push({ x: px0, y: py0, r: 720, t: 1.2 });
       return;
@@ -2861,71 +2849,6 @@ if (btnHomeCustomize){
     if (e.t >= e.life) ents.effects.splice(i,1); 
     } 
     } 
-  // ✅ Virtual bullets (client-only): disappear + hit VFX on VISUAL enemy hit.
-  // ✅ Server bullets still apply real damage via snapshots.
-  function stepVirtualBullets(dt) {
-    if (!isNetActive()) return;
-    if (!ents.vbullets || ents.vbullets.length === 0) return;
-
-    // Use the SAME enemy positions we draw (interpolated snapshot)
-    const snap = getInterpolatedSnapshot(); // uses delayMs=120 by default
-    const enemies = (snap && Array.isArray(snap.enemies)) ? snap.enemies : [];
-
-    const worldReady = HAS_SERVER_WORLD && world.walls && world.walls.length;
-
-    for (let i = ents.vbullets.length - 1; i >= 0; i--) {
-      const b = ents.vbullets[i];
-      if (!b) { ents.vbullets.splice(i, 1); continue; }
-
-      const x0 = b.x, y0 = b.y;
-      const x1 = b.x + (b.vx || 0) * dt;
-      const y1 = b.y + (b.vy || 0) * dt;
-
-      // ✅ Stop at walls (authoritative geometry)
-      let fx = x1, fy = y1;
-      let hitWall = false;
-      if (worldReady) {
-        const clip = clipBulletToWalls(world, x0, y0, x1, y1);
-        if (clip.hit) {
-          fx = clip.x; fy = clip.y;
-          hitWall = true;
-        }
-      }
-
-      // ✅ Swept visual hit vs enemies (prevents tunnelling)
-      let hitEnemy = false;
-      const steps = Math.max(1, Math.ceil(Math.hypot(fx - x0, fy - y0) / 6));
-
-      outer:
-      for (let s = 1; s <= steps; s++) {
-        const t = s / steps;
-        const sx = x0 + (fx - x0) * t;
-        const sy = y0 + (fy - y0) * t;
-
-        for (const e of enemies) {
-          const rr = (b.r ?? 4) + (e.r ?? 16);
-          if (dist2(sx, sy, e.x, e.y) <= rr * rr) {
-            // ✅ Hit effect (visual-only)
-            addEffect(sx, sy, 'hit', 0.15, '#fff');
-            cam.shake = Math.max(cam.shake, 1.5);
-            hitEnemy = true;
-            break outer;
-          }
-        }
-      }
-
-      // advance bullet
-      b.x = fx; b.y = fy;
-      b._x0 = x0; b._y0 = y0;
-      b.life = (b.life ?? 0.35) - dt;
-
-      // ✅ Remove virtual bullet on wall, enemy hit, or expiry
-      if (hitEnemy || hitWall || b.life <= 0) {
-        ents.vbullets.splice(i, 1);
-      }
-    }
-  }
-
   // Touch controls ------------------------------------------------------------
   const touch = { idL:null, init(){ const rel=(el,e)=>{ const r=el.getBoundingClientRect(); return {x:e.clientX-r.left, y:e.clientY-r.top}; }; stickL.addEventListener('touchstart', e=>{ e.preventDefault(); for(const t of e.changedTouches){ if(!this.idL){ const p=rel(stickL,t); if(p.x>=0&&p.y>=0&&p.x<=stickL.clientWidth&&p.y<=stickL.clientHeight){ this.idL=t.identifier; } } } }, {passive:false}); stickL.addEventListener('touchmove', e=>{ e.preventDefault(); for(const t of e.changedTouches){ if(t.identifier===this.idL){ const r=stickL.getBoundingClientRect(); const x=t.clientX-(r.left+r.width/2), y=t.clientY-(r.top+r.height/2), m=Math.hypot(x,y), lim=44; const nx=(m>lim? x/m*lim:x), ny=(m>lim? y/m*lim:y); nubL.style.transform=`translate(${nx}px,${ny}px)`; input.touch.stick.dx=nx/lim; input.touch.stick.dy=ny/lim; input.touch.stick.active=true; } } }, {passive:false}); stickL.addEventListener('touchend', e=>{ e.preventDefault(); for(const t of e.changedTouches){ if(t.identifier===this.idL){ this.idL=null; input.touch.stick={dx:0,dy:0,active:false}; nubL.style.transform='translate(0px,0px)'; } } }, {passive:false}); btnFire.addEventListener('touchstart', e=>{ e.preventDefault(); input.touch.fire=true; }, {passive:false}); btnFire.addEventListener('touchend', e=>{ e.preventDefault(); input.touch.fire=false; }, {passive:false}); btnSwap.addEventListener('touchstart', e=>{ e.preventDefault(); swapWeapon(1); }, {passive:false}); } };
   touch.init();
@@ -3587,15 +3510,12 @@ window.addEventListener('net:snapshot', (ev) => {
 
     
     // Always allow local fire; when online, also broadcast a 'shot' event for VFX
-    
     if (input.mouse.down || input.touch.fire) {
       const ammoBefore = player.ammo;
       const lastShotBefore = player.lastShot;
-      playerShoot();
+      playerShoot()
+
     }
-
-    stepVirtualBullets(dt); // ✅ add this right here
-
     if (player.dashCD > 0) player.dashCD = Math.max(0, player.dashCD - dt) 
     if (player.dashI  > 0) player.dashI  = Math.max(0, player.dashI  - dt)
     player.voidCD = Math.max(0, (player.voidCD || 0) - dt);
@@ -4059,22 +3979,57 @@ window.addEventListener('net:snapshot', (ev) => {
       }
 
       // ✅ HARD‑CLIPPED BULLETS (server walls are final)
-      // ✅ ONLINE: draw VIRTUAL player bullets (visual‑only)
-      if (ents.vbullets && ents.vbullets.length) {
+      if (onlineBullets) {
         ctx.fillStyle = '#cfe5ff';
 
-        for (const b of ents.vbullets) {
+        for (const b of onlineBullets) {
           if (!b) continue;
+          if (b.kind === 'enemy' || b.kind === 'enemyBomb') continue;
 
+          // previous position (fallback safe)
+          const x0 = b._x0 ?? b.x;
+          const y0 = b._y0 ?? b.y;
+
+          // clip against authoritative server walls
+          let hit = false;
+          let fx = b.x;
+          let fy = b.y;
+
+          for (const w of world.walls) {
+            const steps = Math.max(1, Math.ceil(Math.hypot(b.x - x0, b.y - y0) / 4));
+            for (let i = 1; i <= steps; i++) {
+              const t = i / steps;
+              const x = x0 + (b.x - x0) * t;
+              const y = y0 + (b.y - y0) * t;
+
+              if (
+                x >= w.x &&
+                x <= w.x + w.w &&
+                y >= w.y &&
+                y <= w.y + w.h
+              ) {
+                fx = x;
+                fy = y;
+                hit = true;
+                break;
+              }
+            }
+            if (hit) break;
+          }
+
+          // draw bullet (clamped if needed)
           ctx.beginPath();
           ctx.arc(
-            b.x - cam.x - cam.sx,
-            b.y - cam.y - cam.sy,
+            fx - cam.x - cam.sx,
+            fy - cam.y - cam.sy,
             b.r ?? 4,
             0,
             Math.PI * 2
           );
           ctx.fill();
+
+          // ✅ do NOT render past the wall
+          if (hit) continue;
         }
       }
     }
