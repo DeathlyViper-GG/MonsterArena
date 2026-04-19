@@ -4041,9 +4041,9 @@ window.addEventListener('net:snapshot', (ev) => {
             y0 = prev[bestIdx].y;
             suppressed = !!prev[bestIdx].suppressed;
           } else {
-            // no match last frame → start segment at current
-            x0 = b.x;
-            y0 = b.y;
+            // no match last frame → fall back to snapshot-provided previous point if present
+            x0 = b._x0 ?? b.x;
+            y0 = b._y0 ?? b.y;
             suppressed = false;
           }
 
@@ -4068,6 +4068,7 @@ window.addEventListener('net:snapshot', (ev) => {
             }
             if (hitWall) break;
           }
+          if (hitWall) suppressed = true; // ✅ never render past walls, ever
 
           // ---- Client-only swept hit vs the SAME enemies you draw (drawEnemies is interpolated snapshot) ----
           if (!suppressed && Array.isArray(drawEnemies) && drawEnemies.length) {
@@ -4113,7 +4114,7 @@ window.addEventListener('net:snapshot', (ev) => {
 
           // remember for next frame (even if suppressed)
           next.push({
-            x: b.x, y: b.y,
+            x: fx, y: fy,           // ✅ store clamped draw position
             vx: b.vx, vy: b.vy,
             owner: b.owner ?? null,
             suppressed
