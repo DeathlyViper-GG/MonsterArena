@@ -4112,12 +4112,17 @@ window.addEventListener('net:snapshot', (ev) => {
           }
 
           // remember for next frame (even if suppressed)
-          next.push({
-            x: b.x, y: b.y,
-            vx: b.vx, vy: b.vy,
-            owner: b.owner ?? null,
-            suppressed
-          });
+          // remember for next frame
+          // ✅ IMPORTANT: bullets that hit a WALL are PERMANENTLY suppressed
+          if (!hitWall) {
+            next.push({
+              x: b.x, y: b.y,
+              vx: b.vx, vy: b.vy,
+              owner: b.owner ?? null,
+              suppressed
+            });
+          }
+          // ✅ if hitWall === true → do NOT carry it forward at all
 
           // ✅ If suppressed (client says it hit), do not draw it at all
           if (suppressed) continue;
