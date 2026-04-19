@@ -228,13 +228,59 @@
   // Client-side bullet render state (constant speed)
   const bulletRender = new Map();
   let _prevDrawPlayerBullets = [];
-  // id -> { sx, sy, vx, vy, t0 }
+  // ✅ Client-side remote player render state (bullet-style, time-anchored)
+  const playerRender = new Map(); // id -> { sx, sy, vx, vy, t0, ang }
 
   function storeSnapshot(snap) {
+    const now = performance.now();
+
     _snapPrev = _snapCurr;
     _snapPrevT = _snapCurrT;
     _snapCurr = snap;
-    _snapCurrT = performance.now();
+    _snapCurrT = now;
+
+    // ✅ Update remote playerRender (time-anchored like bullets)
+    if (snap && Array.isArray(snap.players)) {
+      const live = new Set();
+
+      for (const p of snap.players) {
+        if (!p || !p.id) continue;
+        live.add(p.id);
+
+        let r = playerRender.get(p.id);
+        if (!r) {
+          // first time seeing this player
+          playerRender.set(p.id, {
+            sx: p.x,
+            sy: p.y,
+            vx: 0,
+            vy: 0,
+            t0: now,
+            ang: p.ang ?? 0
+          });
+          continue;
+        }
+
+        const dt = Math.max(0.016, (now - r.t0) * 0.001);
+        const nvx = (p.x - r.sx) / dt;
+        const nvy = (p.y - r.sy) / dt;
+
+        // Smooth velocity a bit to avoid jitter spikes
+        r.vx = r.vx * 0.4 + nvx * 0.6;
+        r.vy = r.vy * 0.4 + nvy * 0.6;
+
+        // Anchor at latest snapshot
+        r.sx = p.x;
+        r.sy = p.y;
+        r.t0 = now;
+        r.ang = p.ang ?? r.ang;
+      }
+
+      // prune players who left snapshot (prevents map growing forever)
+      for (const id of playerRender.keys()) {
+        if (!live.has(id)) playerRender.delete(id);
+      }
+    }
   }
 
   
@@ -4340,55 +4386,47 @@ window.addEventListener('net:snapshot', (ev) => {
     // ---------------------------
     // Remote players
     // ---------------------------
-    if (online && snapPlayers && Array.isArray(snapPlayers.players)) {
+    // ---------------------------
+    // Remote players (NO delay: extrapolate like bullets)
+    // ---------------------------
+    if (online && Net.state?.snapshot && Array.isArray(Net.state.snapshot.players)) {
       const myId = Net.state.peerId;
-      for (const rp of snapPlayers.players) {
+      const now = performance.now();
+
+      for (const rp of Net.state.snapshot.players) {
         if (!rp || rp.id === myId) continue;
 
-        // --- micro prediction for REMOTE players ONLY (visual) ---
-        // --- micro prediction for REMOTE players ONLY (visual, safe) ---
-        const prev = _remotePrev.get(rp.id);
-
-        let vx = 0, vy = 0;
-        if (prev) {
-          vx = rp.x - prev.x;
-          vy = rp.y - prev.y;
+        // ✅ Bullet-style render: time-anchored extrapolation
+        let r = playerRender.get(rp.id);
+        if (!r) {
+          r = { sx: rp.x, sy: rp.y, vx: 0, vy: 0, t0: now, ang: rp.ang ?? 0 };
+          playerRender.set(rp.id, r);
         }
 
-        // compute speed (in world units per frame)
-        const speed2 = vx * vx + vy * vy;
+        // cap extrapolation so stalls don't fling players across the map
+        const dt = Math.min(0.12, Math.max(0, (now - r.t0) * 0.001));
+        const x = r.sx + r.vx * dt;
+        const y = r.sy + r.vy * dt;
 
-        // ✅ dynamic look-ahead: zero when movement is tiny / stopping
-        // prevents "keeps moving after stop"
-        const LOOKAHEAD =
-          speed2 < 0.0004 ? 0 : 0.02; // threshold is intentional
-
-        const sx = rp.x + vx * LOOKAHEAD;
-        const sy = rp.y + vy * LOOKAHEAD;
-
-        // store snapshot position (not predicted) for next frame
-        _remotePrev.set(rp.id, { x: rp.x, y: rp.y });
-
-        // use predicted position for rendering only
-        const px = sx - cam.x - cam.sx;
-        const py = sy - cam.y - cam.sy;
+        const px = x - cam.x - cam.sx;
+        const py = y - cam.y - cam.sy;
 
         const design =
           Number.isInteger(rp.design)
             ? rp.design
-            : parseInt(rp.design, 10) || 0;
+            : (parseInt(rp.design, 10) || 0);
 
         const colIdx =
           Number.isInteger(rp.color)
             ? rp.color
-            : parseInt(rp.color, 10) || 0;
+            : (parseInt(rp.color, 10) || 0);
 
         const col = COLORS[colIdx]?.c ?? COLORS[0].c;
 
         ctx.save();
         ctx.translate(px, py);
-        ctx.rotate(rp.ang ?? 0);
-        
+        ctx.rotate(rp.ang ?? r.ang ?? 0);
+
         // ✅ BODY ONLY — no gun, no local state
         drawDesign(
           design,
@@ -4396,10 +4434,10 @@ window.addEventListener('net:snapshot', (ev) => {
           performance.now() / 1000,
           rp.r ?? 16
         );
-        // ✅ draw remote gun skin (visual only)
+
+        // ✅ draw remote gun skin (visual only) — kept identical to your current logic
         const guns = rp.guns ?? { pistol: -1, rifle: -1, shotgun: -1 };
         const w = weapons[rp.weapon ?? 0];
-
         let img = null;
         if (w.kind === 'pistol' && guns.pistol >= 0) img = gunSheets.pistols[guns.pistol];
         if (w.kind === 'rifle' && guns.rifle >= 0) img = gunSheets.rifles[guns.rifle];
