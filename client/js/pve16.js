@@ -4336,10 +4336,9 @@ window.addEventListener('net:snapshot', (ev) => {
     // ---------------------------
     // Remote players
     // ---------------------------
-    if (online && Net.state?.snapshot?.players) {
+    if (online && snap && Array.isArray(snap.players)) {
       const myId = Net.state.peerId;
-
-      for (const rp of Net.state.snapshot.players) {
+      for (const rp of snap.players) {
         if (!rp || rp.id === myId) continue;
 
         const px = rp.x - cam.x - cam.sx;
