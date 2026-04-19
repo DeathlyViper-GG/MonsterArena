@@ -4353,7 +4353,7 @@ window.addEventListener('net:snapshot', (ev) => {
         }
 
         // 20 ms forward look-ahead (safe)
-        const LOOKAHEAD = 0.02;
+        const LOOKAHEAD = 0.20;
 
         const sx = rp.x + vx * LOOKAHEAD;
         const sy = rp.y + vy * LOOKAHEAD;
