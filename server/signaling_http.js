@@ -1916,6 +1916,14 @@ app.post('/lobby/setWorld', (req, res) => {
 setInterval(() => {
   const t = now();
 
+  // ✅ Store previous enemy positions for interpolation-safe contact checks
+  for (const lobby of LOBBIES.values()) {
+    for (const e of lobby.enemies || []) {
+      e.prevX = e.x;
+      e.prevY = e.y;
+    }
+  }
+
   for (const lobby of LOBBIES.values()) {
     // ✅ Disconnect cleanup
     for (const [pid, p] of lobby.players) {
@@ -2140,21 +2148,23 @@ setInterval(() => {
         }
       }
 
+      // ✅ PvE enemy → player contact damage USING VISUAL (interpolated) positions
       for (const e of lobby.enemies) {
         const bossV = (e.type === 'boss') ? (e.bossVariant ?? 1) : 0;
         const dps = touchDps(e.type, bossV);
 
         for (const [pid, p] of lobby.players) {
 
-          // ✅ rewind BOTH enemy and player to VISUAL time
-          const ex = e.x - (e.vx || 0) * INTERP_DELAY;
-          const ey = e.y - (e.vy || 0) * INTERP_DELAY;
+          // ✅ Use snapshot midpoint to match client interpolation
+          const ex = (e.x + (e.prevX ?? e.x)) * 0.5;
+          const ey = (e.y + (e.prevY ?? e.y)) * 0.5;
 
-          const px = p.x - (p.vx || 0) * INTERP_DELAY;
-          const py = p.y - (p.vy || 0) * INTERP_DELAY;
+          const px = p.x;
+          const py = p.y;
 
-          // slightly trimmed contact radius
-          const rr = (e.r ?? 16) + 16 - 6;
+          // slightly trimmed contact radius (visual-safe)
+          const CONTACT_PAD = 6;
+          const rr = (e.r ?? 16) + 16 - CONTACT_PAD;
 
           if (dist2(ex, ey, px, py) <= rr * rr) {
             applyPlayerDamage(lobby, pid, dps * dt * 1.4);
