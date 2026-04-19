@@ -225,6 +225,7 @@
   let _snapCurrT = 0;
   // Client-side bullet render state (constant speed)
   const bulletRender = new Map();
+  let _prevDrawPlayerBullets = [];
   // id -> { sx, sy, vx, vy, t0 }
 
   function storeSnapshot(snap) {
@@ -3990,19 +3991,64 @@ window.addEventListener('net:snapshot', (ev) => {
       }
 
       // ✅ HARD‑CLIPPED BULLETS (server walls are final)
+      // ✅ HARD‑CLIPPED BULLETS (server walls are final)
+      // ✅ PLUS: client-only hit detection + hide bullet immediately + spawn hit FX
       if (onlineBullets) {
         ctx.fillStyle = '#cfe5ff';
+
+        const prev = _prevDrawPlayerBullets;
+        const used = new Array(prev.length).fill(false);
+        const next = [];
 
         for (const b of onlineBullets) {
           if (!b) continue;
           if (b.kind === 'enemy' || b.kind === 'enemyBomb') continue;
 
-          // previous position (fallback safe)
-          const x0 = b._x0 ?? b.x;
-          const y0 = b._y0 ?? b.y;
+          // ---- Match this snapshot bullet to a previous drawn bullet (nearest + similar velocity) ----
+          let bestIdx = -1;
+          let bestScore = Infinity;
 
-          // clip against authoritative server walls
-          let hit = false;
+          for (let k = 0; k < prev.length; k++) {
+            if (used[k]) continue;
+            const p = prev[k];
+
+            // must match same owner (if present) and be a player bullet
+            if ((p.owner ?? null) !== (b.owner ?? null)) continue;
+
+            // velocity similarity (tolerant)
+            const dvx = (p.vx ?? 0) - (b.vx ?? 0);
+            const dvy = (p.vy ?? 0) - (b.vy ?? 0);
+            const vScore = dvx * dvx + dvy * dvy;
+
+            // position closeness
+            const dx = (p.x ?? b.x) - b.x;
+            const dy = (p.y ?? b.y) - b.y;
+            const dScore = dx * dx + dy * dy;
+
+            // weighted score: position dominates, velocity disambiguates
+            const score = dScore + vScore * 0.25;
+
+            if (score < bestScore) {
+              bestScore = score;
+              bestIdx = k;
+            }
+          }
+
+          let x0, y0, suppressed = false;
+          if (bestIdx >= 0) {
+            used[bestIdx] = true;
+            x0 = prev[bestIdx].x;
+            y0 = prev[bestIdx].y;
+            suppressed = !!prev[bestIdx].suppressed;
+          } else {
+            // no match last frame → start segment at current
+            x0 = b.x;
+            y0 = b.y;
+            suppressed = false;
+          }
+
+          // ---- Clip against authoritative walls using the real segment (x0,y0) -> (b.x,b.y) ----
+          let hitWall = false;
           let fx = b.x;
           let fy = b.y;
 
@@ -4013,20 +4059,68 @@ window.addEventListener('net:snapshot', (ev) => {
               const x = x0 + (b.x - x0) * t;
               const y = y0 + (b.y - y0) * t;
 
-              if (
-                x >= w.x &&
-                x <= w.x + w.w &&
-                y >= w.y &&
-                y <= w.y + w.h
-              ) {
+              if (x >= w.x && x <= w.x + w.w && y >= w.y && y <= w.y + w.h) {
                 fx = x;
                 fy = y;
-                hit = true;
+                hitWall = true;
                 break;
               }
             }
-            if (hit) break;
+            if (hitWall) break;
           }
+
+          // ---- Client-only swept hit vs the SAME enemies you draw (drawEnemies is interpolated snapshot) ----
+          if (!suppressed && Array.isArray(drawEnemies) && drawEnemies.length) {
+            let hitE = false;
+            let hitX = fx, hitY = fy;
+
+            const segDx = fx - x0;
+            const segDy = fy - y0;
+            const segLen = Math.hypot(segDx, segDy);
+
+            // smaller step = fewer misses when bullets/enemies jump
+            const steps = Math.max(1, Math.ceil(segLen / 2)); // <= key change from /6
+
+            outer:
+            for (let s = 1; s <= steps; s++) {
+              const t = s / steps;
+              const sx = x0 + segDx * t;
+              const sy = y0 + segDy * t;
+
+              for (const e of drawEnemies) {
+                if (!e) continue;
+                const rr = (e.r ?? 16) + (b.r ?? 4);
+                const dx = sx - e.x;
+                const dy = sy - e.y;
+                if (dx * dx + dy * dy <= rr * rr) {
+                  hitE = true;
+                  hitX = sx;
+                  hitY = sy;
+                  break outer;
+                }
+              }
+            }
+
+            if (hitE) {
+              // ✅ Fire hit FX ONCE (first time we mark suppressed)
+              addEffect(hitX, hitY, 'hit', 0.15, '#fff');
+              cam.shake = Math.max(cam.shake, 1.5);
+
+              // ✅ Hide bullet immediately on client regardless of server “jumps”
+              suppressed = true;
+            }
+          }
+
+          // remember for next frame (even if suppressed)
+          next.push({
+            x: b.x, y: b.y,
+            vx: b.vx, vy: b.vy,
+            owner: b.owner ?? null,
+            suppressed
+          });
+
+          // ✅ If suppressed (client says it hit), do not draw it at all
+          if (suppressed) continue;
 
           // draw bullet (clamped if needed)
           ctx.beginPath();
@@ -4040,8 +4134,10 @@ window.addEventListener('net:snapshot', (ev) => {
           ctx.fill();
 
           // ✅ do NOT render past the wall
-          if (hit) continue;
+          if (hitWall) continue;
         }
+
+        _prevDrawPlayerBullets = next;
       }
     }
 
