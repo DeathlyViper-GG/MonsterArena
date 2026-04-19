@@ -4344,6 +4344,7 @@ window.addEventListener('net:snapshot', (ev) => {
         if (!rp || rp.id === myId) continue;
 
         // --- micro prediction for REMOTE players ONLY (visual) ---
+        // --- micro prediction for REMOTE players ONLY (visual, safe) ---
         const prev = _remotePrev.get(rp.id);
 
         let vx = 0, vy = 0;
@@ -4352,13 +4353,18 @@ window.addEventListener('net:snapshot', (ev) => {
           vy = rp.y - prev.y;
         }
 
-        // 20 ms forward look-ahead (safe)
-        const LOOKAHEAD = 0.20;
+        // compute speed (in world units per frame)
+        const speed2 = vx * vx + vy * vy;
+
+        // ✅ dynamic look-ahead: zero when movement is tiny / stopping
+        // prevents "keeps moving after stop"
+        const LOOKAHEAD =
+          speed2 < 0.0004 ? 0 : 0.02; // threshold is intentional
 
         const sx = rp.x + vx * LOOKAHEAD;
         const sy = rp.y + vy * LOOKAHEAD;
 
-        // store current snapshot position for next frame
+        // store snapshot position (not predicted) for next frame
         _remotePrev.set(rp.id, { x: rp.x, y: rp.y });
 
         // use predicted position for rendering only
