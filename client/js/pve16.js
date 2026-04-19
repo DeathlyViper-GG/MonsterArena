@@ -3886,6 +3886,7 @@ window.addEventListener('net:snapshot', (ev) => {
     const online = isNetActive();
     const snapPlayers = online ? getInterpolatedSnapshot(60)  : null; // ✅ other players (less delay)
     const snapWorld   = online ? getInterpolatedSnapshot(120) : null; // ✅ enemies/world unchanged
+    const snap = snapWorld;
 
     // ✅ DEFINE BULLETS ONCE (used in multiple sections below)
     const allBullets =
