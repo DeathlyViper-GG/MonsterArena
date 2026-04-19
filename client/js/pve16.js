@@ -226,6 +226,8 @@
   // Client-side bullet render state (constant speed)
   const bulletRender = new Map();
   let _prevDrawPlayerBullets = [];
+  // ✅ Remote player render state (for extrapolation)
+  const remoteRender = new Map(); // id -> { x, y, vx, vy, t0, ang }
   // id -> { sx, sy, vx, vy, t0 }
 
   function storeSnapshot(snap) {
@@ -237,7 +239,7 @@
 
   
 
-  function getInterpolatedSnapshot(delayMs = 0) {
+  function getInterpolatedSnapshot(delayMs = 120) {
     if (!_snapCurr) return Net?.state?.snapshot || null;
     if (!_snapPrev) return _snapCurr;
 
@@ -3176,6 +3178,50 @@ window.addEventListener('net:snapshot', (ev) => {
   if (!snap || !Array.isArray(snap.players)) return;
 
   storeSnapshot(snap);
+  // ✅ Update remote player extrapolation state from authoritative snapshot
+  {
+    const now = performance.now();
+    const myId = Net.state?.peerId;
+    const live = new Set();
+
+    for (const p of snap.players) {
+      if (!p || !p.id) continue;
+      if (p.id === myId) continue;
+
+      live.add(p.id);
+
+      let r = remoteRender.get(p.id);
+      if (!r) {
+        remoteRender.set(p.id, {
+          x: p.x,
+          y: p.y,
+          vx: 0,
+          vy: 0,
+          t0: now,
+          ang: p.ang ?? 0
+        });
+        continue;
+      }
+
+      const dt = Math.max(0.016, (now - r.t0) * 0.001);
+      const nvx = (p.x - r.x) / dt;
+      const nvy = (p.y - r.y) / dt;
+
+      // smooth velocity a bit (reduces jitter from snapshot spacing)
+      r.vx = r.vx * 0.35 + nvx * 0.65;
+      r.vy = r.vy * 0.35 + nvy * 0.65;
+
+      r.x = p.x;
+      r.y = p.y;
+      r.t0 = now;
+      r.ang = p.ang ?? r.ang;
+    }
+
+    // prune players who are no longer present
+    for (const id of remoteRender.keys()) {
+      if (!live.has(id)) remoteRender.delete(id);
+    }
+  }
   storeMeFromSnapshot(snap); // ✅ ADD THIS
   renderLobbyPlayers();
 
@@ -4369,8 +4415,41 @@ window.addEventListener('net:snapshot', (ev) => {
 
         if (!rp || rp.id === myId) continue;
 
-        const px = rp.x - cam.x - cam.sx;
-        const py = rp.y - cam.y - cam.sy;
+        
+        let rx = rp.x;
+        let ry = rp.y;
+        let rang = rp.ang ?? 0;
+
+        const rr = remoteRender.get(rp.id);
+        if (rr) {
+          const now = performance.now();
+
+          // extrapolate by time since last snapshot update (cap to avoid wild jumps)
+          const dt = Math.min(0.12, Math.max(0, (now - rr.t0) * 0.001)); // cap 120ms
+          const ex = rr.x + rr.vx * dt;
+          const ey = rr.y + rr.vy * dt;
+
+          // clamp how far ahead we can render (prevents snapping through corners)
+          const dx = ex - rp.x;
+          const dy = ey - rp.y;
+          const maxAhead = 48; // pixels
+          const d2 = dx * dx + dy * dy;
+
+          if (d2 > maxAhead * maxAhead) {
+            const d = Math.sqrt(d2) || 1;
+            rx = rp.x + (dx / d) * maxAhead;
+            ry = rp.y + (dy / d) * maxAhead;
+          } else {
+            rx = ex;
+            ry = ey;
+          }
+
+          rang = rr.ang ?? rang;
+        }
+
+        const px = rx - cam.x - cam.sx;
+        const py = ry - cam.y - cam.sy;
+
 
         const design =
           Number.isInteger(rp.design)
