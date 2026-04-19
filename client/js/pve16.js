@@ -3176,7 +3176,7 @@ window.addEventListener('net:snapshot', (ev) => {
   if (!snap || !Array.isArray(snap.players)) return;
 
   storeSnapshot(snap);
-  Net.state.snapshot = e.detail;
+  storeMeFromSnapshot(snap); // ✅ ADD THIS
   renderLobbyPlayers();
 
   if (localStorage.getItem('arenaMode') === 'pve' && typeof snap.wave === 'number') {
@@ -4041,9 +4041,9 @@ window.addEventListener('net:snapshot', (ev) => {
             y0 = prev[bestIdx].y;
             suppressed = !!prev[bestIdx].suppressed;
           } else {
-            // no match last frame → fall back to snapshot-provided previous point if present
-            x0 = b._x0 ?? b.x;
-            y0 = b._y0 ?? b.y;
+            // no match last frame → start segment at current
+            x0 = b.x;
+            y0 = b.y;
             suppressed = false;
           }
 
@@ -4068,7 +4068,6 @@ window.addEventListener('net:snapshot', (ev) => {
             }
             if (hitWall) break;
           }
-          if (hitWall) suppressed = true; // ✅ never render past walls, ever
 
           // ---- Client-only swept hit vs the SAME enemies you draw (drawEnemies is interpolated snapshot) ----
           if (!suppressed && Array.isArray(drawEnemies) && drawEnemies.length) {
@@ -4114,7 +4113,7 @@ window.addEventListener('net:snapshot', (ev) => {
 
           // remember for next frame (even if suppressed)
           next.push({
-            x: fx, y: fy,           // ✅ store clamped draw position
+            x: b.x, y: b.y,
             vx: b.vx, vy: b.vy,
             owner: b.owner ?? null,
             suppressed
@@ -4336,9 +4335,10 @@ window.addEventListener('net:snapshot', (ev) => {
     // ---------------------------
     // Remote players
     // ---------------------------
-    if (online && snap && Array.isArray(snap.players)) {
+    if (online && Net.state?.snapshot?.players) {
       const myId = Net.state.peerId;
-      for (const rp of snap.players) {
+
+      for (const rp of Net.state.snapshot.players) {
         if (!rp || rp.id === myId) continue;
 
         const px = rp.x - cam.x - cam.sx;
