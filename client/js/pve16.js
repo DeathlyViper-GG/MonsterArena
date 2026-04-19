@@ -2808,12 +2808,38 @@ if (btnHomeCustomize){
     continue; 
     } 
     // hit enemies 
-    let hit = -1; 
-    for (let j = 0; j < ents.enemies.length; j++){ 
-    const e = ents.enemies[j]; 
-    const r = e.r + b.r; 
-    if (dist2(b.x,b.y,e.x,e.y) < r*r){ hit = j; break; } 
-    } 
+    // hit enemies — SWEPT test (bullet path vs enemy circle)
+    let hit = -1;
+
+    // previous position (must exist before movement)
+    const x0 = b._x0 ?? b.x;
+    const y0 = b._y0 ?? b.y;
+    const x1 = b.x;
+    const y1 = b.y;
+
+    for (let j = 0; j < ents.enemies.length; j++) {
+      const e = ents.enemies[j];
+      const rr = (e.r ?? 16) + (b.r ?? 4);
+
+      // segment (x0,y0)-(x1,y1) vs circle (e.x,e.y,rr)
+      const dx = x1 - x0;
+      const dy = y1 - y0;
+      const fx = x0 - e.x;
+      const fy = y0 - e.y;
+
+      const a = dx*dx + dy*dy;
+      const b2 = 2 * (fx*dx + fy*dy);
+      const c = fx*fx + fy*fy - rr*rr;
+
+      const disc = b2*b2 - 4*a*c;
+      if (disc >= 0) {
+        const t = (-b2 - Math.sqrt(disc)) / (2*a);
+        if (t >= 0 && t <= 1) {
+          hit = j;
+          break;
+        }
+      }
+    }
     if (hit >= 0) {
       // ✅ BULLET DAMAGE IS SERVER-AUTHORITATIVE
       // Client does NOT apply damage or send hits for bullets
