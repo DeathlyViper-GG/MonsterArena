@@ -3884,7 +3884,8 @@ window.addEventListener('net:snapshot', (ev) => {
 
   function draw(dt) {
     const online = isNetActive();
-    const snap = online ? getInterpolatedSnapshot() : null;
+    const snapPlayers = online ? getInterpolatedSnapshot(60)  : null; // ✅ other players (less delay)
+    const snapWorld   = online ? getInterpolatedSnapshot(120) : null; // ✅ enemies/world unchanged
 
     // ✅ DEFINE BULLETS ONCE (used in multiple sections below)
     const allBullets =
@@ -3893,8 +3894,8 @@ window.addEventListener('net:snapshot', (ev) => {
         : ents.bullets;
 
     const drawEnemies =
-      (online && snap && Array.isArray(snap.enemies))
-        ? snap.enemies
+      (online && snapWorld && Array.isArray(snapWorld.enemies))
+        ? snapWorld.enemies
         : ents.enemies;
 
 
@@ -4338,9 +4339,9 @@ window.addEventListener('net:snapshot', (ev) => {
     // ---------------------------
     // Remote players
     // ---------------------------
-    if (online && snap && Array.isArray(snap.players)) {
+    if (online && snapPlayers && Array.isArray(snapPlayers.players)) {
       const myId = Net.state.peerId;
-      for (const rp of snap.players) {
+      for (const rp of snapPlayers.players) {
         if (!rp || rp.id === myId) continue;
 
         // --- micro prediction for REMOTE players ONLY (visual) ---
