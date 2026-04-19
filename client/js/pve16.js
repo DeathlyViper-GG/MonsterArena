@@ -2799,73 +2799,58 @@ if (btnHomeCustomize){
     // player bullets 
     for (let i = ents.bullets.length - 1; i >= 0; i--){ 
     const b = ents.bullets[i]; 
-    const kill = lineWallHit(b.x, b.y, b.vx, b.vy, dt, b.r); 
-    b.x += b.vx * dt; 
-    b.y += b.vy * dt; 
-    b.life -= dt; 
-    if (kill || b.life <= 0){ 
-    ents.bullets.splice(i,1); 
-    continue; 
+    // ✅ store previous position for swept test
+    const x0 = b.x;
+    const y0 = b.y;
+
+    const kill = lineWallHit(b.x, b.y, b.vx, b.vy, dt, b.r);
+
+    b.x += b.vx * dt;
+    b.y += b.vy * dt;
+    b.life -= dt;
+        if (kill || b.life <= 0){ 
+        ents.bullets.splice(i,1); 
+        continue; 
     } 
     // hit enemies 
     // hit enemies — SWEPT test (bullet path vs enemy circle)
-    let hit = -1;
-
-    // previous position (must exist before movement)
-    const x0 = b._x0 ?? b.x;
-    const y0 = b._y0 ?? b.y;
-    const x1 = b.x;
-    const y1 = b.y;
+    // ✅ VISUAL hit test — ALWAYS remove bullet if its PATH touches an enemy
+    let hit = false;
+    let hitX = b.x;
+    let hitY = b.y;
 
     for (let j = 0; j < ents.enemies.length; j++) {
       const e = ents.enemies[j];
       const rr = (e.r ?? 16) + (b.r ?? 4);
 
-      // segment (x0,y0)-(x1,y1) vs circle (e.x,e.y,rr)
-      const dx = x1 - x0;
-      const dy = y1 - y0;
-      const fx = x0 - e.x;
-      const fy = y0 - e.y;
+      const dx = b.x - x0;
+      const dy = b.y - y0;
 
-      const a = dx*dx + dy*dy;
-      const b2 = 2 * (fx*dx + fy*dy);
-      const c = fx*fx + fy*fy - rr*rr;
+      const steps = Math.max(1, Math.ceil(Math.hypot(dx, dy) / 6));
+      for (let s = 1; s <= steps; s++) {
+        const t = s / steps;
+        const sx = x0 + dx * t;
+        const sy = y0 + dy * t;
 
-      const disc = b2*b2 - 4*a*c;
-      if (disc >= 0) {
-        const t = (-b2 - Math.sqrt(disc)) / (2*a);
-        if (t >= 0 && t <= 1) {
-          hit = j;
+        if (dist2(sx, sy, e.x, e.y) <= rr * rr) {
+          hit = true;
+          hitX = sx;
+          hitY = sy;
           break;
         }
       }
+      if (hit) break;
     }
-    if (hit >= 0) {
-      // ✅ BULLET DAMAGE IS SERVER-AUTHORITATIVE
-      // Client does NOT apply damage or send hits for bullets
 
-      addEffect(b.x, b.y, 'hit', 0.15, '#fff');
+    if (hit) {
+      // ✅ visual feedback only
+      addEffect(hitX, hitY, 'hit', 0.15, '#fff');
       cam.shake = Math.max(cam.shake, 1.5);
 
-      if (b.pierce > 0) b.pierce--;
-      else ents.bullets.splice(i, 1);
+      // ✅ bullet ALWAYS disappears, no matter what server does
+      ents.bullets.splice(i, 1);
+      continue;
     }
-   } 
-
-    // enemy bullets (move + expire) 
-    for (let i = ents.ebullets.length - 1; i >= 0; i--){ 
-    const b = ents.ebullets[i]; 
-    b.x += b.vx * dt; 
-    b.y += b.vy * dt; 
-    b.life -= dt; 
-    if (b.life <= 0){ 
-    ents.ebullets.splice(i,1); 
-    continue; 
-    } 
-    if (lineWallHit(b.x,b.y,b.vx,b.vy,0,b.r)){ 
-    ents.ebullets.splice(i,1); 
-    continue; 
-    } 
     } 
 
     // effects timer so muzzle flashes don’t stick 
