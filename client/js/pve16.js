@@ -34,6 +34,8 @@
   let STATIC_WORLD_KEY = '';
   let _lastHUDUpdate = 0;
   const HUD_INTERVAL = 100; // ms (10 times per second)
+  // visual-only micro-prediction state for remote players
+  const _remotePrev = new Map(); // id -> { x, y }
   async function leaveMultiplayerAndReturnHome() {
     // Stop gameplay
     try { state.running = false; } catch {}
@@ -4341,8 +4343,27 @@ window.addEventListener('net:snapshot', (ev) => {
       for (const rp of snap.players) {
         if (!rp || rp.id === myId) continue;
 
-        const px = rp.x - cam.x - cam.sx;
-        const py = rp.y - cam.y - cam.sy;
+        // --- micro prediction for REMOTE players ONLY (visual) ---
+        const prev = _remotePrev.get(rp.id);
+
+        let vx = 0, vy = 0;
+        if (prev) {
+          vx = rp.x - prev.x;
+          vy = rp.y - prev.y;
+        }
+
+        // 20 ms forward look-ahead (safe)
+        const LOOKAHEAD = 0.02;
+
+        const sx = rp.x + vx * LOOKAHEAD;
+        const sy = rp.y + vy * LOOKAHEAD;
+
+        // store current snapshot position for next frame
+        _remotePrev.set(rp.id, { x: rp.x, y: rp.y });
+
+        // use predicted position for rendering only
+        const px = sx - cam.x - cam.sx;
+        const py = sy - cam.y - cam.sy;
 
         const design =
           Number.isInteger(rp.design)
