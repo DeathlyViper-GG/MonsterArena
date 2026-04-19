@@ -2149,20 +2149,19 @@ setInterval(() => {
       }
 
       // ✅ PvE enemy → player contact damage USING VISUAL (interpolated) positions
+      // ✅ PvE enemy → player contact damage using SNAPSHOT position (matches client)
       for (const e of lobby.enemies) {
         const bossV = (e.type === 'boss') ? (e.bossVariant ?? 1) : 0;
         const dps = touchDps(e.type, bossV);
 
+        // ✅ use PREVIOUS snapshot position ONLY
+        const ex = e.prevX ?? e.x;
+        const ey = e.prevY ?? e.y;
+
         for (const [pid, p] of lobby.players) {
-
-          // ✅ Use snapshot midpoint to match client interpolation
-          const ex = (e.x + (e.prevX ?? e.x)) * 0.5;
-          const ey = (e.y + (e.prevY ?? e.y)) * 0.5;
-
           const px = p.x;
           const py = p.y;
 
-          // slightly trimmed contact radius (visual-safe)
           const CONTACT_PAD = 6;
           const rr = (e.r ?? 16) + 16 - CONTACT_PAD;
 
