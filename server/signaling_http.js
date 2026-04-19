@@ -116,10 +116,43 @@ const PVE_POINTS = {
 };
 // ✅ must match client interpolation buffer (~2 ticks)
 const INTERP_DELAY = TICK_MS * 2 / 1000; // ≈ 0.1 seconds
+// Match client snapshot interpolation delay (see getInterpolatedSnapshot(delayMs=120))
+const CONTACT_LAG_MS = 120;
 
 function pvePointsForType(type) {
   const key = (type === 'chaser' || type === 'swarm') ? 'ravener' : type;
   return PVE_POINTS[key] || 0;
+}
+
+function recordEnemyHist(e, tNow) {
+  e._hist = e._hist || [];
+  e._hist.push({ t: tNow, x: e.x, y: e.y });
+  // keep last ~10 samples (10*50ms = 500ms history)
+  if (e._hist.length > 10) e._hist.shift();
+}
+
+function enemyPosAtTime(e, tTarget) {
+  const h = e._hist;
+  if (!h || h.length === 0) return { x: e.x, y: e.y };
+
+  // if target before oldest / after newest
+  if (tTarget <= h[0].t) return { x: h[0].x, y: h[0].y };
+  if (tTarget >= h[h.length - 1].t) return { x: h[h.length - 1].x, y: h[h.length - 1].y };
+
+  // find segment [i, i+1] around tTarget
+  for (let i = h.length - 2; i >= 0; i--) {
+    const a = h[i], b = h[i + 1];
+    if (a.t <= tTarget && tTarget <= b.t) {
+      const span = Math.max(1, b.t - a.t);
+      const u = (tTarget - a.t) / span;
+      return {
+        x: a.x + (b.x - a.x) * u,
+        y: a.y + (b.y - a.y) * u
+      };
+    }
+  }
+  // fallback (shouldn’t hit)
+  return { x: h[0].x, y: h[0].y };
 }
 
 function awardPvEPoint(lobby, killerId, enemyType) {
@@ -2147,16 +2180,25 @@ setInterval(() => {
           lobby.enemies.splice(i, 1);
         }
       }
+      // ✅ record enemy history AFTER all movement & hazards
+      const tNow = now();
+      for (const e of lobby.enemies) {
+        recordEnemyHist(e, tNow);
+      }
+
+      // ✅ PvE enemy → player contact damage
+      // (this block already exists below)
 
       // ✅ PvE enemy → player contact damage USING VISUAL (interpolated) positions
       // ✅ PvE enemy → player contact damage using SNAPSHOT position (matches client)
+      // ✅ PvE contact damage using enemy position at client-render time (~120ms ago)
+      const tTarget = now() - CONTACT_LAG_MS;
+
       for (const e of lobby.enemies) {
         const bossV = (e.type === 'boss') ? (e.bossVariant ?? 1) : 0;
         const dps = touchDps(e.type, bossV);
 
-        // ✅ use PREVIOUS snapshot position ONLY
-        const ex = e.prevX ?? e.x;
-        const ey = e.prevY ?? e.y;
+        const ep = enemyPosAtTime(e, tTarget);
 
         for (const [pid, p] of lobby.players) {
           const px = p.x;
@@ -2165,7 +2207,7 @@ setInterval(() => {
           const CONTACT_PAD = 6;
           const rr = (e.r ?? 16) + 16 - CONTACT_PAD;
 
-          if (dist2(ex, ey, px, py) <= rr * rr) {
+          if (dist2(ep.x, ep.y, px, py) <= rr * rr) {
             applyPlayerDamage(lobby, pid, dps * dt * 1.4);
           }
         }
