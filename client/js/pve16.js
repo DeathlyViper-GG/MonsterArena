@@ -3176,7 +3176,7 @@ window.addEventListener('net:snapshot', (ev) => {
   if (!snap || !Array.isArray(snap.players)) return;
 
   storeSnapshot(snap);
-  storeMeFromSnapshot(snap); // ✅ ADD THIS
+  Net.state.snapshot = e.detail;
   renderLobbyPlayers();
 
   if (localStorage.getItem('arenaMode') === 'pve' && typeof snap.wave === 'number') {
