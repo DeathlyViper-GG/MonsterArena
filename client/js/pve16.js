@@ -237,7 +237,7 @@
 
   
 
-  function getInterpolatedSnapshot(delayMs = 120) {
+  function getInterpolatedSnapshot(delayMs = 60) {
     if (!_snapCurr) return Net?.state?.snapshot || null;
     if (!_snapPrev) return _snapCurr;
 
