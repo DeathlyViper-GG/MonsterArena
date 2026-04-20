@@ -4403,7 +4403,7 @@ window.addEventListener('net:snapshot', (ev) => {
 
         ctx.save();
         ctx.translate(px, py);
-        ctx.rotate(rp.ang ?? 0);
+        ctx.rotate(rang);
         
         // ✅ BODY ONLY — no gun, no local state
         drawDesign(

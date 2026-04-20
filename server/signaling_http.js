@@ -1713,13 +1713,33 @@ app.post('/input', (req, res) => {
   const lobby = LOBBIES.get(lobbyId);
   if (!lobby) return res.json();
 
+  // keep inputs for the tick loop (AI / fallback)
   lobby.inputs.set(peerId, { ix, iy, ang, x, y, weapon });
 
-  // ✅ store current weapon on the player so it can go in snapshots
+  // ✅ IMMEDIATE APPLY (no waiting for next 50ms tick)
   const p = lobby.players.get(peerId);
-  if (p && Number.isInteger(weapon) && weapon >= 0 && weapon <= 2) {
-    p.weapon = weapon;
+  if (p) {
+    if (typeof ang === 'number') p.ang = ang;
+
+    // trust client-collided position if provided (same rule as tick loop)
+    if (typeof x === 'number' && typeof y === 'number') {
+      p.x = clamp(x, 30, WORLD.w - 30);
+      p.y = clamp(y, 30, WORLD.h - 30);
+    }
+
+    // store current weapon on the player so it can go in snapshots
+    if (Number.isInteger(weapon) && weapon >= 0 && weapon <= 2) {
+      p.weapon = weapon;
+    }
   }
+
+  // ✅ push a fresh snapshot immediately to all long-poll waiters
+  if (lobby.snapshot) {
+    lobby.snapshot.t = now();
+    lobby.snapshot.wave = lobby.wave;
+    lobby.snapshot.players = [...lobby.players.values()];
+  }
+  flushWaiters(lobby);
 
   res.json();
 });
