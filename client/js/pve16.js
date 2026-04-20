@@ -3882,7 +3882,7 @@ window.addEventListener('net:snapshot', (ev) => {
 
   function draw(dt) {
     const online = isNetActive();
-    const snapInterp = online ? getInterpolatedSnapshot() : null;
+    const snap = online ? getInterpolatedSnapshot() : null;
     const snapRaw = online ? Net.state?.snapshot : null;
 
     // ✅ DEFINE BULLETS ONCE (used in multiple sections below)
