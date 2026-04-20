@@ -34,6 +34,7 @@
   let STATIC_WORLD_KEY = '';
   let _lastHUDUpdate = 0;
   const HUD_INTERVAL = 100; // ms (10 times per second)
+  const rawSnap = online ? Net.state?.snapshot : null;
   async function leaveMultiplayerAndReturnHome() {
     // Stop gameplay
     try { state.running = false; } catch {}
@@ -4356,8 +4357,6 @@ window.addEventListener('net:snapshot', (ev) => {
     // ---------------------------
     // Remote players
     // ---------------------------
-    
-  const rawSnap = online ? Net.state?.snapshot : null;
 
     const remotePlayers =
       (online && rawSnap && Array.isArray(rawSnap.players))
