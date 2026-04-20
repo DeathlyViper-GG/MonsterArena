@@ -1548,7 +1548,6 @@
     // =========================
     const buffSpeed  = document.getElementById('buffSpeed');
     const buffShield = document.getElementById('buffShield');
-    
 
     // ---- SPEED BOOST ----
     if (player.spdMul > 1.01) {
@@ -1896,7 +1895,6 @@ function buildSkins(){
     }
 
     const colorRow = document.createElement('div');
-    const rawSnap = online ? Net.state?.snapshot : null;
     colorRow.className='colorRow';
     COLORS.forEach((col, idx)=>{
       const sw = document.createElement('div');
@@ -3942,6 +3940,7 @@ window.addEventListener('net:snapshot', (ev) => {
         : null;
 
     // raw/latest snapshot bullets (jumpy) for debug overlay
+    const rawSnap = online ? Net.state?.snapshot : null;
     const rawBullets =
       (online && rawSnap && Array.isArray(rawSnap.bullets))
         ? rawSnap.bullets
@@ -4358,6 +4357,7 @@ window.addEventListener('net:snapshot', (ev) => {
     // ---------------------------
     // Remote players
     // ---------------------------
+    
 
     const remotePlayers =
       (online && rawSnap && Array.isArray(rawSnap.players))
