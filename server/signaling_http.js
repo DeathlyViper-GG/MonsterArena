@@ -2097,7 +2097,9 @@ setInterval(() => {
       if (!inp) continue;
 
       // store old pos for velocity
+      // store old pos + ang for authoritative velocities
       const prevX = p.x, prevY = p.y;
+      const prevAng = p.ang ?? 0;
 
       p.ang = inp.ang;
 
@@ -2113,6 +2115,15 @@ setInterval(() => {
 
       p.x = clamp(p.x, 30, WORLD.w - 30);
       p.y = clamp(p.y, 30, WORLD.h - 30);
+
+      // ✅ authoritative per-tick velocities (no guessing on client)
+      const dtSafe = Math.max(1e-6, dt);
+      p.vx = (p.x - prevX) / dtSafe;
+      p.vy = (p.y - prevY) / dtSafe;
+
+      // shortest-path angular velocity
+      const da = ((p.ang - prevAng + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
+      p.vang = da / dtSafe;
       // ---- Lava hazard (players) ----
       if (lobby.world?.hazards) {
         for (const hz of lobby.world.hazards) {

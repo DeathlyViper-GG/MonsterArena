@@ -4369,8 +4369,25 @@ window.addEventListener('net:snapshot', (ev) => {
 
         if (!rp || rp.id === myId) continue;
 
-        const px = rp.x - cam.x - cam.sx;
-        const py = rp.y - cam.y - cam.sy;
+        
+        const ADVANCE = 0.05;
+
+        let rx = rp.x;
+        let ry = rp.y;
+        let rang = rp.ang ?? 0;
+
+        // advance exactly ONE server tick (uses server-computed vx/vy/vang)
+        if (typeof rp.vx === 'number' && typeof rp.vy === 'number') {
+          rx += rp.vx * ADVANCE;
+          ry += rp.vy * ADVANCE;
+        }
+        if (typeof rp.vang === 'number') {
+          rang += rp.vang * ADVANCE;
+        }
+
+        const px = rx - cam.x - cam.sx;
+        const py = ry - cam.y - cam.sy;
+
 
         const design =
           Number.isInteger(rp.design)
