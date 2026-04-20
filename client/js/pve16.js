@@ -34,7 +34,6 @@
   let STATIC_WORLD_KEY = '';
   let _lastHUDUpdate = 0;
   const HUD_INTERVAL = 100; // ms (10 times per second)
-  const rawSnap = online ? Net.state?.snapshot : null;
   async function leaveMultiplayerAndReturnHome() {
     // Stop gameplay
     try { state.running = false; } catch {}
@@ -1549,6 +1548,7 @@
     // =========================
     const buffSpeed  = document.getElementById('buffSpeed');
     const buffShield = document.getElementById('buffShield');
+    
 
     // ---- SPEED BOOST ----
     if (player.spdMul > 1.01) {
@@ -1896,6 +1896,7 @@ function buildSkins(){
     }
 
     const colorRow = document.createElement('div');
+    const rawSnap = online ? Net.state?.snapshot : null;
     colorRow.className='colorRow';
     COLORS.forEach((col, idx)=>{
       const sw = document.createElement('div');
