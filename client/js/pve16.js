@@ -3940,7 +3940,6 @@ window.addEventListener('net:snapshot', (ev) => {
         : null;
 
     // raw/latest snapshot bullets (jumpy) for debug overlay
-    const rawSnap = online ? Net.state?.snapshot : null;
     const rawBullets =
       (online && rawSnap && Array.isArray(rawSnap.bullets))
         ? rawSnap.bullets
@@ -4358,9 +4357,11 @@ window.addEventListener('net:snapshot', (ev) => {
     // Remote players
     // ---------------------------
     
+  const rawSnap = online ? Net.state?.snapshot : null;
+
     const remotePlayers =
-      (online && snap && Array.isArray(snap.players))
-        ? snap.players
+      (online && rawSnap && Array.isArray(rawSnap.players))
+        ? rawSnap.players
         : null;
 
     if (remotePlayers) {
@@ -4370,20 +4371,10 @@ window.addEventListener('net:snapshot', (ev) => {
         if (!rp || rp.id === myId) continue;
 
         
-        const ADVANCE = 0.05;
-
+        // ✅ No advance: use the latest authoritative position/angle as-is
         let rx = rp.x;
         let ry = rp.y;
         let rang = rp.ang ?? 0;
-
-        // advance exactly ONE server tick (uses server-computed vx/vy/vang)
-        if (typeof rp.vx === 'number' && typeof rp.vy === 'number') {
-          rx += rp.vx * ADVANCE;
-          ry += rp.vy * ADVANCE;
-        }
-        if (typeof rp.vang === 'number') {
-          rang += rp.vang * ADVANCE;
-        }
 
         const px = rx - cam.x - cam.sx;
         const py = ry - cam.y - cam.sy;

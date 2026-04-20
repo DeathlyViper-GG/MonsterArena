@@ -1989,7 +1989,8 @@ setInterval(() => {
       }
     }
     // Compute dt first (safe)
-    const dt = (t - lobby.lastTick) / 1000;
+    // ✅ Fixed dt (prevents integration drift under load)
+    const dt = TICK_MS / 1000;
     lobby.lastTick = t;
 
     // ---- Lava phase update ----
