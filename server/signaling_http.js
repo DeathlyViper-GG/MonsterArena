@@ -1301,7 +1301,7 @@ function enemyAI(lobby, e, dt) {
           vx: Math.cos(a) * 1050,
           vy: Math.sin(a) * 1050,
           r: 4,
-          dmg: 6,
+          dmg: 2,
           life: 1.1
         });
 
