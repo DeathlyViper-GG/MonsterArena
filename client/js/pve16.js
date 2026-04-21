@@ -4995,6 +4995,22 @@ window.__dbg = {
       return;
     }
     startWave(n);
+  },
+  spawnBossAtWave(wave) {
+    // offline or testing only
+    state.wave = wave;
+
+    // remove existing enemies
+    ents.enemies.length = 0;
+
+    // spawn boss near player
+    spawnEnemy(
+      'boss',
+      player.x + 200,
+      player.y
+    );
+
+    console.log(`Boss spawned with wave=${wave}`);
   }
 };
 
