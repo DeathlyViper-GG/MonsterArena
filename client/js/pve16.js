@@ -1508,40 +1508,52 @@
     // =========================
     // ✅ PvE LEADERBOARD (Top 5, horizontal, ranked)
     // =========================
+    // =========================
+    // ✅ PvE LEADERBOARD (alive & connected players ONLY)
+    // =========================
     const lb = document.getElementById('pveLeaderboard');
     if (lb) {
-      const serverScores =
+      const scores =
         (online && snap && snap.scores && typeof snap.scores === 'object')
           ? snap.scores
-          : null;
+          : pveLeaderboard;
 
-      const scores = serverScores || pveLeaderboard;
+      // ✅ build alive & connected player set
+      const alivePlayers = new Map();
 
+      if (online && snap && Array.isArray(snap.players)) {
+        for (const p of snap.players) {
+          // must exist AND be alive
+          if (p && typeof p.hp === 'number' && p.hp > 0) {
+            alivePlayers.set(p.id, p);
+          }
+        }
+      } else {
+        // offline: local player is always alive
+        alivePlayers.set('local', { name: 'You', id: 'local' });
+      }
+
+      // ✅ keep ONLY scores from alive players
       const entries = Object.entries(scores)
-        .filter(([id]) => !!id)
+        .filter(([id]) => alivePlayers.has(id))
         .sort((a, b) => (b[1] || 0) - (a[1] || 0))
         .slice(0, 5);
-
-      const snapPlayers =
-        (online && snap && Array.isArray(snap.players)) ? snap.players : [];
 
       lb.innerHTML = '';
       lb.className = 'leaderboard leaderboard-horiz';
 
       entries.forEach(([id, pts], index) => {
+        const p = alivePlayers.get(id);
         const rank = index + 1;
-        const p = snapPlayers.find(x => x && x.id === id);
-        const name = p ? (p.name || p.id) : (id === 'local' ? 'You' : id);
+        const name = p?.name || p?.id || id;
 
         const row = document.createElement('div');
         row.className = `row rank-${rank}`;
-
         row.innerHTML = `
           <span class="rank">${rank}</span>
           <span class="name">${name}</span>
           <span class="score">${pts || 0}</span>
         `;
-
         lb.appendChild(row);
       });
     }
