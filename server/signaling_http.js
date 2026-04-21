@@ -1305,7 +1305,7 @@ function enemyAI(lobby, e, dt) {
           life: 1.1
         });
 
-        e.fireCD = 0.25;
+        e.fireCD = 0.33;
       }
     }
 
