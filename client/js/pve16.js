@@ -3989,6 +3989,38 @@ window.addEventListener('net:snapshot', (ev) => {
         ctx.restore();
         continue;
       }
+      // ✅ Boss explosion VFX: expanding ring (not too big)
+      if (p.type === 'bossBoom') {
+        const x = p.x - cam.x - cam.sx;
+        const y = p.y - cam.y - cam.sy;
+
+        const age = (Date.now() - (p.t0 ?? Date.now())) / 1000;
+        const life = p.life ?? 0.35;
+        const u = clamp(age / life, 0, 1);
+
+        // expand to splash radius (small because splash is ~96)
+        const R = (p.r ?? 96) * u;
+
+        ctx.save();
+        ctx.globalAlpha = 0.95 * (1 - u);
+
+        // warm fill
+        ctx.fillStyle = 'rgba(255, 60, 40, 0.18)';
+        ctx.beginPath();
+        ctx.arc(x, y, R, 0, Math.PI * 2);
+        ctx.fill();
+
+        // bright shock ring
+        ctx.strokeStyle = 'rgba(255, 40, 40, 0.95)';
+        ctx.lineWidth = 3;
+        ctx.setLineDash([]);
+        ctx.beginPath();
+        ctx.arc(x, y, R, 0, Math.PI * 2);
+        ctx.stroke();
+
+        ctx.restore();
+        continue;
+      }
 
       // ✅ Normal pickups
       const t = (Math.sin((p.t ?? 0) * 6) + 1) / 2;
@@ -4300,10 +4332,18 @@ window.addEventListener('net:snapshot', (ev) => {
           if (!(b.kind === 'enemy' || b.kind === 'enemyBomb')) continue;
 
           const rad = b.kind === 'enemyBomb' ? 7 : (b.r ?? 4);
+          const BACKTRACK = 0.12;
+          const x0 = b.x - (b.vx ?? 0) * BACKTRACK;
+          const y0 = b.y - (b.vy ?? 0) * BACKTRACK;
+
+          const clip = clipBulletToWalls(world, x0, y0, b.x, b.y);
+          const bx = clip.x;
+          const by = clip.y;
+
           ctx.beginPath();
           ctx.arc(
-            b.x - cam.x - cam.sx,
-            b.y - cam.y - cam.sy,
+            bx - cam.x - cam.sx,
+            by - cam.y - cam.sy,
             rad,
             0,
             Math.PI * 2
