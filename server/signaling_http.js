@@ -35,6 +35,10 @@ const TICK_MS = 50; // 100Hz
 const LOBBY_INTERVAL = 10_000;
 const WORLD = { w: 4000, h: 2800 };
 const DISCONNECT_TIMEOUT = 1_000; // 0.1 seconds
+// ============================
+// TEST FLAGS (easy to revert)
+// ============================
+const TEST_FORCE_BOSS3 = true; // ✅ set false to restore normal behaviour
 // ✅ Long-poll waiters per lobby
 const POLL_TIMEOUT_MS = 25_000;
 const WAITERS = new Map(); // lobbyId -> Set({ res, worldKey })
@@ -1234,7 +1238,9 @@ function startWave(lobby, n) {
       type: 'boss',
       x: p.x,
       y: p.y,
-      bossVariant: ((n - 1) % 3) + 1 // wave1→1, wave2→2, wave3→3, wave4→1...
+      bossVariant: TEST_FORCE_BOSS3
+        ? 3
+        : ((n - 1) % 3) + 1
     });
 }
 
