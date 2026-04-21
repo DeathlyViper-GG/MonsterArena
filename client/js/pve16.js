@@ -4969,6 +4969,21 @@ window.__ASSETS__ = window.__ASSETS__ || {};
 window.__ASSETS__.loadImages = loadImages;
 window.__ASSETS__.loadGunImages = loadGunImages;
 window.__ASSETS__.loadMelee = () => Melee.loadAll();
+// ===== DEBUG HOOKS =====
+window.__dbg = {
+  ents,
+  state,
+  skipWave() {
+    ents.enemies.length = 0;
+    state.nextWaveT = 0;
+  },
+  skipWaves(n = 1) {
+    for (let i = 0; i < n; i++) {
+      ents.enemies.length = 0;
+      state.nextWaveT = 0;
+    }
+  }
+};
 
 // ✅ PRELOAD ALL VISUAL ASSETS IMMEDIATELY
 (async () => {
