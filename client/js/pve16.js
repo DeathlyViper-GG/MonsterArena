@@ -4973,15 +4973,28 @@ window.__ASSETS__.loadMelee = () => Melee.loadAll();
 window.__dbg = {
   ents,
   state,
+
+  // advance exactly one wave (natural progression)
   skipWave() {
     ents.enemies.length = 0;
     state.nextWaveT = 0;
   },
+
+  // advance N waves naturally
   skipWaves(n = 1) {
     for (let i = 0; i < n; i++) {
       ents.enemies.length = 0;
       state.nextWaveT = 0;
     }
+  },
+
+  // HARD jump to an exact wave (offline only)
+  gotoWave(n) {
+    if (isNetActive()) {
+      console.warn('gotoWave blocked: multiplayer active');
+      return;
+    }
+    startWave(n);
   }
 };
 
