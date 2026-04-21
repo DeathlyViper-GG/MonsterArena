@@ -1040,24 +1040,18 @@ function spawnEnemy(type, x, y, bossVariant = 0) {
 
     if (v === 1) {                // wave 5: bullet boss
       e.speed = 150;
-      e.fireCD = 0;               // ✅ fire immediately
-    }
-    else if (v === 2) {
-      // wave 10: RUNNER boss
-      // - no bullets
-      // - pure chase
-      // - exactly 2x player speed (set in spawnEnemy)
-      // - prevent any accidental slowdown from moveMul logic
-      moveMul = 1.0;
+      e.fireCD = 0;               // fire immediately
+      e.bombCD = Infinity;        // never bombs
     }
     else if (v === 2) {           // wave 10: runner
-      e.speed = PLAYER_SPEED * 2; // exact 2x player speed
+      e.speed = PLAYER_SPEED * 2; // 2x player speed
       e.fireCD = Infinity;        // never fires
+      e.bombCD = Infinity;        // never bombs
     }
     else {                        // wave 15+: bomb boss
       e.speed = 110;
-      e.fireCD = Infinity;
-      e.bombCD = 0;               // ✅ bomb immediately
+      e.fireCD = Infinity;        // never fires
+      e.bombCD = 0;               // bomb immediately
     }
   }
 
@@ -1215,7 +1209,16 @@ function startWave(lobby, n) {
   lobby.spawnQueue = [];
   lobby.nextWaveT = 2.0;
 
-  const bossWave = (n % 1 === 0);
+  // ✅ TEST MODE: bosses every wave, but only ONE boss at a time
+  // ✅ prevents old v1 bullet bosses from continuing to shoot
+  lobby.enemies = lobby.enemies.filter(e => e.type !== 'boss');
+
+  // ✅ optional but VERY helpful: clear existing enemy bullets
+  lobby.bullets = lobby.bullets.filter(
+    b => !(typeof b.owner === 'string' && b.owner.startsWith('E:'))
+  );
+
+  const bossWave = true; // testing: every wave
   if (bossWave) {
     const p = randSpawnPointAwayFromPlayers(lobby, 720, 34);
     lobby.spawnQueue.push({
@@ -1223,9 +1226,9 @@ function startWave(lobby, n) {
       type: 'boss',
       x: p.x,
       y: p.y,
-      bossVariant: Math.floor(n / 5)
+      bossVariant: Math.max(1, Math.floor(n / 5)) // 5→1, 10→2, 15→3
     });
-  }
+}
 
   const count = enemyCountForWave(n);
   for (let i = 0; i < count; i++) {
