@@ -3925,26 +3925,65 @@ window.addEventListener('net:snapshot', (ev) => {
 
 
 
+   // ---------------------------
+    // Pickups + telegraphs (online uses snapshot pickups)
     // ---------------------------
-    // Pickups (local-only visuals)
-    // ---------------------------
-    for (const p of ents.pickups) {
+    const drawPickups =
+      (online && snap && Array.isArray(snap.pickups))
+        ? snap.pickups
+        : ents.pickups;
+
+    for (const p of drawPickups) {
 
       // ✅ Boss telegraphed explosion warning
-      if (p.type === 'bossWarn') {
-        ctx.save();
-        ctx.strokeStyle = 'rgba(255, 90, 40, 0.65)';
-        ctx.lineWidth = 3;
-        ctx.setLineDash([8, 6]);
+      // ✅ Boss telegraph: red target marker
+      if (p.type === 'bossTarget') {
+        const x = p.x - cam.x - cam.sx;
+        const y = p.y - cam.y - cam.sy;
 
+        ctx.save();
+        ctx.globalAlpha = 0.9;
+
+        // filled red dot
+        ctx.fillStyle = 'rgba(255, 40, 40, 0.9)';
         ctx.beginPath();
-        ctx.arc(
-          p.x - cam.x - cam.sx,
-          p.y - cam.y - cam.sy,
-          p.r,
-          0,
-          Math.PI * 2
-        );
+        ctx.arc(x, y, 5, 0, Math.PI * 2);
+        ctx.fill();
+
+        // crosshair
+        ctx.strokeStyle = 'rgba(255, 40, 40, 0.95)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(x - 10, y);
+        ctx.lineTo(x + 10, y);
+        ctx.moveTo(x, y - 10);
+        ctx.lineTo(x, y + 10);
+        ctx.stroke();
+
+        ctx.restore();
+        continue;
+      }
+
+      // ✅ Boss telegraph: blast radius warning circle (shown before explosion)
+      if (p.type === 'bossWarn') {
+        const x = p.x - cam.x - cam.sx;
+        const y = p.y - cam.y - cam.sy;
+
+        ctx.save();
+        ctx.globalAlpha = 0.85;
+
+        // translucent fill
+        ctx.fillStyle = 'rgba(255, 40, 40, 0.12)';
+        ctx.beginPath();
+        ctx.arc(x, y, p.r, 0, Math.PI * 2);
+        ctx.fill();
+
+        // strong ring
+        ctx.strokeStyle = 'rgba(255, 40, 40, 0.85)';
+        ctx.lineWidth = 3;
+        ctx.setLineDash([10, 6]);
+        ctx.beginPath();
+        ctx.arc(x, y, p.r, 0, Math.PI * 2);
         ctx.stroke();
 
         ctx.restore();

@@ -113,7 +113,7 @@ const HEAL_PER_SEC  = 10;
 // ============================
 const BOSS3_FIRE_INTERVAL = 2.0;   // one attack every 2 seconds
 const BOSS3_WARN_TIME     = 0.5;   // half‑second ground warning
-const BOSS3_BLAST_R       = 260;   // visible explosion radius
+const BOSS3_BLAST_R       = 96;    // 3× player width (player width ~32)
 const BOSS3_BOMB_SPEED   = 420;   // travel speed of the bomb
 
 // ✅ PvE point table (server authoritative)
@@ -454,10 +454,21 @@ function handlePvPPlayerBulletHits(lobby, b, bulletIndex){
 
 function explodeEnemyBomb(lobby, b){
   const splash = (b.splashR ?? SPLASH_BOMB);
+  const maxDmg = (b.dmg ?? DMG_BOMB);
+
   for (const [pid, p] of lobby.players){
-    const rr = splash + 16; // player radius approx
-    if (dist2(b.x, b.y, p.x, p.y) <= rr * rr){
-      applyPlayerDamage(lobby, pid, b.dmg ?? DMG_BOMB);
+    const dx = p.x - b.x;
+    const dy = p.y - b.y;
+    const d  = Math.hypot(dx, dy);
+
+    // include player radius (~16) so edge matches what players feel
+    const edge = splash + 16;
+
+    if (d <= edge) {
+      // falloff: 100% at centre → 25% at edge (still hurts at edge)
+      const t = 1 - (d / edge);            // 1..0
+      const mult = 0.25 + 0.75 * t;        // 1..0.25
+      applyPlayerDamage(lobby, pid, maxDmg * mult);
     }
   }
 }
@@ -2047,6 +2058,11 @@ setInterval(() => {
     const dt = TICK_MS / 1000;
     lobby.lastTick = t;
 
+    // ✅ clear last tick's telegraphs (they are rebuilt every tick)
+    lobby.pickups = (lobby.pickups || []).filter(
+      p => p.type !== 'bossWarn' && p.type !== 'bossTarget'
+    );
+
     // ---- Lava phase update ----
     if (lobby.world?.hazards) {
       for (const hz of lobby.world.hazards) {
@@ -2138,6 +2154,8 @@ setInterval(() => {
       if (lobby.pickups && lobby.pickups.length) {
         for (let i = lobby.pickups.length - 1; i >= 0; i--) {
           const pk = lobby.pickups[i];
+          // ✅ never "collect" telegraphs
+          if (pk.type === 'bossWarn' || pk.type === 'bossTarget') continue;
 
           for (const [pid, p] of lobby.players) {
             const rr = (pk.r ?? 14) + 16;
@@ -2339,17 +2357,38 @@ setInterval(() => {
       b.life -= dt;
 
       // ✅ Enemy bomb: explode on wall OR when timer ends
+      // ✅ Boss3 telegraphed bomb behaviour
       if (b.kind === 'enemyBomb' && b.targetX != null) {
+
+        // Always show the target (red marker)
+        lobby.pickups.push({
+          x: b.targetX,
+          y: b.targetY,
+          r: 10,
+          type: 'bossTarget'
+        });
+
+        // If bomb hits a wall, treat THAT as the destination (so it still explodes)
+        if (hitWall) {
+          b.targetX = b.x;
+          b.targetY = b.y;
+          b.vx = 0;
+          b.vy = 0;
+        }
+
         const dx = b.targetX - b.x;
         const dy = b.targetY - b.y;
 
-        // arrived at destination
-        if (dx * dx + dy * dy <= 20 * 20) {
+        // Arrived at destination → warning phase
+        if (dx * dx + dy * dy <= 20 * 20 || (b.vx === 0 && b.vy === 0)) {
           b.vx = 0;
           b.vy = 0;
+
+          // ensure warnT exists
+          b.warnT = (typeof b.warnT === 'number') ? b.warnT : BOSS3_WARN_TIME;
           b.warnT -= dt;
 
-          // show ground warning
+          // Show blast radius (0.5s warning)
           lobby.pickups.push({
             x: b.targetX,
             y: b.targetY,
@@ -2358,6 +2397,9 @@ setInterval(() => {
           });
 
           if (b.warnT <= 0) {
+            // explode exactly at the destination
+            b.x = b.targetX;
+            b.y = b.targetY;
             explodeEnemyBomb(lobby, b);
             lobby.bullets.splice(i, 1);
           }
