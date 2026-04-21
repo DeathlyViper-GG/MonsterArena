@@ -104,6 +104,14 @@ const SPLASH_BOMB = 140;     // splash radius
 const HEAL_AURA_R   = 260;
 const HEAL_PER_SEC  = 10;
 
+// ============================
+// Boss v3 – telegraphed bomb
+// ============================
+const BOSS3_FIRE_INTERVAL = 2.0;   // one attack every 2 seconds
+const BOSS3_WARN_TIME     = 0.5;   // half‑second ground warning
+const BOSS3_BLAST_R       = 260;   // visible explosion radius
+const BOSS3_BOMB_SPEED   = 420;   // travel speed of the bomb
+
 // ✅ PvE point table (server authoritative)
 const PVE_POINTS = {
   ravener: 1,
@@ -1317,27 +1325,43 @@ function enemyAI(lobby, e, dt) {
       // No bullets; speed already set to 2x player
     }
 
-    else {
-      // Wave 15 – bomb boss
+    else if (v === 3) {
+      // ✅ Wave 3 – telegraphed bomb boss
+
       e.bombCD = (e.bombCD ?? 0) - dt;
 
       if (e.bombCD <= 0) {
-        const a = baseAng + (Math.random() * 2 - 1) * 0.08;
+        // pick a destination near the player
+        const tx = tgt.x + (Math.random() * 2 - 1) * 120;
+        const ty = tgt.y + (Math.random() * 2 - 1) * 120;
+
+        const a = angleTo(e.x, e.y, tx, ty);
 
         lobby.bullets.push({
           owner: `E:${e.id}`,
           kind: 'enemyBomb',
-          x: e.x + Math.cos(a) * (e.r + 10),
-          y: e.y + Math.sin(a) * (e.r + 10),
-          vx: Math.cos(a) * SPD_BOMB,
-          vy: Math.sin(a) * SPD_BOMB,
-          r: 7,
-          dmg: 40,
-          life: 1.1,
-          splashR: 220
+
+          // spawn position
+          x: e.x + Math.cos(a) * (e.r + 12),
+          y: e.y + Math.sin(a) * (e.r + 12),
+
+          // movement
+          vx: Math.cos(a) * BOSS3_BOMB_SPEED,
+          vy: Math.sin(a) * BOSS3_BOMB_SPEED,
+
+          r: 9,
+
+          // destination
+          targetX: tx,
+          targetY: ty,
+
+          // telegraph + explosion data
+          warnT: BOSS3_WARN_TIME,
+          splashR: BOSS3_BLAST_R,
+          dmg: 48
         });
 
-        e.bombCD = 0.24; // 2x slower than bullet boss
+        e.bombCD = BOSS3_FIRE_INTERVAL;
       }
     }
   }
@@ -2309,10 +2333,30 @@ setInterval(() => {
       b.life -= dt;
 
       // ✅ Enemy bomb: explode on wall OR when timer ends
-      if (b.kind === 'enemyBomb' && (hitWall || b.life <= 0)){
-        explodeEnemyBomb(lobby, b);
-        lobby.bullets.splice(i, 1);
-        continue;
+      if (b.kind === 'enemyBomb' && b.targetX != null) {
+        const dx = b.targetX - b.x;
+        const dy = b.targetY - b.y;
+
+        // arrived at destination
+        if (dx * dx + dy * dy <= 20 * 20) {
+          b.vx = 0;
+          b.vy = 0;
+          b.warnT -= dt;
+
+          // show ground warning
+          lobby.pickups.push({
+            x: b.targetX,
+            y: b.targetY,
+            r: b.splashR,
+            type: 'bossWarn'
+          });
+
+          if (b.warnT <= 0) {
+            explodeEnemyBomb(lobby, b);
+            lobby.bullets.splice(i, 1);
+          }
+          continue;
+        }
       }
 
       // normal bullets die on wall
