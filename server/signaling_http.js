@@ -1226,7 +1226,7 @@ function startWave(lobby, n) {
       type: 'boss',
       x: p.x,
       y: p.y,
-      bossVariant: Math.max(1, Math.floor(n / 5)) // 5→1, 10→2, 15→3
+      bossVariant: ((n - 1) % 3) + 1 // wave1→1, wave2→2, wave3→3, wave4→1...
     });
 }
 
