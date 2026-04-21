@@ -968,6 +968,9 @@ function pickType(wave) {
 }
 
 function spawnEnemy(type, x, y, bossVariant = 0) {
+  // ✅ clamp boss variant
+  const v = Math.max(1, bossVariant | 0);
+
   const e = {
     id: makeId(8),
     type,
@@ -980,19 +983,18 @@ function spawnEnemy(type, x, y, bossVariant = 0) {
     vy: 0,
 
     // AI state
-    fireCD: 0,
-    bombCD: 0,
+    fireCD: 0,          // ✅ start ready to fire
+    bombCD: 0,          // ✅ start ready to bomb
     strafeDir: (Math.random() < 0.5 ? -1 : 1),
     underFireT: 0,
 
     // boss
-    bossVariant
+    bossVariant: v
   };
 
-  // Ravener (chaser): reasonably fast, but NOT faster than player speed
   if (type === 'chaser') {
     e.hp = e.maxhp = 45;
-    e.speed = 210; // <= 240 player
+    e.speed = 210;
     e.r = 16;
   }
 
@@ -1006,21 +1008,21 @@ function spawnEnemy(type, x, y, bossVariant = 0) {
     e.hp = e.maxhp = 70;
     e.speed = 150;
     e.r = 15;
-    e.fireCD = 0.4;
+    e.fireCD = 0;
   }
 
   if (type === 'sniper') {
     e.hp = e.maxhp = 60;
-    e.speed = 140; // slower than ravener
+    e.speed = 140;
     e.r = 16;
-    e.fireCD = 0.8;
+    e.fireCD = 0;
   }
 
   if (type === 'bomber') {
     e.hp = e.maxhp = 55;
     e.speed = 175;
     e.r = 18;
-    e.bombCD = 0.8;
+    e.bombCD = 0;
   }
 
   if (type === 'healer') {
@@ -1029,20 +1031,33 @@ function spawnEnemy(type, x, y, bossVariant = 0) {
     e.r = 16;
   }
 
+  // ============================
+  // ✅ BOSS VARIANTS
+  // ============================
   if (type === 'boss') {
     e.r = 34;
-    e.hp = e.maxhp = 900 + bossVariant * 250;
+    e.hp = e.maxhp = 900 + v * 250;
 
-    if (bossVariant === 1) {        // wave 5: bullet boss (fast bullets, moderate dmg)
+    if (v === 1) {                // wave 5: bullet boss
       e.speed = 150;
-      e.fireCD = 0.12;              // very fast firing
-    } else if (bossVariant === 2) { // wave 10: runner (2x speed, touch damage)
-      e.speed = PLAYER_SPEED * 2;   // exactly 2x player
-      e.fireCD = 9999;              // no bullet firing
-    } else {                        // wave 15+: bomb boss (2x slower than bullet boss)
+      e.fireCD = 0;               // ✅ fire immediately
+    }
+    else if (v === 2) {
+      // wave 10: RUNNER boss
+      // - no bullets
+      // - pure chase
+      // - exactly 2x player speed (set in spawnEnemy)
+      // - prevent any accidental slowdown from moveMul logic
+      moveMul = 1.0;
+    }
+    else if (v === 2) {           // wave 10: runner
+      e.speed = PLAYER_SPEED * 2; // exact 2x player speed
+      e.fireCD = Infinity;        // never fires
+    }
+    else {                        // wave 15+: bomb boss
       e.speed = 110;
-      e.fireCD = 9999;              // no bullet firing
-      e.bombCD = 0.24;              // bullet boss 0.12 -> bombs are 2x slower (0.24)
+      e.fireCD = Infinity;
+      e.bombCD = 0;               // ✅ bomb immediately
     }
   }
 
@@ -1267,6 +1282,63 @@ function enemyAI(lobby, e, dt) {
   let moveAng = baseAng;
   let moveMul = 1;
 
+  // =================================================
+  // ✅ BOSS VARIANTS MUST RUN BEFORE EARLY FALLTHROUGHS
+  // =================================================
+  if (e.type === 'boss') {
+    const v = e.bossVariant || 1;
+
+    if (v === 1) {
+      // Wave 5 – fast bullet boss
+      if ((e.fireCD ?? 0) <= 0) {
+        const a = baseAng + (Math.random() * 2 - 1) * 0.10;
+
+        lobby.bullets.push({
+          owner: `E:${e.id}`,
+          kind: 'enemy',
+          x: e.x + Math.cos(a) * (e.r + 10),
+          y: e.y + Math.sin(a) * (e.r + 10),
+          vx: Math.cos(a) * 1050,
+          vy: Math.sin(a) * 1050,
+          r: 4,
+          dmg: 12,
+          life: 1.1
+        });
+
+        e.fireCD = 0.12;
+      }
+    }
+
+    else if (v === 2) {
+      // Wave 10 – runner
+      // No bullets; speed already set to 2x player
+    }
+
+    else {
+      // Wave 15 – bomb boss
+      e.bombCD = (e.bombCD ?? 0) - dt;
+
+      if (e.bombCD <= 0) {
+        const a = baseAng + (Math.random() * 2 - 1) * 0.08;
+
+        lobby.bullets.push({
+          owner: `E:${e.id}`,
+          kind: 'enemyBomb',
+          x: e.x + Math.cos(a) * (e.r + 10),
+          y: e.y + Math.sin(a) * (e.r + 10),
+          vx: Math.cos(a) * SPD_BOMB,
+          vy: Math.sin(a) * SPD_BOMB,
+          r: 7,
+          dmg: 40,
+          life: 1.1,
+          splashR: 220
+        });
+
+        e.bombCD = 0.24; // 2x slower than bullet boss
+      }
+    }
+  }
+
   // ============================
   // HEALER: center + aura heal
   // ============================
@@ -1395,67 +1467,6 @@ function enemyAI(lobby, e, dt) {
       });
 
       e.fireCD = underFire ? 1.35 : 1.8;
-    }
-  }
-
-  // ============================
-  // BOSS variants (wave 5/10/15)
-  // ============================
-  else if (e.type === 'boss') {
-    const v = e.bossVariant || 1;
-
-    if (v === 1) {
-      // wave 5: very fast bullets, MODERATE damage
-      moveMul = 0.75;
-
-      if (e.fireCD <= 0) {
-        const a = baseAng + (Math.random() * 2 - 1) * 0.10;
-
-        lobby.bullets.push({
-          owner: `E:${e.id}`,
-          kind: 'enemy',
-          x: e.x + Math.cos(a) * (e.r + 10),
-          y: e.y + Math.sin(a) * (e.r + 10),
-          vx: Math.cos(a) * 1050,     // very fast bullets
-          vy: Math.sin(a) * 1050,
-          r: 4,
-          dmg: 6,                    // moderate damage
-          life: 1.1
-        });
-
-        e.fireCD = 0.12;              // very fast rate
-      }
-
-    } else if (v === 2) {
-      // wave 10: runner, no bullets — speed set in spawnEnemy (2x player)
-      moveMul = 1.0;
-
-    } else {
-      // wave 15: bomb boss — 2x slower than bullet boss, HIGH damage + big splash
-      const keep = 700;
-
-      if (dist < keep) { moveAng = baseAng + Math.PI; moveMul = 0.8; }
-      else if (dist > keep + 300) { moveAng = baseAng; moveMul = 0.8; }
-      else { moveMul = 0.25; }
-
-      if (e.bombCD <= 0) {
-        const a = baseAng + (Math.random() * 2 - 1) * 0.08;
-
-        lobby.bullets.push({
-          owner: `E:${e.id}`,
-          kind: 'enemyBomb',
-          x: e.x + Math.cos(a) * (e.r + 10),
-          y: e.y + Math.sin(a) * (e.r + 10),
-          vx: Math.cos(a) * SPD_BOMB, // slower projectile speed
-          vy: Math.sin(a) * SPD_BOMB,
-          r: 7,
-          dmg: 20,                    // high damage
-          life: 1.1,
-          splashR: 220                // big splash
-        });
-
-        e.bombCD = 0.24;              // bullet boss 0.12 -> bombs 2x slower
-      }
     }
   }
 
