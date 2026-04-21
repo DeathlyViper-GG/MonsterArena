@@ -3929,6 +3929,29 @@ window.addEventListener('net:snapshot', (ev) => {
     // Pickups (local-only visuals)
     // ---------------------------
     for (const p of ents.pickups) {
+
+      // ✅ Boss telegraphed explosion warning
+      if (p.type === 'bossWarn') {
+        ctx.save();
+        ctx.strokeStyle = 'rgba(255, 90, 40, 0.65)';
+        ctx.lineWidth = 3;
+        ctx.setLineDash([8, 6]);
+
+        ctx.beginPath();
+        ctx.arc(
+          p.x - cam.x - cam.sx,
+          p.y - cam.y - cam.sy,
+          p.r,
+          0,
+          Math.PI * 2
+        );
+        ctx.stroke();
+
+        ctx.restore();
+        continue;
+      }
+
+      // ✅ Normal pickups
       const t = (Math.sin((p.t ?? 0) * 6) + 1) / 2;
       const col =
         p.type === 'health' ? '#7dffa3' :
@@ -3939,7 +3962,13 @@ window.addEventListener('net:snapshot', (ev) => {
       ctx.strokeStyle = '#fff2';
       ctx.lineWidth = 2;
       ctx.beginPath();
-      ctx.arc(p.x - cam.x - cam.sx, p.y - cam.y - cam.sy, p.r + t * 2, 0, Math.PI * 2);
+      ctx.arc(
+        p.x - cam.x - cam.sx,
+        p.y - cam.y - cam.sy,
+        p.r + t * 2,
+        0,
+        Math.PI * 2
+      );
       ctx.fill();
       ctx.stroke();
     }
