@@ -225,6 +225,8 @@
   let _snapCurrT = 0;
   // Client-side bullet render state (constant speed)
   const bulletRender = new Map();
+  // Remote player render smoothing (no rewind, no buffer delay)
+  const remoteRender = new Map(); // id -> { x, y, ang }
   let _prevDrawPlayerBullets = [];
   // id -> { sx, sy, vx, vy, t0 }
 
@@ -4373,9 +4375,39 @@ window.addEventListener('net:snapshot', (ev) => {
 
         
         // ✅ No advance: use the latest authoritative position/angle as-is
-        let rx = rp.x;
-        let ry = rp.y;
-        let rang = rp.ang ?? 0;
+        // ✅ Low-latency smoothing toward latest snapshot (NO TIME REWIND)
+        const id = rp.id;
+
+        // persistent render state
+        let st = remoteRender.get(id);
+        if (!st) {
+          st = { x: rp.x, y: rp.y, ang: rp.ang ?? 0 };
+          remoteRender.set(id, st);
+        }
+
+        // tuning (NO buffer delay)
+        const POS_SMOOTH = 0.22;   // position smoothing (0.15–0.35)
+        const ANG_SMOOTH = 0.30;   // angle smoothing
+        const MAX_ERR = 100;       // snap distance for dashes / teleports
+
+        // hard snap on big correction (prevents rubber-banding)
+        const err = Math.hypot(rp.x - st.x, rp.y - st.y);
+        if (err > MAX_ERR) {
+          st.x = rp.x;
+          st.y = rp.y;
+        } else {
+          st.x += (rp.x - st.x) * POS_SMOOTH;
+          st.y += (rp.y - st.y) * POS_SMOOTH;
+        }
+
+        // shortest-angle smoothing
+        const targetAng = rp.ang ?? 0;
+        const da = ((targetAng - st.ang + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
+        st.ang += da * ANG_SMOOTH;
+
+        let rx = st.x;
+        let ry = st.y;
+        let rang = st.ang;
 
         const px = rx - cam.x - cam.sx;
         const py = ry - cam.y - cam.sy;
@@ -4432,6 +4464,11 @@ window.addEventListener('net:snapshot', (ev) => {
         }
 
         ctx.restore();
+      }
+      // prune smoothing state for players no longer present
+      const alive = new Set(remotePlayers.map(p => p && p.id).filter(Boolean));
+      for (const k of remoteRender.keys()) {
+        if (!alive.has(k)) remoteRender.delete(k);
       }
     }
 
