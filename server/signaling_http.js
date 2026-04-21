@@ -115,6 +115,7 @@ const BOSS3_FIRE_INTERVAL = 2.0;   // one attack every 2 seconds
 const BOSS3_WARN_TIME     = 0.5;   // half‑second ground warning
 const BOSS3_BLAST_R       = 96;    // 3× player width (player width ~32)
 const BOSS3_BOMB_SPEED   = 420;   // travel speed of the bomb
+const BOSS3_MAX_TRAVEL   = 320;   // short travel distance cap (px)
 
 // ✅ PvE point table (server authoritative)
 const PVE_POINTS = {
@@ -1349,8 +1350,20 @@ function enemyAI(lobby, e, dt) {
 
       if (e.bombCD <= 0) {
         // pick a destination near the player
-        const tx = tgt.x + (Math.random() * 2 - 1) * 120;
-        const ty = tgt.y + (Math.random() * 2 - 1) * 120;
+        let tx = tgt.x + (Math.random() * 2 - 1) * 120;
+        let ty = tgt.y + (Math.random() * 2 - 1) * 120;
+
+        // ✅ clamp target to short travel distance from the boss
+        {
+          const dx = tx - e.x;
+          const dy = ty - e.y;
+          const d  = Math.hypot(dx, dy) || 1;
+          if (d > BOSS3_MAX_TRAVEL) {
+            const s = BOSS3_MAX_TRAVEL / d;
+            tx = e.x + dx * s;
+            ty = e.y + dy * s;
+          }
+        }
 
         const a = angleTo(e.x, e.y, tx, ty);
 
@@ -1367,6 +1380,7 @@ function enemyAI(lobby, e, dt) {
           vy: Math.sin(a) * BOSS3_BOMB_SPEED,
 
           r: 9,
+          life: 2.0, // ✅ prevents NaN life + ensures it survives to explode
 
           // destination
           targetX: tx,
@@ -2155,7 +2169,7 @@ setInterval(() => {
         for (let i = lobby.pickups.length - 1; i >= 0; i--) {
           const pk = lobby.pickups[i];
           // ✅ never "collect" telegraphs
-          if (pk.type === 'bossWarn' || pk.type === 'bossTarget') continue;
+          if (pk.type === 'bossWarn' || pk.type === 'bossTarget' || pk.type === 'bossBoom') continue;
 
           for (const [pid, p] of lobby.players) {
             const rr = (pk.r ?? 14) + 16;
@@ -2400,6 +2414,16 @@ setInterval(() => {
             // explode exactly at the destination
             b.x = b.targetX;
             b.y = b.targetY;
+            // ✅ one-shot explosion VFX marker for clients (expanding ring)
+            lobby.pickups.push({
+              x: b.x,
+              y: b.y,
+              r: b.splashR ?? BOSS3_BLAST_R,
+              type: 'bossBoom',
+              t0: now(),
+              life: 0.35
+            });
+            lobby.pickupVer++;
             explodeEnemyBomb(lobby, b);
             lobby.bullets.splice(i, 1);
           }
@@ -2408,10 +2432,12 @@ setInterval(() => {
       }
 
       // normal bullets die on wall
-      if (hitWall){
+      // normal bullets die on wall (but bombs should detonate instead)
+      if (hitWall && b.kind !== 'enemyBomb'){
         lobby.bullets.splice(i, 1);
         continue;
       }
+
 
       // expire
       if (b.life <= 0){
@@ -2482,6 +2508,7 @@ setInterval(() => {
       players: [...lobby.players.values()],
       enemies: lobby.mode === 'pve' ? lobby.enemies : [],
       bullets: lobby.bullets,
+      pickups: lobby.pickups,
 
       // ✅ leaderboard points (playerId -> points)
       scores: lobby.scores ? Object.fromEntries(lobby.scores.entries()) : {},
@@ -2495,7 +2522,7 @@ setInterval(() => {
         joinDeadline: lobby.startTime,
         levelId: lobby.levelId,
         mapSeed: lobby.mapSeed,
-        pickupVer: 0,
+        pickupVer: lobby.pickupVer ?? 0,
         chestVer: lobby.chestVer ?? 0,
         worldKey: lobby.worldKey ?? null
       }
