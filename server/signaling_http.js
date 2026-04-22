@@ -38,7 +38,7 @@ const DISCONNECT_TIMEOUT = 1_000; // 0.1 seconds
 // ============================
 // TEST FLAGS (easy to revert)
 // ============================
-const TEST_FORCE_BOSS3 = true; // ✅ set false to restore normal behaviour
+const TEST_FORCE_BOSS3 = false; // ✅ set false to restore normal behaviour
 // ✅ Long-poll waiters per lobby
 const POLL_TIMEOUT_MS = 25_000;
 const WAITERS = new Map(); // lobbyId -> Set({ res, worldKey })
@@ -1242,19 +1242,26 @@ function startWave(lobby, n) {
     b => !(typeof b.owner === 'string' && b.owner.startsWith('E:'))
   );
 
-  const bossWave = true; // testing: every wave
-  if (bossWave) {
+  // ✅ Boss schedule restored:
+  // wave 5  → variant 1
+  // wave 10 → variant 2
+  // wave 15 → variant 3
+  let bossVariant = 0;
+
+  if (n === 5)  bossVariant = 1;
+  if (n === 10) bossVariant = 2;
+  if (n === 15) bossVariant = 3;
+
+  if (bossVariant > 0) {
     const p = randSpawnPointAwayFromPlayers(lobby, 720, 34);
     lobby.spawnQueue.push({
       t: 1.0,
       type: 'boss',
       x: p.x,
       y: p.y,
-      bossVariant: TEST_FORCE_BOSS3
-        ? 3
-        : ((n - 1) % 3) + 1
+      bossVariant
     });
-}
+  }
 
   const count = enemyCountForWave(n);
   for (let i = 0; i < count; i++) {
