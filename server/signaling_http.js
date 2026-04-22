@@ -452,16 +452,6 @@ function handlePvPPlayerBulletHits(lobby, b, bulletIndex){
   }
   return false;
 }
-function pushBossBoom(lobby, x, y, r){
-  lobby.pickups.push({
-    x, y,
-    r,
-    type: 'bossBoom',
-    t0: now(),
-    life: 0.35
-  });
-  lobby.pickupVer = (lobby.pickupVer ?? 0) + 1;
-}
 
 function explodeEnemyBomb(lobby, b){
   const splash = (b.splashR ?? SPLASH_BOMB);
@@ -1380,7 +1370,6 @@ function enemyAI(lobby, e, dt) {
         lobby.bullets.push({
           owner: `E:${e.id}`,
           kind: 'enemyBomb',
-          launchT: now(), // ✅ when bomb launched
 
           // spawn position
           x: e.x + Math.cos(a) * (e.r + 12),
@@ -2180,7 +2169,7 @@ setInterval(() => {
         for (let i = lobby.pickups.length - 1; i >= 0; i--) {
           const pk = lobby.pickups[i];
           // ✅ never "collect" telegraphs
-          if (pk.type === 'bossWarn' || pk.type === 'bossTarget' || pk.type === 'bossBoom') continue;
+          if (pk.type === 'bossWarn' || pk.type === 'bossTarget') continue;
 
           for (const [pid, p] of lobby.players) {
             const rr = (pk.r ?? 14) + 16;
@@ -2385,67 +2374,60 @@ setInterval(() => {
       // ✅ Boss3 telegraphed bomb behaviour
       if (b.kind === 'enemyBomb' && b.targetX != null) {
 
-        // ✅ show target ONLY after 1 second from launch
-        if (now() - (b.launchT ?? 0) >= 1000) {
+        // Always show the target (red marker)
+        lobby.pickups.push({
+          x: b.targetX,
+          y: b.targetY,
+          r: 10,
+          type: 'bossTarget'
+        });
+
+        // If bomb hits a wall, treat THAT as the destination (so it still explodes)
+        if (hitWall) {
+          b.targetX = b.x;
+          b.targetY = b.y;
+          b.vx = 0;
+          b.vy = 0;
+        }
+
+        const dx = b.targetX - b.x;
+        const dy = b.targetY - b.y;
+
+        // Arrived at destination → warning phase
+        if (dx * dx + dy * dy <= 20 * 20 || (b.vx === 0 && b.vy === 0)) {
+          b.vx = 0;
+          b.vy = 0;
+
+          // ensure warnT exists
+          b.warnT = (typeof b.warnT === 'number') ? b.warnT : BOSS3_WARN_TIME;
+          b.warnT -= dt;
+
+          // Show blast radius (0.5s warning)
           lobby.pickups.push({
             x: b.targetX,
             y: b.targetY,
-            r: 10,
-            type: 'bossTarget'
+            r: b.splashR,
+            type: 'bossWarn'
           });
-          lobby.pickupVer = (lobby.pickupVer ?? 0) + 1;
-        }
 
-        // ✅ if bomb hits a wall: explode immediately AT WALL (through walls)
-        if (hitWall) {
-          // spawn explosion VFX marker
-          pushBossBoom(lobby, b.x, b.y, b.splashR ?? BOSS3_BLAST_R);
-
-          explodeEnemyBomb(lobby, b);
-          lobby.bullets.splice(i, 1);
-          continue;
-        }
-
-        // ✅ explode immediately when it reaches target (no extra waiting)
-        {
-          const dx = b.targetX - b.x;
-          const dy = b.targetY - b.y;
-          const distSq = dx*dx + dy*dy;
-
-          const sp = Math.hypot(b.vx ?? 0, b.vy ?? 0);
-          const reach = sp * dt + 1; // distance it could cover this tick (+epsilon)
-
-          if (distSq <= reach * reach) {
+          if (b.warnT <= 0) {
+            // explode exactly at the destination
             b.x = b.targetX;
             b.y = b.targetY;
-
-            // spawn explosion VFX marker
-            pushBossBoom(lobby, b.x, b.y, b.splashR ?? BOSS3_BLAST_R);
-
+            // ✅ one-shot explosion VFX marker for clients (expanding ring)
+            lobby.pickups.push({
+              x: b.x,
+              y: b.y,
+              r: b.splashR ?? BOSS3_BLAST_R,
+              type: 'bossBoom',
+              t0: now(),
+              life: 0.35
+            });
+            lobby.pickupVer++;
             explodeEnemyBomb(lobby, b);
             lobby.bullets.splice(i, 1);
-            continue;
           }
-        }
-
-        // ✅ warn circle ONLY in last 0.5s before impact AND only after target is visible
-        if (now() - (b.launchT ?? 0) >= 1000) {
-          const dx = b.targetX - b.x;
-          const dy = b.targetY - b.y;
-          const dist = Math.hypot(dx, dy);
-
-          const sp = Math.max(1, Math.hypot(b.vx ?? 0, b.vy ?? 0));
-          const tToImpact = dist / sp;
-
-          if (tToImpact <= BOSS3_WARN_TIME) {
-            lobby.pickups.push({
-              x: b.targetX,
-              y: b.targetY,
-              r: b.splashR ?? BOSS3_BLAST_R,
-              type: 'bossWarn'
-            });
-            lobby.pickupVer = (lobby.pickupVer ?? 0) + 1;
-          }
+          continue;
         }
       }
 
