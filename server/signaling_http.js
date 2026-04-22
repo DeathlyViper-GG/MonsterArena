@@ -2073,9 +2073,21 @@ setInterval(() => {
     lobby.lastTick = t;
 
     // ✅ clear last tick's telegraphs (they are rebuilt every tick)
-    lobby.pickups = (lobby.pickups || []).filter(
-      p => p.type !== 'bossWarn' && p.type !== 'bossTarget'
-    );
+    const nowT = now();
+
+    lobby.pickups = (lobby.pickups || []).filter(p => {
+      // bossWarn/target are rebuilt every tick
+      if (p.type === 'bossWarn' || p.type === 'bossTarget') return false;
+
+      // bossBoom should exist briefly, then vanish
+      if (p.type === 'bossBoom') {
+        const lifeMs = Math.max(50, (p.life ?? 0.35) * 1000);
+        return (nowT - (p.t0 ?? nowT)) <= lifeMs;
+      }
+
+      // normal pickups stay
+      return true;
+    });
 
     // ---- Lava phase update ----
     if (lobby.world?.hazards) {
@@ -2169,7 +2181,8 @@ setInterval(() => {
         for (let i = lobby.pickups.length - 1; i >= 0; i--) {
           const pk = lobby.pickups[i];
           // ✅ never "collect" telegraphs
-          if (pk.type === 'bossWarn' || pk.type === 'bossTarget') continue;
+          // ✅ never "collect" telegraphs / VFX markers
+          if (pk.type === 'bossWarn' || pk.type === 'bossTarget' || pk.type === 'bossBoom') continue;
 
           for (const [pid, p] of lobby.players) {
             const rr = (pk.r ?? 14) + 16;
