@@ -144,7 +144,29 @@ function recordEnemyHist(e, tNow) {
   if (e._hist.length > 10) e._hist.shift();
 }
 
-function lootCountForEnemy(type) {
+const LOOT_TYPES = ['health', 'ammo', 'speed', 'shield'];
+
+function spawnEnemyLoot(lobby, x, y, count) {
+  if (!count) return;
+
+  const R_MIN = 18;
+  const R_MAX = 42;
+
+  for (let i = 0; i < count; i++) {
+    const a = Math.random() * Math.PI * 2;
+    const r = R_MIN + Math.random() * (R_MAX - R_MIN);
+
+    lobby.pickups.push({
+      x: x + Math.cos(a) * r,
+      y: y + Math.sin(a) * r,
+      r: 14,
+      type: LOOT_TYPES[(Math.random() * LOOT_TYPES.length) | 0]
+    });
+  }
+
+  lobby.pickupVer++;
+}
+function lootCountByEnemy(type) {
   switch (type) {
     case 'chaser':
     case 'ravener':
@@ -168,34 +190,6 @@ function lootCountForEnemy(type) {
     default:
       return 0;
   }
-}
-
-function randomLootType() {
-  const TYPES = ['health', 'ammo', 'speed', 'shield'];
-  return TYPES[(Math.random() * TYPES.length) | 0];
-}
-
-// ✅ spawn loot in a small clustered spread
-function spawnLootCluster(lobby, x, y, count) {
-  if (count <= 0) return;
-
-  const BASE_R = 14;
-  const SPREAD_MIN = 8;    // tight cluster
-  const SPREAD_MAX = 38;   // still close together
-
-  for (let i = 0; i < count; i++) {
-    const a = Math.random() * Math.PI * 2;
-    const d = SPREAD_MIN + Math.random() * (SPREAD_MAX - SPREAD_MIN);
-
-    lobby.pickups.push({
-      x: x + Math.cos(a) * d,
-      y: y + Math.sin(a) * d,
-      r: BASE_R,
-      type: randomLootType()
-    });
-  }
-
-  lobby.pickupVer++;
 }
 
 function enemyPosAtTime(e, tTarget) {
@@ -1958,12 +1952,14 @@ app.post('/hit', (req, res) => {
       en.hp -= dd;
 
       if (en.hp <= 0) {
-        // ✅ PvE leaderboard points
         awardPvEPoint(lobby, b.owner, en.type);
 
-        // ✅ Loot drops
-        const drops = lootCountForEnemy(en.type);
-        spawnLootCluster(lobby, en.x, en.y, drops);
+        spawnEnemyLoot(
+          lobby,
+          en.x,
+          en.y,
+          lootCountByEnemy(en.type)
+        );
 
         lobby.enemies.splice(hitIndex, 1);
       }
@@ -2361,11 +2357,16 @@ setInterval(() => {
 
         const killedByHazard = applyEnemyHazards(lobby, e, dt);
         if (killedByHazard || e.hp <= 0) {
-          const drops = lootCountForEnemy(e.type);
-          spawnLootCluster(lobby, e.x, e.y, drops);
+          spawnEnemyLoot(
+            lobby,
+            e.x,
+            e.y,
+            lootCountByEnemy(e.type)
+          );
 
           lobby.enemies.splice(i, 1);
         }
+
       }
       // ✅ record enemy history AFTER all movement & hazards
       const tNow = now();
