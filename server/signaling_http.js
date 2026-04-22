@@ -144,6 +144,60 @@ function recordEnemyHist(e, tNow) {
   if (e._hist.length > 10) e._hist.shift();
 }
 
+function lootCountForEnemy(type) {
+  switch (type) {
+    case 'chaser':
+    case 'ravener':
+    case 'swarm':
+      return 1;
+
+    case 'tank':
+    case 'shooter':
+    case 'sniper':
+      return 3;
+
+    case 'healer':
+      return 4;
+
+    case 'bomber':
+      return 5;
+
+    case 'boss':
+      return 10;
+
+    default:
+      return 0;
+  }
+}
+
+function randomLootType() {
+  const TYPES = ['health', 'ammo', 'speed', 'shield'];
+  return TYPES[(Math.random() * TYPES.length) | 0];
+}
+
+// ✅ spawn loot in a small clustered spread
+function spawnLootCluster(lobby, x, y, count) {
+  if (count <= 0) return;
+
+  const BASE_R = 14;
+  const SPREAD_MIN = 8;    // tight cluster
+  const SPREAD_MAX = 38;   // still close together
+
+  for (let i = 0; i < count; i++) {
+    const a = Math.random() * Math.PI * 2;
+    const d = SPREAD_MIN + Math.random() * (SPREAD_MAX - SPREAD_MIN);
+
+    lobby.pickups.push({
+      x: x + Math.cos(a) * d,
+      y: y + Math.sin(a) * d,
+      r: BASE_R,
+      type: randomLootType()
+    });
+  }
+
+  lobby.pickupVer++;
+}
+
 function enemyPosAtTime(e, tTarget) {
   const h = e._hist;
   if (!h || h.length === 0) return { x: e.x, y: e.y };
@@ -1904,9 +1958,14 @@ app.post('/hit', (req, res) => {
       en.hp -= dd;
 
       if (en.hp <= 0) {
-        // ✅ melee final-hit credit
-        awardPvEPoint(lobby, peerId, en.type);
-        lobby.enemies.splice(best, 1);
+        // ✅ PvE leaderboard points
+        awardPvEPoint(lobby, b.owner, en.type);
+
+        // ✅ Loot drops
+        const drops = lootCountForEnemy(en.type);
+        spawnLootCluster(lobby, en.x, en.y, drops);
+
+        lobby.enemies.splice(hitIndex, 1);
       }
     }
 
@@ -2302,6 +2361,9 @@ setInterval(() => {
 
         const killedByHazard = applyEnemyHazards(lobby, e, dt);
         if (killedByHazard || e.hp <= 0) {
+          const drops = lootCountForEnemy(e.type);
+          spawnLootCluster(lobby, e.x, e.y, drops);
+
           lobby.enemies.splice(i, 1);
         }
       }
