@@ -452,6 +452,16 @@ function handlePvPPlayerBulletHits(lobby, b, bulletIndex){
   }
   return false;
 }
+function pushBossBoom(lobby, x, y, r){
+  lobby.pickups.push({
+    x, y,
+    r,
+    type: 'bossBoom',
+    t0: now(),
+    life: 0.35
+  });
+  lobby.pickupVer = (lobby.pickupVer ?? 0) + 1;
+}
 
 function explodeEnemyBomb(lobby, b){
   const splash = (b.splashR ?? SPLASH_BOMB);
@@ -1370,6 +1380,7 @@ function enemyAI(lobby, e, dt) {
         lobby.bullets.push({
           owner: `E:${e.id}`,
           kind: 'enemyBomb',
+          launchT: now(), // ✅ when bomb launched
 
           // spawn position
           x: e.x + Math.cos(a) * (e.r + 12),
@@ -2374,83 +2385,67 @@ setInterval(() => {
       // ✅ Boss3 telegraphed bomb behaviour
       if (b.kind === 'enemyBomb' && b.targetX != null) {
 
-        // ✅ if bomb has reached intended target, explode immediately
+        // ✅ show target ONLY after 1 second from launch
+        if (now() - (b.launchT ?? 0) >= 1000) {
+          lobby.pickups.push({
+            x: b.targetX,
+            y: b.targetY,
+            r: 10,
+            type: 'bossTarget'
+          });
+          lobby.pickupVer = (lobby.pickupVer ?? 0) + 1;
+        }
+
+        // ✅ if bomb hits a wall: explode immediately AT WALL (through walls)
+        if (hitWall) {
+          // spawn explosion VFX marker
+          pushBossBoom(lobby, b.x, b.y, b.splashR ?? BOSS3_BLAST_R);
+
+          explodeEnemyBomb(lobby, b);
+          lobby.bullets.splice(i, 1);
+          continue;
+        }
+
+        // ✅ explode immediately when it reaches target (no extra waiting)
         {
           const dx = b.targetX - b.x;
           const dy = b.targetY - b.y;
-          const distSq = dx * dx + dy * dy;
+          const distSq = dx*dx + dy*dy;
 
-          // threshold: distance bomb would move this frame
-          const reachDist = (Math.abs(b.vx) + Math.abs(b.vy)) * dt + 1;
+          const sp = Math.hypot(b.vx ?? 0, b.vy ?? 0);
+          const reach = sp * dt + 1; // distance it could cover this tick (+epsilon)
 
-          if (distSq <= reachDist * reachDist) {
+          if (distSq <= reach * reach) {
             b.x = b.targetX;
             b.y = b.targetY;
 
-            // ✅ force instant detonation
+            // spawn explosion VFX marker
+            pushBossBoom(lobby, b.x, b.y, b.splashR ?? BOSS3_BLAST_R);
+
             explodeEnemyBomb(lobby, b);
             lobby.bullets.splice(i, 1);
             continue;
           }
         }
 
-        // Always show the target (red marker)
-        lobby.pickups.push({
-          x: b.targetX,
-          y: b.targetY,
-          r: 10,
-          type: 'bossTarget'
-        });
+        // ✅ warn circle ONLY in last 0.5s before impact AND only after target is visible
+        if (now() - (b.launchT ?? 0) >= 1000) {
+          const dx = b.targetX - b.x;
+          const dy = b.targetY - b.y;
+          const dist = Math.hypot(dx, dy);
 
-        // If bomb hits a wall, treat THAT as the destination (so it still explodes)
-        if (hitWall) {
-          b.x = b.x;
-          b.y = b.y;
+          const sp = Math.max(1, Math.hypot(b.vx ?? 0, b.vy ?? 0));
+          const tToImpact = dist / sp;
 
-          // ✅ detonate immediately on wall impact
-          explodeEnemyBomb(lobby, b);
-          lobby.bullets.splice(i, 1);
-          continue;
-        }
-
-        const dx = b.targetX - b.x;
-        const dy = b.targetY - b.y;
-
-        // Arrived at destination → warning phase
-        if (dx * dx + dy * dy <= 20 * 20 || (b.vx === 0 && b.vy === 0)) {
-          b.vx = 0;
-          b.vy = 0;
-
-          // ensure warnT exists
-          b.warnT = (typeof b.warnT === 'number') ? b.warnT : BOSS3_WARN_TIME;
-          b.warnT -= dt;
-
-          // Show blast radius (0.5s warning)
-          lobby.pickups.push({
-            x: b.targetX,
-            y: b.targetY,
-            r: b.splashR,
-            type: 'bossWarn'
-          });
-
-          if (b.warnT <= 0) {
-            // explode exactly at the destination
-            b.x = b.targetX;
-            b.y = b.targetY;
-            // ✅ one-shot explosion VFX marker for clients (expanding ring)
+          if (tToImpact <= BOSS3_WARN_TIME) {
             lobby.pickups.push({
-              x: b.x,
-              y: b.y,
+              x: b.targetX,
+              y: b.targetY,
               r: b.splashR ?? BOSS3_BLAST_R,
-              type: 'bossBoom',
-              t0: now(),
-              life: 0.35
+              type: 'bossWarn'
             });
-            lobby.pickupVer++;
-            explodeEnemyBomb(lobby, b);
-            lobby.bullets.splice(i, 1);
+            lobby.pickupVer = (lobby.pickupVer ?? 0) + 1;
           }
-          continue;
         }
       }
 
