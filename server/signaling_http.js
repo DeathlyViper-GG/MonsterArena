@@ -2415,14 +2415,20 @@ setInterval(() => {
             b.x = b.targetX;
             b.y = b.targetY;
             // ✅ one-shot explosion VFX marker for clients (expanding ring)
+            // ✅ HARD REMOVE any previous explosion markers FIRST
+            lobby.pickups = (lobby.pickups || []).filter(p => p.type !== 'bossBoom');
+
+            // ✅ Add the NEW explosion marker
             lobby.pickups.push({
               x: b.x,
               y: b.y,
               r: b.splashR ?? BOSS3_BLAST_R,
               type: 'bossBoom',
               t0: now(),
-              life: 1.2
+              life: 0.35
             });
+
+            lobby.pickupVer++;
             lobby.pickupVer++;
             explodeEnemyBomb(lobby, b);
             lobby.bullets.splice(i, 1);
