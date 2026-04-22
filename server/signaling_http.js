@@ -2374,6 +2374,26 @@ setInterval(() => {
       // ✅ Boss3 telegraphed bomb behaviour
       if (b.kind === 'enemyBomb' && b.targetX != null) {
 
+        // ✅ if bomb has reached intended target, explode immediately
+        {
+          const dx = b.targetX - b.x;
+          const dy = b.targetY - b.y;
+          const distSq = dx * dx + dy * dy;
+
+          // threshold: distance bomb would move this frame
+          const reachDist = (Math.abs(b.vx) + Math.abs(b.vy)) * dt + 1;
+
+          if (distSq <= reachDist * reachDist) {
+            b.x = b.targetX;
+            b.y = b.targetY;
+
+            // ✅ force instant detonation
+            explodeEnemyBomb(lobby, b);
+            lobby.bullets.splice(i, 1);
+            continue;
+          }
+        }
+
         // Always show the target (red marker)
         lobby.pickups.push({
           x: b.targetX,
@@ -2384,10 +2404,13 @@ setInterval(() => {
 
         // If bomb hits a wall, treat THAT as the destination (so it still explodes)
         if (hitWall) {
-          b.targetX = b.x;
-          b.targetY = b.y;
-          b.vx = 0;
-          b.vy = 0;
+          b.x = b.x;
+          b.y = b.y;
+
+          // ✅ detonate immediately on wall impact
+          explodeEnemyBomb(lobby, b);
+          lobby.bullets.splice(i, 1);
+          continue;
         }
 
         const dx = b.targetX - b.x;
