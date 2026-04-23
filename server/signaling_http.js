@@ -1953,14 +1953,6 @@ app.post('/hit', (req, res) => {
 
       if (en.hp <= 0) {
         awardPvEPoint(lobby, b.owner, en.type);
-
-        spawnEnemyLoot(
-          lobby,
-          en.x,
-          en.y,
-          lootCountByEnemy(en.type)
-        );
-
         lobby.enemies.splice(hitIndex, 1);
       }
     }
@@ -2357,13 +2349,6 @@ setInterval(() => {
 
         const killedByHazard = applyEnemyHazards(lobby, e, dt);
         if (killedByHazard || e.hp <= 0) {
-          spawnEnemyLoot(
-            lobby,
-            e.x,
-            e.y,
-            lootCountByEnemy(e.type)
-          );
-
           lobby.enemies.splice(i, 1);
         }
 
