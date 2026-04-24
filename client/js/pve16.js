@@ -4633,6 +4633,7 @@ window.addEventListener('net:snapshot', (ev) => {
 
 
   function draw(dt) {
+    const t = performance.now() / 1000;
     const online = isNetActive();
     const snap = online ? getInterpolatedSnapshot() : null;
     const snapRaw = online ? Net.state?.snapshot : null;
