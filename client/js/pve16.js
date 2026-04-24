@@ -3334,33 +3334,43 @@ if (btnHomeCustomize){
   rngUI.oninput=()=> setUIOpacity(parseFloat(rngUI.value));
   function setUIOpacity(v){ uiVal.textContent=`${Math.round(v*100)}%`; document.querySelectorAll('.hud,.corner,.help,.minimap').forEach(el=> el.style.opacity=String(v)); }
   function showOverlay(el,show){ el.style.display=show?'grid':'none'; if(el===ovSettings && !show) saveSettings(); if(show) togglePause(true); else canvas.focus(); }
-  function togglePause(force){ const on=typeof force==='boolean'?force:!state.running; state.running=!on; ovPause.style.display=on?'grid':'none' 
-  if (player.hp <= 0) {
-    // one-time VFX trigger
-    if (!state.playerExploded) {
-      const baseCol = COLORS[selectedColor]?.c || '#aef';
-      spawnTriangleBurst(player.x, player.y, baseCol, { big:8, small:26 });
-      spawnGhostSilhouette(player.x, player.y, player.r + 14, currentTheme.accent);
-      state.playerExploded = true;
+  function togglePause(force){
+    const on = typeof force === 'boolean' ? force : !state.running;
+    state.running = !on;
+    ovPause.style.display = on ? 'grid' : 'none';
+
+    if (player.hp <= 0) {
+      // one-time VFX trigger
+      if (!state.playerExploded) {
+        const baseCol = COLORS[selectedColor]?.c || '#aef';
+        spawnTriangleBurst(player.x, player.y, baseCol, { big:8, small:26 });
+        spawnGhostSilhouette(player.x, player.y, player.r + 14, currentTheme.accent);
+        state.playerExploded = true;
+      }
+
+      state.running = false;
+
+      // ✅ MULTIPLAYER: leave lobby immediately on death
+      if (isNetActive()) {
+        leaveMultiplayerAndReturnHome();
+        return; // stop updateFixed immediately
+      }
+
+      // ✅ SINGLE‑PLAYER: normal game over flow
+      const prev = parseInt(localStorage.getItem('arenaBest') || '0', 10) || 0;
+      const best = Math.max(prev, state.wave);
+      state.best = best;
+      localStorage.setItem('arenaBest', String(best));
+      bestEl.textContent = best;
+
+      showGameOver();
     }
 
-    state.running = false;
-
-    // ✅ MULTIPLAYER: leave lobby immediately on death
-    if (isNetActive()) {
-      leaveMultiplayerAndReturnHome();
-      return; // 🚨 stop updateFixed immediately
-    }
-
-    // ✅ SINGLE‑PLAYER: normal game over flow
-    const prev = parseInt(localStorage.getItem('arenaBest') || '0', 10) || 0;
-    const best = Math.max(prev, state.wave);
-    state.best = best;
-    localStorage.setItem('arenaBest', String(best));
-    bestEl.textContent = best;
-
-    showGameOver();
+    ovPause.querySelector('h2').textContent = '⏸️ Paused';
+    if (on) audio.stopMusic();
+    else if (audio.musicOn) audio.startMusic();
   }
+
   // ===============================
   // Glyph overlay system (client)
   // ===============================
@@ -3382,15 +3392,17 @@ if (btnHomeCustomize){
   const GLYPH_POS = {
     fire:      { a: -90 },
     lightning: { a: -18 },
-    water:     { a:  54 },
+    water:     { a: 54 },
     earth:     { a: 126 },
     spirit:    { a: 198 },
   };
 
   function openGlyphOverlay(seconds=15){
     if (!ovGlyphs || !glyphCanvas || !gctx) return;
+
     ovGlyphs.style.display = 'grid';
     _glyphSelected = null;
+
     glyphTitleEl.textContent = '—';
     glyphDescEl.textContent = 'Select a path to view its core effect. Enchant to confirm.';
     glyphEnchantBtn.disabled = true;
@@ -3421,8 +3433,8 @@ if (btnHomeCustomize){
 
   function closeGlyphOverlay(){
     if (ovGlyphs) ovGlyphs.style.display = 'none';
-    glyphCanvas && (glyphCanvas.onclick = null);
-    glyphEnchantBtn && (glyphEnchantBtn.onclick = null);
+    if (glyphCanvas) glyphCanvas.onclick = null;
+    if (glyphEnchantBtn) glyphEnchantBtn.onclick = null;
     cancelAnimationFrame(_glyphRAF);
   }
 
@@ -3431,12 +3443,13 @@ if (btnHomeCustomize){
     const mx = (ev.clientX - rect.left) * (glyphCanvas.width / rect.width);
     const my = (ev.clientY - rect.top)  * (glyphCanvas.height / rect.height);
 
-    // check each glyph hit
     const cx = 320, cy = 320, R = 210;
+
     for (const k of Object.keys(GLYPH_POS)){
       const ang = GLYPH_POS[k].a * Math.PI/180;
       const gx = cx + Math.cos(ang)*R;
       const gy = cy + Math.sin(ang)*R;
+
       if (Math.hypot(mx-gx, my-gy) <= 70){
         _glyphSelected = k;
         _glyphCost = GLYPH_COST_CORE;
@@ -3459,29 +3472,28 @@ if (btnHomeCustomize){
     state.path = _glyphSelected;
     state.tier = Math.max(state.tier, 1);
 
+    // IMPORTANT: link overlay selection to gameplay path
+    player.glyphPath = state.path;
+    player.glyphTier = state.tier;
+
     if (glyphEssenceEl) glyphEssenceEl.textContent = String(state.essence);
 
-    // lock visuals
     glyphEnchantBtn.disabled = true;
     glyphTitleEl.textContent = `${_glyphSelected.toUpperCase()} ENCHANTED`;
     glyphDescEl.textContent = "Core glyph unlocked. Effects apply next wave.";
 
-    // fade out after a short flourish (client side)
-    setTimeout(() => {
-      closeGlyphOverlay();
-    }, 450);
+    setTimeout(() => closeGlyphOverlay(), 450);
   }
 
-  function drawGlyphOverlay(tMs){
+  function drawGlyphOverlay(){
     if (!ovGlyphs || ovGlyphs.style.display !== 'grid') return;
 
-    const t = performance.now()/1000;
+    const time = performance.now()/1000;
     const W = glyphCanvas.width, H = glyphCanvas.height;
     gctx.clearRect(0,0,W,H);
 
-    // centre “ancient core”
     const cx=320, cy=320;
-    const pulse = 0.5 + 0.5*Math.sin(t*1.4);
+    const pulse = 0.5 + 0.5*Math.sin(time*1.4);
     const coreR = 58 + pulse*5;
 
     // particles
@@ -3490,7 +3502,6 @@ if (btnHomeCustomize){
       p.y += p.vy*(1/60);
       const dx = p.x - cx, dy = p.y - cy;
       const d = Math.hypot(dx,dy) || 1;
-      // gently orbit inward
       p.vx += (-dy/d)*0.12;
       p.vy += ( dx/d)*0.12;
       p.vx *= 0.99; p.vy *= 0.99;
@@ -3503,7 +3514,6 @@ if (btnHomeCustomize){
     }
     gctx.globalAlpha = 1;
 
-    // core disc
     const rg = gctx.createRadialGradient(cx,cy,10,cx,cy,coreR*1.4);
     rg.addColorStop(0, `rgba(255,255,255,${0.22+0.18*pulse})`);
     rg.addColorStop(0.6, `rgba(140,200,255,${0.10+0.08*pulse})`);
@@ -3528,17 +3538,16 @@ if (btnHomeCustomize){
     }
     gctx.globalAlpha = 1;
 
-    // draw pentagon glyphs
+    // glyphs
     for (const k of Object.keys(GLYPH_POS)){
       const ang = GLYPH_POS[k].a*Math.PI/180;
       const gx = cx + Math.cos(ang)*210;
       const gy = cy + Math.sin(ang)*210;
 
-      const img = GlyphImages[k][0]; // tier 1
+      const img = GlyphImages[k][0];
       const sel = (_glyphSelected === k);
 
-      // glow
-      const glow = 0.18 + (sel?0.22:0) + 0.06*Math.sin(t*2.0 + ang);
+      const glow = 0.18 + (sel?0.22:0) + 0.06*Math.sin(time*2.0 + ang);
       gctx.save();
       gctx.globalAlpha = glow;
       gctx.fillStyle = 'rgba(180,220,255,0.65)';
@@ -3547,7 +3556,6 @@ if (btnHomeCustomize){
       gctx.fill();
       gctx.restore();
 
-      // sprite
       gctx.save();
       const s = sel ? 1.06 : 1.0;
       gctx.translate(gx,gy);
@@ -3556,7 +3564,6 @@ if (btnHomeCustomize){
       gctx.drawImage(img, -64, -64, 128, 128);
       gctx.restore();
 
-      // selection ring
       if (sel){
         gctx.save();
         gctx.lineWidth = 5;
@@ -3570,9 +3577,6 @@ if (btnHomeCustomize){
 
     _glyphRAF = requestAnimationFrame(drawGlyphOverlay);
   }
-
-  ovPause.querySelector('h2').textContent = '⏸️ Paused'; 
-  if(on) audio.stopMusic(); else if(audio.musicOn) audio.startMusic(); }
   function goHome(){
     state.running = false;
     ovPause.style.display = 'none';
@@ -4772,11 +4776,12 @@ window.addEventListener('net:snapshot', (ev) => {
       ctx.fillStyle = col;
       ctx.strokeStyle = '#fff2';
       ctx.lineWidth = 2;
+      const bob = (Math.sin((p.t ?? 0) * 6) + 1) / 2;
       ctx.beginPath();
       ctx.arc(
         p.x - cam.x - cam.sx,
         p.y - cam.y - cam.sy,
-        (p.type === 'xp' ? 6 : p.r) + t * (p.type === 'xp' ? 1.2 : 2),
+        (p.type === 'xp' ? 4 : p.r) + bob * (p.type === 'xp' ? 1.2 : 2),
         0,
         Math.PI * 2
       );
