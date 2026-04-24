@@ -3105,6 +3105,10 @@ if (btnHomeCustomize){
     if (isNetActive()) return;
 
     state.wave = n;
+    // ✅ ensure glyph overlay/phase is cleared on wave start
+    state.phase = 'combat';
+    state.phaseEndsAt = 0;
+    if (ovGlyphs) ovGlyphs.style.display = 'none';
     
     // reset per-wave glyph triggers
     player._rebirthUsed = false;
@@ -3945,6 +3949,10 @@ function drawGlyphOverlay(){
     state.wave = 1;
     state.score = 0;
     state.playerExploded = false;
+    // ✅ reset glyph phase properly (prevents instant overlay close)
+    state.phase = 'combat';
+    state.phaseEndsAt = 0;
+    closeGlyphOverlay();
     // ✅ reset PvE leaderboard each run
     for (const k in pveLeaderboard) delete pveLeaderboard[k];
     pveLeaderboard.local = 0;
@@ -4643,7 +4651,7 @@ window.addEventListener('net:snapshot', (ev) => {
       if ((state.spawnIdx ?? 0) >= spawnQueue.length && ents.enemies.length === 0) {
 
         // enter glyph phase once per wave end
-        if (state.phase !== 'glyph') {
+        if (state.phase !== 'glyph' || state.phaseEndsAt <= performance.now()) {
           state.phase = 'glyph';
           state.phaseEndsAt = performance.now() + 15000;
           openGlyphOverlay(15);
@@ -4655,7 +4663,7 @@ window.addEventListener('net:snapshot', (ev) => {
         if (glyphEssenceEl) glyphEssenceEl.textContent = String(state.essence);
 
         // when timer ends -> resume
-        if (remaining <= 0) {
+        if (remaining <= 0 && _uiMode !== 'ceremony') {
           closeGlyphOverlay();
           state.phase = 'combat';
 
