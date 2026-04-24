@@ -22,6 +22,18 @@
   const ovSettings = document.getElementById('overlaySettings');
   const ovCustomize = document.getElementById('overlayCustomize');
 
+  // ===== Glyph overlay elements =====
+const ovGlyphs = document.getElementById('overlayGlyphs');
+const glyphCanvas = document.getElementById('glyphCanvas');
+const glyphTimerEl = document.getElementById('glyphTimer');
+const glyphEssenceEl = document.getElementById('glyphEssence');
+const glyphTitleEl = document.getElementById('glyphTitle');
+const glyphDescEl = document.getElementById('glyphDesc');
+const glyphCostEl = document.getElementById('glyphCost');
+const glyphEnchantBtn = document.getElementById('glyphEnchant');
+
+const gctx = glyphCanvas ? glyphCanvas.getContext('2d') : null;
+
   const btnPause = document.getElementById('btnPause');
   const btnRestart = document.getElementById('btnRestart');
   const btnHome = document.getElementById('btnHome');
@@ -1380,6 +1392,60 @@
     hp:100, hpMax:100, shield:0, speed:240, spdMul:1,
     weapon:0, ammo:15, reserve:60, angle:0, lastShot:0, reloading:false, reloadT:0,
     dashCD:0, dashI:0, slowT:0,
+
+    // =========================
+    // GLYPH GAMEPLAY STATE
+    // =========================
+    glyphPath: null,     // 'fire'|'lightning'|'spirit'|'water'|'earth'
+    glyphTier: 0,        // 0..3
+    essence: 0,          // XP orb currency (wave-earned)
+    // upgrade flags (set true when you unlock them later)
+    glyph: {
+      fire: {
+        ignite:true,
+        hotCoals:false, searingShots:false, ashenFinish:false,
+        detonate:false, napalmTrail:false, volcanicCore:false,
+        cauterise:false, phoenixStep:false, rebirth:false
+      },
+      lightning: {
+        static:true,
+        arcJump:false, forkedArc:false, stormConductor:false,
+        chargedRounds:false, overload:false, thunderclap:false,
+        staticDash:false, blinkStrike:false, ballLightning:false
+      },
+      spirit: {
+        soulTap:true,
+        wispOrbit:false, wispSwarm:false, guardianSpirits:false,
+        haunt:false, soulBind:false, dreadBloom:false,
+        revenant:false, possession:false, wraithKing:false
+      },
+      water: {
+        drench:true,
+        chill:false, iceShards:false, permafrost:false,
+        mendingMist:false, tidalRenewal:false, sanctuary:false,
+        rippleShot:false, tidalWave:false, maelstrom:false
+      },
+      earth: {
+        stoneSkin:true,
+        thornmail:false, spikedBarrier:false, jaggedEarth:false,
+        bulwark:false, rootedStance:false, unbreakable:false,
+        stonePillar:false, quake:false, golem:false
+      }
+    },
+
+    // per-wave/per-run trackers
+    _rebirthUsed:false,
+    _unbreakableUsed:false,
+    _guardianCD:0,
+    _charged:0,          // lightning charged rounds meter (0..1)
+    _lastHitT:0,         // for charged rounds decay
+    _killCount:0,        // for volcanic core
+    _tidalHits:0,        // for tidal renewal
+    _quakeCD:0,          // earth quake timer
+    _ballCD:0,           // ball lightning zap timer
+    _wisps:0,            // number of wisps
+    _wispCD:0,           // wisp fire timer
+    _linkA:null, _linkB:null, _linkT:0, // soul bind
   };
   // 🔍 DEBUG: detect illegal writes to player (lockstep / render bugs)
   Object.seal(player);
@@ -1398,7 +1464,47 @@
   function setWeapon(i){ player.weapon=(i+weapons.length)%weapons.length; const w=weapons[player.weapon]; weaponName.textContent=w.name; if(player.ammo>w.ammo) player.ammo=w.ammo; updateHUD(); }
   function swapWeapon(d){ setWeapon(player.weapon+d); audio.click(); }
   function playerTryReload(){ const w=weapons[player.weapon]; if(player.reloading||player.ammo>=w.ammo||player.reserve<=0) return; player.reloading=true; player.reloadT=w.reload; audio.reload(); }
-  function playerDash(){ if(player.dashCD>0) return; const w=weapons[player.weapon]; const dash=w.dash*(1+(player.shield>0?0.15:0)); const ax=Math.cos(player.angle), ay=Math.sin(player.angle); player.x+=ax*dash; player.y+=ay*dash; player.x=clamp(player.x,60,world.w-60); player.y=clamp(player.y,60,world.h-60); cam.shake=Math.max(cam.shake,8); player.dashCD=1.4; player.dashI=0.15; audio.dash(); }
+  function playerDash(){
+    if(player.dashCD>0) return;
+
+    const w=weapons[player.weapon];
+
+    // Lightning Blink Strike replaces dash (short teleport)
+    if (isPath('lightning') && hasG('lightning','blinkStrike')){
+      const dist = 280;
+      const ax=Math.cos(player.angle), ay=Math.sin(player.angle);
+      const ox = player.x, oy = player.y;
+      player.x += ax*dist; player.y += ay*dist;
+      player.x=clamp(player.x,60,world.w-60); player.y=clamp(player.y,60,world.h-60);
+      addEffect(ox,oy,'pop',0.22,'#9fe3ff');
+      addEffect(player.x,player.y,'pop',0.22,'#9fe3ff');
+      player.dashCD=2.2;
+      audio.dash();
+      return;
+    }
+
+    const dash=w.dash*(1+(player.shield>0?0.15:0));
+    const ax=Math.cos(player.angle), ay=Math.sin(player.angle);
+    const ox = player.x, oy = player.y;
+
+    player.x+=ax*dash; player.y+=ay*dash;
+    player.x=clamp(player.x,60,world.w-60); player.y=clamp(player.y,60,world.h-60);
+
+    // Fire Phoenix Step: flame burst + clear slows
+    if (isPath('fire') && hasG('fire','phoenixStep')){
+      player.slowT = 0;
+      aoeDamage(player.x, player.y, 95, 10, { col:'#ff6a2a', burn:true });
+    }
+
+    // Lightning Static Dash: shock line (simple version)
+    if (isPath('lightning') && hasG('lightning','staticDash')){
+      aoeDamage((ox+player.x)/2, (oy+player.y)/2, 90, 8, { col:'#9fe3ff', stun:0.18 });
+    }
+
+    cam.shake=Math.max(cam.shake,8);
+    player.dashCD=1.4; player.dashI=0.15;
+    audio.dash();
+  }
   function updateHudButtonsForMode() {
     const online = isNetActive();
 
@@ -1596,7 +1702,21 @@
     running:false, wave:1, score:0,
     best:parseInt(localStorage.getItem('arenaBest')||'0',10)||0,
     spawnT:0, nextWaveT:0, diff:1.0,
-    playerExploded:false
+    playerExploded:false,
+
+    // ===== Glyph progression =====
+    phase: 'combat',          // 'combat' | 'glyph'
+    phaseEndsAt: 0,           // performance.now() ms for offline timer
+    essence: 0,               // collected xp orbs this run
+    path: null,               // 'fire'|'lightning'|'spirit'|'water'|'earth'
+    tier: 0,                  // 0..3
+    unlocks: {                // branch flags you can expand later
+      fire: {},
+      lightning: {},
+      spirit: {},
+      water: {},
+      earth: {}
+    }
   };
   // ✅ PvE leaderboard (playerId → points)
 
@@ -2357,7 +2477,19 @@ if (btnHomeCustomize){
       vx:0, vy:0, frameT:0,
       alerted:false, alertT:0, detectR:560,
       origin:{x,y},
-      phaseCD: rand(0,0.8) + 0.4      // deterministic
+      phaseCD: rand(0,0.8) + 0.4,     // deterministic
+
+      // =========================
+      // STATUS EFFECT STATE
+      // =========================
+      burnStacks:0, burnT:0,
+      staticT:0, staticPrimed:false,
+      drenchStacks:0, drenchT:0,
+      freezeT:0,
+      hauntT:0,
+      stunT:0,
+      bleedT:0,
+      slowMul:1
     };
     switch(type){
       case 'chaser': e.speed=210; e.hp=e.maxhp=45; e.r=16; e.detectR=600; break;
@@ -2370,6 +2502,309 @@ if (btnHomeCustomize){
     }
     ents.enemies.push(e);
     assignSquad(e);
+  }
+  // =========================================================
+  // GLYPH GAMEPLAY ENGINE (single-player/offline)
+  // =========================================================
+
+  function isPath(p){ return player.glyphPath === p; }
+  function hasG(path, key){ return !!(player.glyph?.[path]?.[key]); }
+
+  function applyBurn(e, stacks=1, dur=3.6){
+    e.burnStacks = Math.min(3, (e.burnStacks||0) + stacks);
+    e.burnT = Math.max(e.burnT||0, dur);
+  }
+  function applyDrench(e, stacks=1, dur=4.0){
+    e.drenchStacks = Math.min(3, (e.drenchStacks||0) + stacks);
+    e.drenchT = Math.max(e.drenchT||0, dur);
+  }
+  function applyHaunt(e, dur=3.5){
+    e.hauntT = Math.max(e.hauntT||0, dur);
+  }
+  function stun(e, t=0.45){
+    e.stunT = Math.max(e.stunT||0, t);
+  }
+  function freeze(e, t=0.9){
+    e.freezeT = Math.max(e.freezeT||0, t);
+  }
+  function bleed(e, t=2.8){
+    e.bleedT = Math.max(e.bleedT||0, t);
+  }
+
+  function aoeDamage(x,y,r, dmg, opts={}){
+    for (const e of ents.enemies){
+      const rr = (e.r||16) + r;
+      if (dist2(x,y,e.x,e.y) <= rr*rr){
+        e.hp -= dmg;
+        if (opts.burn) applyBurn(e, 1, 2.6);
+        if (opts.stun) stun(e, opts.stun);
+        if (opts.freeze) freeze(e, opts.freeze);
+      }
+    }
+    addEffect(x,y,'pop',0.35, opts.col || '#fff');
+    cam.shake = Math.max(cam.shake, 3.5);
+  }
+
+  // ----- Homing ember mini-projectiles (Ashen Finish) -----
+  function spawnEmberSeek(x,y, count=4){
+    for (let i=0;i<count;i++){
+      ents.effects.push({
+        type:'ember',
+        x,y,
+        life:0.8, t:0,
+        vx: (Math.random()*2-1)*140,
+        vy: (Math.random()*2-1)*140,
+        col:'#ff9a3c'
+      });
+    }
+  }
+
+  // ----- Ball lightning follower -----
+  function tickBallLightning(dt){
+    if (!isPath('lightning') || !hasG('lightning','ballLightning')) return;
+    player._ballCD = Math.max(0, (player._ballCD||0) - dt);
+
+    // zap nearest enemy periodically
+    if (player._ballCD <= 0){
+      let best=null, bestD2=420*420;
+      for (const e of ents.enemies){
+        const d2 = dist2(player.x,player.y,e.x,e.y);
+        if (d2 < bestD2){ bestD2=d2; best=e; }
+      }
+      if (best){
+        best.hp -= 10;
+        // discharge visual
+        addEffect(best.x,best.y,'hit',0.18,'#9fe3ff');
+        cam.shake = Math.max(cam.shake, 2);
+      }
+      player._ballCD = 0.45;
+    }
+  }
+
+  // ----- Wisp orbit shooter -----
+  function tickWisps(dt){
+    if (!isPath('spirit') || !hasG('spirit','wispOrbit')) return;
+    player._wisps = Math.max(player._wisps||0, hasG('spirit','wispSwarm') ? 3 : 1);
+    player._wispCD = Math.max(0, (player._wispCD||0) - dt);
+
+    if (player._wispCD <= 0){
+      let best=null, bestD2=650*650;
+      for (const e of ents.enemies){
+        const d2 = dist2(player.x,player.y,e.x,e.y);
+        if (d2 < bestD2){ bestD2=d2; best=e; }
+      }
+      if (best){
+        best.hp -= 7;
+        if (hasG('spirit','wispSwarm')) applyHaunt(best, 2.6);
+        addEffect(best.x,best.y,'hit',0.15,'#c066ff');
+      }
+      player._wispCD = 0.55;
+    }
+  }
+
+  // ----- Per-enemy status tick -----
+  function tickEnemyStatuses(e, dt){
+    e.slowMul = 1;
+
+    // Burn DOT + slow from Hot Coals
+    if ((e.burnT||0) > 0){
+      e.burnT -= dt;
+      const dps = 4.2 + 2.4*(e.burnStacks||0);
+      e.hp -= dps*dt;
+      if (isPath('fire') && hasG('fire','hotCoals')){
+        e.slowMul *= (1 - 0.07*(e.burnStacks||0));
+      }
+    } else {
+      e.burnStacks = 0;
+    }
+
+    // Haunt DOT + weaken (touch damage later reads hauntT)
+    if ((e.hauntT||0) > 0){
+      e.hauntT -= dt;
+      e.hp -= 3.2*dt;
+    }
+
+    // Drench slow
+    if ((e.drenchT||0) > 0){
+      e.drenchT -= dt;
+      e.slowMul *= (1 - 0.05*(e.drenchStacks||0));
+    } else {
+      e.drenchStacks = 0;
+    }
+
+    // Bleed DOT (earth jagged)
+    if ((e.bleedT||0) > 0){
+      e.bleedT -= dt;
+      e.hp -= 4.0*dt;
+    }
+
+    // Stun / Freeze hard lock
+    e.stunT = Math.max(0, (e.stunT||0) - dt);
+    e.freezeT = Math.max(0, (e.freezeT||0) - dt);
+    if (e.stunT > 0 || e.freezeT > 0){
+      // stop movement this tick
+      e.vx = 0; e.vy = 0;
+    }
+
+    // Water Chill -> freeze at 3 stacks
+    if (isPath('water') && hasG('water','chill') && (e.drenchStacks||0) >= 3 && e.freezeT <= 0){
+      freeze(e, hasG('water','permafrost') ? 1.15 : 0.8);
+      // Permafrost shatter AOE
+      if (hasG('water','permafrost')){
+        aoeDamage(e.x,e.y, 90, 18, { col:'#9fe3ff' });
+      }
+      e.drenchStacks = 0;
+      e.drenchT = 0;
+    }
+  }
+
+  // ----- On-hit glyph logic (returns damage multiplier) -----
+  function onHitGlyph(e, baseDmg, hitKind){ // hitKind: 'bullet'|'melee'
+    let mult = 1;
+
+    // FIRE core: Ignite
+    if (isPath('fire') && hasG('fire','ignite')){
+      applyBurn(e, 1, 3.6);
+
+      // Searing Shots: burned enemies take more damage
+      if (hasG('fire','searingShots') && (e.burnStacks||0) > 0){
+        mult *= 1.18;
+      }
+
+      // Detonate at 3 stacks
+      if (hasG('fire','detonate') && (e.burnStacks||0) >= 3){
+        aoeDamage(e.x,e.y, 110, 24, { col:'#ff6a2a', burn:true });
+        e.burnStacks = 0; e.burnT = 0;
+      }
+    }
+
+    // LIGHTNING core: Static (mark + discharge on next hit)
+    if (isPath('lightning') && hasG('lightning','static')){
+      if ((e.staticT||0) <= 0){
+        e.staticT = 2.6;
+        e.staticPrimed = true;
+      } else if (e.staticPrimed){
+        // discharge
+        e.staticPrimed = false;
+        e.staticT = 0;
+        const bonus = 14;
+        e.hp -= bonus;
+        addEffect(e.x,e.y,'hit',0.18,'#9fe3ff');
+
+        // Thunderclap ring
+        if (hasG('lightning','thunderclap')){
+          aoeDamage(e.x,e.y, 90, 10, { col:'#9fe3ff', stun:0.25 });
+        }
+
+        // Arc Jump / Forked Arc / Storm Conductor
+        if (hasG('lightning','arcJump') || hasG('lightning','forkedArc') || hasG('lightning','stormConductor')){
+          let jumps = hasG('lightning','stormConductor') ? 12 : (hasG('lightning','forkedArc') ? 2 : 1);
+          let last = e;
+          while (jumps-- > 0){
+            let best=null, bestD2=220*220;
+            for (const o of ents.enemies){
+              if (o === last) continue;
+              const d2 = dist2(last.x,last.y,o.x,o.y);
+              if (d2 < bestD2){ bestD2=d2; best=o; }
+            }
+            if (!best) break;
+            best.hp -= hasG('lightning','forkedArc') ? 7 : 10;
+            addEffect(best.x,best.y,'hit',0.14,'#9fe3ff');
+            last = best;
+          }
+        }
+
+        // Overload (crit stun)
+        if (hasG('lightning','overload')){
+          stun(e, 0.35);
+        }
+      }
+
+      // Charged Rounds (build meter on hits)
+      if (hasG('lightning','chargedRounds')){
+        player._charged = Math.min(1, (player._charged||0) + 0.08);
+        player._lastHitT = performance.now()/1000;
+        mult *= (1 + 0.10*player._charged);
+      }
+    }
+
+    // SPIRIT core: Soul Tap + Haunt / Soul Bind
+    if (isPath('spirit') && hasG('spirit','soulTap')){
+      if (hasG('spirit','haunt')) applyHaunt(e, 3.4);
+
+      if (hasG('spirit','soulBind')){
+        // bind two enemies hit close together
+        const now = performance.now()/1000;
+        if (!player._linkA || (player._linkT||0) <= 0){
+          player._linkA = e;
+          player._linkB = null;
+          player._linkT = 2.4;
+        } else if (!player._linkB && player._linkA !== e){
+          player._linkB = e;
+          player._linkT = 3.0;
+        }
+      }
+    }
+
+    // WATER core: Drench + Ripple push + Ice Shards handled in shoot
+    if (isPath('water') && hasG('water','drench')){
+      applyDrench(e, 1, 4.2);
+      if (hasG('water','rippleShot')){
+        // small knockback away from player
+        const dx = e.x - player.x, dy = e.y - player.y;
+        const d = Math.hypot(dx,dy) || 1;
+        e.x += (dx/d) * 18;
+        e.y += (dy/d) * 18;
+      }
+      if (hasG('water','tidalRenewal')){
+        player._tidalHits = (player._tidalHits||0) + 1;
+        if (player._tidalHits % 10 === 0){
+          player.hp = Math.min(player.hpMax, player.hp + 8);
+          addEffect(player.x,player.y,'pop',0.25,'#9fe3ff');
+        }
+      }
+    }
+
+    // EARTH core: Stone Skin affects incoming damage in hurtPlayer()
+    // Earth on-hit offensive comes from spikes/quake etc elsewhere
+
+    return mult;
+  }
+
+  function onKillGlyph(e){
+    // FIRE: Cauterise + Ashen Finish + Volcanic Core
+    if (isPath('fire')){
+      if (hasG('fire','cauterise') && (e.burnStacks||0) > 0){
+        player.hp = Math.min(player.hpMax, player.hp + 6);
+      }
+      if (hasG('fire','ashenFinish') && (e.burnStacks||0) > 0){
+        spawnEmberSeek(e.x,e.y, 5);
+      }
+      if (hasG('fire','volcanicCore')){
+        player._killCount = (player._killCount||0) + 1;
+        if (player._killCount % 8 === 0){
+          aoeDamage(e.x,e.y, 140, 22, { col:'#ff6a2a', burn:true });
+        }
+      }
+    }
+
+    // SPIRIT: Dread Bloom + Revenant/WraithKing
+    if (isPath('spirit')){
+      if (hasG('spirit','dreadBloom') && (e.hauntT||0) > 0){
+        // slow nearby enemies briefly
+        for (const o of ents.enemies){
+          if (dist2(e.x,e.y,o.x,o.y) < 180*180){
+            o.slowMul = Math.min(o.slowMul, 0.72);
+          }
+        }
+        addEffect(e.x,e.y,'pop',0.25,'#c066ff');
+      }
+      const isBoss = (e.type === 'boss');
+      if ((hasG('spirit','revenant') && Math.random() < 0.22) || (hasG('spirit','wraithKing') && isBoss)){
+        // spawn a “shade strike” effect (simple minion proxy)
+        ents.effects.push({ type:'shade', x:e.x, y:e.y, life:1.2, t:0, col:'#c066ff' });
+      }
+    }
   }
   function broadcastAlertFrom(x, y, radius = 700, time = 3) {
     for (const o of ents.enemies) {
@@ -2610,10 +3045,15 @@ if (btnHomeCustomize){
   function spawnBomb(x,y,a, speed,dmg, splashR=110, fuse=0.75){ ents.ebullets.push({ x,y, vx:Math.cos(a)*speed, vy:Math.sin(a)*speed, r:6, dmg, life:fuse, kind:'bomb', splashR }); }
   function addEffect(x,y,type,life=0.4,color='#9cf'){ ents.effects.push({x,y,type,life,color,t:0,r:6}); }
   function dropPickup(x,y, forcedType=null){
-    const opts=['health','speed','shield','ammo']; 
-    const type = forcedType || opts[rint(0,opts.length-1)]; 
-    ents.pickups.push({x,y,r:10,type,t:0}); 
-  } 
+    const opts=['health','speed','shield','ammo'];
+    const type = forcedType || opts[rint(0,opts.length-1)];
+    ents.pickups.push({x,y,r:10,type,t:0});
+  }
+
+  function dropXpOrb(x, y, value=1){
+    // small white orb; value stored for future scaling
+    ents.pickups.push({ x, y, r:6, type:'xp', t:0, v:value });
+  }
   function openChest(ch, remoteDrops=null){
     if(ch.opened) return;
     ch.opened = true;
@@ -2662,6 +3102,14 @@ if (btnHomeCustomize){
     if (isNetActive()) return;
 
     state.wave = n;
+    
+    // reset per-wave glyph triggers
+    player._rebirthUsed = false;
+    player._unbreakableUsed = false;
+    player._guardianCD = 0;
+    player._tidalHits = 0;
+    player._quakeCD = 0;
+
     state.spawnT = 0;
     state.spawnIdx = 0;
     spawnQueue = [];
@@ -2913,6 +3361,216 @@ if (btnHomeCustomize){
 
     showGameOver();
   }
+  // ===============================
+  // Glyph overlay system (client)
+  // ===============================
+  let _glyphSelected = null;
+  let _glyphCost = 0;
+  let _glyphRAF = 0;
+  const _glyphParticles = [];
+
+  const GLYPH_COST_CORE = 10;
+
+  const GLYPH_DESC = {
+    fire: "Ignite — Your bullets/melee apply Burn (DoT for 3–4s).",
+    lightning: "Static — Your hits apply Static; next hit discharges bonus damage.",
+    spirit: "Soul Tap — Kills drop soul fragments (XP orbs) that also grant small heal/shield later.",
+    water: "Drench — Hits apply Drench; drenched enemies slow slightly and enable water effects.",
+    earth: "Stone Skin — Gain armour (damage reduction) and sturdier defences."
+  };
+
+  const GLYPH_POS = {
+    fire:      { a: -90 },
+    lightning: { a: -18 },
+    water:     { a:  54 },
+    earth:     { a: 126 },
+    spirit:    { a: 198 },
+  };
+
+  function openGlyphOverlay(seconds=15){
+    if (!ovGlyphs || !glyphCanvas || !gctx) return;
+    ovGlyphs.style.display = 'grid';
+    _glyphSelected = null;
+    glyphTitleEl.textContent = '—';
+    glyphDescEl.textContent = 'Select a path to view its core effect. Enchant to confirm.';
+    glyphEnchantBtn.disabled = true;
+    glyphCostEl.textContent = '—';
+
+    if (glyphTimerEl) glyphTimerEl.textContent = String(seconds);
+    if (glyphEssenceEl) glyphEssenceEl.textContent = String(state.essence);
+
+    // start particles
+    _glyphParticles.length = 0;
+    for (let i=0;i<90;i++){
+      _glyphParticles.push({
+        x: 320 + (Math.random()*2-1)*40,
+        y: 320 + (Math.random()*2-1)*40,
+        vx:(Math.random()*2-1)*18,
+        vy:(Math.random()*2-1)*18,
+        a: 0.25 + Math.random()*0.35,
+        r: 1 + Math.random()*2.2
+      });
+    }
+
+    glyphCanvas.onclick = onGlyphClick;
+    glyphEnchantBtn.onclick = onGlyphEnchant;
+
+    cancelAnimationFrame(_glyphRAF);
+    _glyphRAF = requestAnimationFrame(drawGlyphOverlay);
+  }
+
+  function closeGlyphOverlay(){
+    if (ovGlyphs) ovGlyphs.style.display = 'none';
+    glyphCanvas && (glyphCanvas.onclick = null);
+    glyphEnchantBtn && (glyphEnchantBtn.onclick = null);
+    cancelAnimationFrame(_glyphRAF);
+  }
+
+  function onGlyphClick(ev){
+    const rect = glyphCanvas.getBoundingClientRect();
+    const mx = (ev.clientX - rect.left) * (glyphCanvas.width / rect.width);
+    const my = (ev.clientY - rect.top)  * (glyphCanvas.height / rect.height);
+
+    // check each glyph hit
+    const cx = 320, cy = 320, R = 210;
+    for (const k of Object.keys(GLYPH_POS)){
+      const ang = GLYPH_POS[k].a * Math.PI/180;
+      const gx = cx + Math.cos(ang)*R;
+      const gy = cy + Math.sin(ang)*R;
+      if (Math.hypot(mx-gx, my-gy) <= 70){
+        _glyphSelected = k;
+        _glyphCost = GLYPH_COST_CORE;
+
+        glyphTitleEl.textContent = k.toUpperCase();
+        glyphDescEl.textContent = GLYPH_DESC[k] || '—';
+        glyphCostEl.textContent = String(_glyphCost);
+
+        glyphEnchantBtn.disabled = (state.essence < _glyphCost);
+        return;
+      }
+    }
+  }
+
+  function onGlyphEnchant(){
+    if (!_glyphSelected) return;
+    if (state.essence < _glyphCost) return;
+
+    state.essence -= _glyphCost;
+    state.path = _glyphSelected;
+    state.tier = Math.max(state.tier, 1);
+
+    if (glyphEssenceEl) glyphEssenceEl.textContent = String(state.essence);
+
+    // lock visuals
+    glyphEnchantBtn.disabled = true;
+    glyphTitleEl.textContent = `${_glyphSelected.toUpperCase()} ENCHANTED`;
+    glyphDescEl.textContent = "Core glyph unlocked. Effects apply next wave.";
+
+    // fade out after a short flourish (client side)
+    setTimeout(() => {
+      closeGlyphOverlay();
+    }, 450);
+  }
+
+  function drawGlyphOverlay(tMs){
+    if (!ovGlyphs || ovGlyphs.style.display !== 'grid') return;
+
+    const t = performance.now()/1000;
+    const W = glyphCanvas.width, H = glyphCanvas.height;
+    gctx.clearRect(0,0,W,H);
+
+    // centre “ancient core”
+    const cx=320, cy=320;
+    const pulse = 0.5 + 0.5*Math.sin(t*1.4);
+    const coreR = 58 + pulse*5;
+
+    // particles
+    for (const p of _glyphParticles){
+      p.x += p.vx*(1/60);
+      p.y += p.vy*(1/60);
+      const dx = p.x - cx, dy = p.y - cy;
+      const d = Math.hypot(dx,dy) || 1;
+      // gently orbit inward
+      p.vx += (-dy/d)*0.12;
+      p.vy += ( dx/d)*0.12;
+      p.vx *= 0.99; p.vy *= 0.99;
+
+      gctx.globalAlpha = p.a;
+      gctx.fillStyle = `rgba(180,220,255,${p.a})`;
+      gctx.beginPath();
+      gctx.arc(p.x, p.y, p.r, 0, Math.PI*2);
+      gctx.fill();
+    }
+    gctx.globalAlpha = 1;
+
+    // core disc
+    const rg = gctx.createRadialGradient(cx,cy,10,cx,cy,coreR*1.4);
+    rg.addColorStop(0, `rgba(255,255,255,${0.22+0.18*pulse})`);
+    rg.addColorStop(0.6, `rgba(140,200,255,${0.10+0.08*pulse})`);
+    rg.addColorStop(1, 'rgba(0,0,0,0)');
+    gctx.fillStyle = rg;
+    gctx.beginPath();
+    gctx.arc(cx,cy,coreR*1.4,0,Math.PI*2);
+    gctx.fill();
+
+    // oath lines
+    gctx.lineWidth = 6;
+    gctx.globalAlpha = 0.18;
+    gctx.strokeStyle = 'rgba(200,230,255,0.55)';
+    for (const k of Object.keys(GLYPH_POS)){
+      const ang = GLYPH_POS[k].a*Math.PI/180;
+      const gx = cx + Math.cos(ang)*210;
+      const gy = cy + Math.sin(ang)*210;
+      gctx.beginPath();
+      gctx.moveTo(cx,cy);
+      gctx.lineTo(gx,gy);
+      gctx.stroke();
+    }
+    gctx.globalAlpha = 1;
+
+    // draw pentagon glyphs
+    for (const k of Object.keys(GLYPH_POS)){
+      const ang = GLYPH_POS[k].a*Math.PI/180;
+      const gx = cx + Math.cos(ang)*210;
+      const gy = cy + Math.sin(ang)*210;
+
+      const img = GlyphImages[k][0]; // tier 1
+      const sel = (_glyphSelected === k);
+
+      // glow
+      const glow = 0.18 + (sel?0.22:0) + 0.06*Math.sin(t*2.0 + ang);
+      gctx.save();
+      gctx.globalAlpha = glow;
+      gctx.fillStyle = 'rgba(180,220,255,0.65)';
+      gctx.beginPath();
+      gctx.arc(gx,gy,70,0,Math.PI*2);
+      gctx.fill();
+      gctx.restore();
+
+      // sprite
+      gctx.save();
+      const s = sel ? 1.06 : 1.0;
+      gctx.translate(gx,gy);
+      gctx.scale(s,s);
+      gctx.globalAlpha = (state.path && state.path !== k) ? 0.28 : 1.0;
+      gctx.drawImage(img, -64, -64, 128, 128);
+      gctx.restore();
+
+      // selection ring
+      if (sel){
+        gctx.save();
+        gctx.lineWidth = 5;
+        gctx.strokeStyle = 'rgba(255,255,255,0.9)';
+        gctx.beginPath();
+        gctx.arc(gx,gy,74,0,Math.PI*2);
+        gctx.stroke();
+        gctx.restore();
+      }
+    }
+
+    _glyphRAF = requestAnimationFrame(drawGlyphOverlay);
+  }
+
   ovPause.querySelector('h2').textContent = '⏸️ Paused'; 
   if(on) audio.stopMusic(); else if(audio.musicOn) audio.startMusic(); }
   function goHome(){
@@ -3596,7 +4254,17 @@ window.addEventListener('net:snapshot', (ev) => {
             Net.sendHit('enemy', e.x, e.y, DMG, 'melee');
           } else {
             // offline damage
-            e.hp -= DMG;
+            
+            // offline damage (glyph-aware)
+            const mult = onHitGlyph(e, DMG, 'melee');
+            e.hp -= DMG * mult;
+
+            // Soul Bind copy damage
+            if (isPath('spirit') && hasG('spirit','soulBind') && player._linkA && player._linkB && player._linkT > 0){
+              const other = (player._linkA === e) ? player._linkB : (player._linkB === e ? player._linkA : null);
+              if (other && other !== e) other.hp -= DMG * mult * 0.35;
+            }
+
 
             // ✅ track melee kill owner
             e.lastHitBy = 'local';
@@ -3632,8 +4300,24 @@ window.addEventListener('net:snapshot', (ev) => {
       }
 
       if ((state.spawnIdx ?? 0) >= spawnQueue.length && ents.enemies.length === 0) {
-        state.nextWaveT -= dt;
-        if (state.nextWaveT <= 0) {
+
+        // enter glyph phase once per wave end
+        if (state.phase !== 'glyph') {
+          state.phase = 'glyph';
+          state.phaseEndsAt = performance.now() + 15000;
+          openGlyphOverlay(15);
+        }
+
+        // countdown
+        const remaining = Math.max(0, state.phaseEndsAt - performance.now());
+        if (glyphTimerEl) glyphTimerEl.textContent = String(Math.ceil(remaining/1000));
+        if (glyphEssenceEl) glyphEssenceEl.textContent = String(state.essence);
+
+        // when timer ends -> resume
+        if (remaining <= 0) {
+          closeGlyphOverlay();
+          state.phase = 'combat';
+
           startWave(state.wave + 1);
           maybeUpdateBestWave(state.wave);
           respawnCollectedChests();
@@ -3708,6 +4392,7 @@ window.addEventListener('net:snapshot', (ev) => {
           }
         }
 
+        tickEnemyStatuses(e, dt);
         // Death & loot
         if (e.hp <= 0) {
           const typeKey = (e.type === 'chaser' || e.type === 'swarm')
@@ -3725,7 +4410,15 @@ window.addEventListener('net:snapshot', (ev) => {
           // award points
           pveLeaderboard[killer] += pts;
 
-          if (Math.random() < 0.15 || e.type === 'boss') dropPickup(e.x, e.y);
+          // XP orb always drops (value by enemy type)
+          const XP_VAL = (e.type === 'boss') ? 8 :
+                        (e.type === 'bomber') ? 4 :
+                        (e.type === 'healer') ? 3 :
+                        (e.type === 'tank' || e.type === 'shooter' || e.type === 'sniper') ? 2 : 1;
+          dropXpOrb(e.x, e.y, XP_VAL);
+
+          // (optional) still allow classic loot sometimes:
+          if (Math.random() < 0.10 || e.type === 'boss') dropPickup(e.x, e.y);
 
           const baseCol = sampleSpriteColor(e.type);
           spawnTriangleBurst(e.x, e.y, baseCol, { big:6, small:22 });
@@ -3739,7 +4432,17 @@ window.addEventListener('net:snapshot', (ev) => {
     }
 
     for (let i = ents.bullets.length - 1; i >= 0; i--){ const b = ents.bullets[i]; const kill = lineWallHit(b.x, b.y, b.vx, b.vy, dt, b.r); b.x += b.vx * dt; b.y += b.vy * dt; b.life -= dt; if (kill || b.life <= 0){ ents.bullets.splice(i,1); continue; } let hit = -1; for (let j = 0; j < ents.enemies.length; j++){ const e = ents.enemies[j]; const r = e.r + b.r; if (dist2(b.x,b.y,e.x,e.y) < r*r){ hit = j; break; } } if (hit >= 0){ const e = ents.enemies[hit] 
-      e.hp -= b.dmg * (1 + state.wave * 0.02);
+      
+      const base = b.dmg * (1 + state.wave * 0.02);
+      const mult = onHitGlyph(e, base, 'bullet');
+      e.hp -= base * mult;
+
+      // Soul Bind copy damage
+      if (isPath('spirit') && hasG('spirit','soulBind') && player._linkA && player._linkB && player._linkT > 0){
+        const other = (player._linkA === e) ? player._linkB : (player._linkB === e ? player._linkA : null);
+        if (other && other !== e) other.hp -= base * mult * 0.35;
+      }
+
 
       // ✅ track last hitter for PvE leaderboard
       e.lastHitBy = 'local';
@@ -3747,7 +4450,42 @@ window.addEventListener('net:snapshot', (ev) => {
 
     for (let i = ents.ebullets.length - 1; i >= 0; i--){ const b = ents.ebullets[i]; b.x += b.vx * dt; b.y += b.vy * dt; b.life -= dt; if (b.kind === 'bomb'){ const hitWall = lineWallHit(b.x, b.y, b.vx, b.vy, 0, b.r); const timeUp=(b.life<=0); if (hitWall || timeUp){ const R=(b.splashR||110)+player.r; if(dist2(b.x,b.y,player.x,player.y) < R*R){ hurtPlayer(b.dmg); addEffect(b.x,b.y,'hit',0.12,'#ffd7d7'); } addEffect(b.x,b.y,'pop',0.55,'#ffb38a'); cam.shake=Math.max(cam.shake,5); ents.ebullets.splice(i, 1); continue; } continue; } if (lineWallHit(b.x,b.y,b.vy,b.vx,0,b.r) || b.life <= 0){ ents.ebullets.splice(i,1); continue; } const r = player.r + b.r; if (dist2(b.x,b.y,player.x,player.y) < r*r){ if (currentTheme.id === 3) player.slowT = Math.max(player.slowT, 1.6); hurtPlayer(b.dmg); addEffect(b.x,b.y,'hit',0.1,'#ffd7d7'); ents.ebullets.splice(i,1); } }
 
-    for (let i = ents.pickups.length - 1; i >= 0; i--){ const p = ents.pickups[i]; p.t += dt; const r = player.r + p.r; if (dist2(p.x,p.y,player.x,player.y) < r*r){ switch(p.type){ case 'health': player.hp = Math.min(player.hpMax, player.hp + 35); break; case 'speed': player.spdMul = clamp(player.spdMul + 0.15, 1, 1.7); break; case 'shield': player.shield = clamp(player.shield + 35, 0, 120); break; case 'ammo': player.reserve += 24; break; } addEffect(p.x,p.y,'pop',0.4,'#aef'); audio.pickup(); ents.pickups.splice(i,1);} }
+    for (let i = ents.pickups.length - 1; i >= 0; i--){
+      const p = ents.pickups[i];
+      p.t += dt;
+
+      // ===== XP orb magnet =====
+      if (p.type === 'xp') {
+        const MAGNET_R = 260;
+        const dx = player.x - p.x;
+        const dy = player.y - p.y;
+        const d = Math.hypot(dx, dy) || 1;
+        if (d < MAGNET_R) {
+          const pull = (1 - d / MAGNET_R);
+          const sp = 520 + pull * 680; // px/s
+          p.x += (dx / d) * sp * dt;
+          p.y += (dy / d) * sp * dt;
+        }
+      }
+
+      // collect check
+      const r = player.r + p.r;
+      if (dist2(p.x,p.y,player.x,player.y) < r*r){
+        switch(p.type){
+          case 'health': player.hp = Math.min(player.hpMax, player.hp + 35); break;
+          case 'speed':  player.spdMul = clamp(player.spdMul + 0.15, 1, 1.7); break;
+          case 'shield': player.shield = clamp(player.shield + 35, 0, 120); break;
+          case 'ammo':   player.reserve += 24; break;
+
+          case 'xp':
+            state.essence += (p.v ?? 1);
+            break;
+        }
+        addEffect(p.x,p.y,'pop',0.4,'#aef');
+        audio.pickup();
+        ents.pickups.splice(i,1);
+      }
+    }
 
     for (const ch of world.chests){
       if (!ch || ch.opened) continue;
@@ -4023,11 +4761,12 @@ window.addEventListener('net:snapshot', (ev) => {
       }
 
       // ✅ Normal pickups
-      const t = (Math.sin((p.t ?? 0) * 6) + 1) / 2;
       const col =
+        p.type === 'xp'     ? '#ffffff' :
         p.type === 'health' ? '#7dffa3' :
         p.type === 'speed'  ? '#9cf' :
-        p.type === 'shield' ? '#7af' : '#ffd166';
+        p.type === 'shield' ? '#7af'   : '#ffd166';
+      
 
       ctx.fillStyle = col;
       ctx.strokeStyle = '#fff2';
@@ -4036,7 +4775,7 @@ window.addEventListener('net:snapshot', (ev) => {
       ctx.arc(
         p.x - cam.x - cam.sx,
         p.y - cam.y - cam.sy,
-        p.r + t * 2,
+        (p.type === 'xp' ? 6 : p.r) + t * (p.type === 'xp' ? 1.2 : 2),
         0,
         Math.PI * 2
       );
@@ -5061,7 +5800,53 @@ window.addEventListener('net:snapshot', (ev) => {
     return { done: true, killed: true };
   }
   
-  function hurtPlayer(dmg){ let left=dmg; if(player.shield>0){ const used=Math.min(player.shield, left*0.8); player.shield-=used; left-=used; } player.hp-=left; cam.shake=Math.max(cam.shake,6); audio.hurt(); if(player.hp<0) player.hp=0; }
+  function hurtPlayer(dmg){
+    let left = dmg;
+
+    // Earth Stone Skin: armour DR
+    if (isPath('earth') && hasG('earth','stoneSkin')){
+      const armour = 0.16 + (hasG('earth','rootedStance') && (Math.hypot(player.vx||0, player.vy||0) < 20) ? 0.10 : 0);
+      left *= (1 - armour);
+    }
+
+    // Shield absorbs first
+    if(player.shield>0){
+      const used = Math.min(player.shield, left*0.8);
+      player.shield -= used;
+      left -= used;
+    }
+
+    // Earth Unbreakable / Fire Rebirth: intercept lethal once per wave
+    const wouldDie = (player.hp - left) <= 0;
+
+    if (wouldDie){
+      if (isPath('earth') && hasG('earth','unbreakable') && !player._unbreakableUsed){
+        player._unbreakableUsed = true;
+        player.hp = 35;
+        aoeDamage(player.x, player.y, 120, 16, { col:'#7dffa3', stun:0.25 });
+        addEffect(player.x,player.y,'pop',0.35,'#7dffa3');
+        cam.shake = Math.max(cam.shake, 8);
+        audio.hurt();
+        return;
+      }
+
+      if (isPath('fire') && hasG('fire','rebirth') && !player._rebirthUsed){
+        player._rebirthUsed = true;
+        player.hp = 40;
+        // consume burn in a radius as burst
+        aoeDamage(player.x, player.y, 150, 22, { col:'#ff6a2a', burn:true });
+        addEffect(player.x,player.y,'pop',0.35,'#ff6a2a');
+        cam.shake = Math.max(cam.shake, 9);
+        audio.hurt();
+        return;
+      }
+    }
+
+    player.hp -= left;
+    cam.shake = Math.max(cam.shake, 6);
+    audio.hurt();
+    if (player.hp < 0) player.hp = 0;
+  }
   function showGameOver(){ ovPause.style.display='grid'; ovPause.querySelector('h2').textContent='💀 Game Over'; }
 
   window.addEventListener('pointerdown', ()=>{ try{audio.ctx?.resume?.();}catch(e){} if(audio.musicOn) audio.startMusic(); }, {once:true});
@@ -5123,12 +5908,43 @@ window.__dbg = {
 };
 
 // ✅ PRELOAD ALL VISUAL ASSETS IMMEDIATELY
+// ===== Glyph sprite preload =====
+const GlyphImages = {
+  fire: [new Image(), new Image(), new Image()],
+  lightning: [new Image(), new Image(), new Image()],
+  water: [new Image(), new Image(), new Image()],
+  earth: [new Image(), new Image(), new Image()],
+  spirit: [new Image(), new Image(), new Image()],
+};
+
+function loadGlyphImages() {
+  const tasks = [];
+  const set3 = (k, base) => {
+    const arr = GlyphImages[k];
+    for (let i = 0; i < 3; i++) {
+      tasks.push(new Promise(res => {
+        arr[i].onload = () => res();
+        arr[i].onerror = () => res(); // don't crash if missing
+        arr[i].src = `assets/glyphs/${base}/${base}${i+1}.png`;
+      }));
+    }
+  };
+  set3('fire', 'fire');
+  set3('lightning', 'lightning');
+  set3('water', 'water');
+  set3('earth', 'earth');
+  set3('spirit', 'spirit');
+  return Promise.all(tasks);
+}
+
+// ✅ PRELOAD ALL VISUAL ASSETS IMMEDIATELY
 (async () => {
   try {
-    await loadImages();        // monsters
-    await loadGunImages();     // guns
-    await Melee.loadAll();     // melee
-    console.log('[ASSETS] All sprites preloaded');
+    await loadImages();      // monsters
+    await loadGunImages();   // guns
+    await Melee.loadAll();   // melee
+    await loadGlyphImages(); // glyphs
+    console.log('[ASSETS] All sprites preloaded (monsters/guns/melee/glyphs)');
   } catch (e) {
     console.warn('[ASSETS] preload failed', e);
   }
