@@ -4651,7 +4651,7 @@ window.addEventListener('net:snapshot', (ev) => {
       if ((state.spawnIdx ?? 0) >= spawnQueue.length && ents.enemies.length === 0) {
 
         // enter glyph phase once per wave end
-        if (state.phase !== 'glyph' || state.phaseEndsAt <= performance.now()) {
+        if (state.phase !== 'glyph') {
           state.phase = 'glyph';
           state.phaseEndsAt = performance.now() + 15000;
           openGlyphOverlay(15);
@@ -4665,7 +4665,9 @@ window.addEventListener('net:snapshot', (ev) => {
         // when timer ends -> resume
         if (remaining <= 0 && _uiMode !== 'ceremony') {
           closeGlyphOverlay();
+
           state.phase = 'combat';
+          state.phaseEndsAt = 0;
 
           startWave(state.wave + 1);
           maybeUpdateBestWave(state.wave);
