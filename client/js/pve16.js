@@ -1285,6 +1285,7 @@ const gctx = glyphCanvas ? glyphCanvas.getContext('2d') : null;
 
     // Optional: F can also trigger a melee swing (only when melee is equipped)
     if (e.key.toLowerCase()==='f'){
+      if (ovGlyphs && ovGlyphs.style.display === 'grid') return;
       if (equip === 'melee') {
         Melee.use(melee);
         if (isNetActive()) {
@@ -1293,7 +1294,7 @@ const gctx = glyphCanvas ? glyphCanvas.getContext('2d') : null;
       }
     }
     if(e.key.toLowerCase()==='r') playerTryReload();
-    if(e.key===' ') playerDash();
+    if(e.key===' ' && !(ovGlyphs && ovGlyphs.style.display==='grid')) playerDash();
   
   // Quick skin cycle for current weapon (Z/X)
   if(e.key.toLowerCase()==='z'){ const w = weapons[player.weapon].kind; cycleGunIndex(w, -1); }
@@ -1716,8 +1717,10 @@ const gctx = glyphCanvas ? glyphCanvas.getContext('2d') : null;
       spirit: {},
       water: {},
       earth: {}
-    }
+    },
+    completed: { fire:false, lightning:false, spirit:false, water:false, earth:false }
   };
+  
   // ✅ PvE leaderboard (playerId → points)
 
 
@@ -3397,37 +3400,388 @@ if (btnHomeCustomize){
     spirit:    { a: 198 },
   };
 
-  function openGlyphOverlay(seconds=15){
-    if (!ovGlyphs || !glyphCanvas || !gctx) return;
+  // ---- Glyph UI mode ----
+let _uiMode = 'pentagon';     // 'pentagon' | 'tree'
+let _branchSelected = -1;     // 0..2 when tree mode
 
-    ovGlyphs.style.display = 'grid';
-    _glyphSelected = null;
+const BRANCH_COST = 8;
 
-    glyphTitleEl.textContent = '—';
-    glyphDescEl.textContent = 'Select a path to view its core effect. Enchant to confirm.';
-    glyphEnchantBtn.disabled = true;
-    glyphCostEl.textContent = '—';
+// Ensure unlock arrays exist
+function ensureBranchState(el){
+  if (!state.unlocks[el]) state.unlocks[el] = {};
+  if (!Array.isArray(state.unlocks[el].branches)) {
+    state.unlocks[el].branches = [false, false, false];
+  }
+  return state.unlocks[el].branches;
+}
+function isPathComplete(el){
+  const b = ensureBranchState(el);
+  return b[0] && b[1] && b[2];
+}
 
-    if (glyphTimerEl) glyphTimerEl.textContent = String(seconds);
+// Decide which UI to open into
+function openGlyphOverlay(seconds=15){
+  if (!ovGlyphs || !glyphCanvas || !gctx) return;
+
+  ovGlyphs.style.display = 'grid';
+
+  // If we are in the middle of filling a path, go straight to its tree view
+  if (state.path && !state.completed[state.path]) {
+    _uiMode = 'tree';
+  } else {
+    _uiMode = 'pentagon';
+  }
+
+  _glyphSelected = null;
+  _branchSelected = -1;
+  _glyphCost = 0;
+
+  glyphTitleEl.textContent = '—';
+  glyphDescEl.textContent = 'Select a path. Enchant to confirm.';
+  glyphEnchantBtn.disabled = true;
+  glyphCostEl.textContent = '—';
+
+  if (glyphTimerEl) glyphTimerEl.textContent = String(seconds);
+  if (glyphEssenceEl) glyphEssenceEl.textContent = String(state.essence);
+
+  // start particles
+  _glyphParticles.length = 0;
+  for (let i=0;i<90;i++){
+    _glyphParticles.push({
+      x: 320 + (Math.random()*2-1)*40,
+      y: 320 + (Math.random()*2-1)*40,
+      vx:(Math.random()*2-1)*18,
+      vy:(Math.random()*2-1)*18,
+      a: 0.25 + Math.random()*0.35,
+      r: 1 + Math.random()*2.2
+    });
+  }
+
+  glyphCanvas.onclick = onGlyphClick;
+  glyphEnchantBtn.onclick = onGlyphEnchant;
+
+  cancelAnimationFrame(_glyphRAF);
+  _glyphRAF = requestAnimationFrame(drawGlyphOverlay);
+}
+
+function closeGlyphOverlay(){
+  if (ovGlyphs) ovGlyphs.style.display = 'none';
+  glyphCanvas && (glyphCanvas.onclick = null);
+  glyphEnchantBtn && (glyphEnchantBtn.onclick = null);
+  cancelAnimationFrame(_glyphRAF);
+}
+
+function onGlyphClick(ev){
+  const rect = glyphCanvas.getBoundingClientRect();
+  const mx = (ev.clientX - rect.left) * (glyphCanvas.width / rect.width);
+  const my = (ev.clientY - rect.top)  * (glyphCanvas.height / rect.height);
+
+  const cx = 320, cy = 320;
+
+  // =========================
+  // TREE MODE: choose branch
+  // =========================
+  if (_uiMode === 'tree') {
+    const el = state.path;
+    if (!el) return;
+
+    // branch nodes positions
+    const BR = 190;
+    const branchAngles = [-90, 30, 150];
+
+    for (let i=0;i<3;i++){
+      const ang = branchAngles[i] * Math.PI/180;
+      const bx = cx + Math.cos(ang) * BR;
+      const by = cy + Math.sin(ang) * BR;
+
+      if (Math.hypot(mx-bx, my-by) <= 60) {
+        _branchSelected = i;
+        _glyphCost = BRANCH_COST;
+
+        glyphTitleEl.textContent = `${el.toUpperCase()} — BRANCH ${i+1}`;
+        glyphDescEl.textContent = `Enchant this branch to progress ${el}.`;
+        glyphCostEl.textContent = String(_glyphCost);
+
+        glyphEnchantBtn.disabled = (state.essence < _glyphCost);
+        return;
+      }
+    }
+    return;
+  }
+
+  // =========================
+  // PENTAGON MODE: choose element
+  // =========================
+  const R = 210;
+
+  for (const k of Object.keys(GLYPH_POS)){
+    // Completed element is greyed and not selectable
+    if (state.completed[k]) continue;
+
+    const ang = GLYPH_POS[k].a * Math.PI/180;
+    const gx = cx + Math.cos(ang)*R;
+    const gy = cy + Math.sin(ang)*R;
+
+    if (Math.hypot(mx-gx, my-gy) <= 70){
+      _glyphSelected = k;
+      _glyphCost = GLYPH_COST_CORE;
+
+      glyphTitleEl.textContent = k.toUpperCase();
+      glyphDescEl.textContent = GLYPH_DESC[k] || '—';
+      glyphCostEl.textContent = String(_glyphCost);
+
+      glyphEnchantBtn.disabled = (state.essence < _glyphCost);
+      return;
+    }
+  }
+}
+
+function onGlyphEnchant(){
+  // =========================
+  // TREE MODE: enchant branch
+  // =========================
+  if (_uiMode === 'tree') {
+    const el = state.path;
+    if (!el) return;
+    if (_branchSelected < 0) return;
+    if (state.essence < BRANCH_COST) return;
+
+    state.essence -= BRANCH_COST;
     if (glyphEssenceEl) glyphEssenceEl.textContent = String(state.essence);
 
-    // start particles
-    _glyphParticles.length = 0;
-    for (let i=0;i<90;i++){
-      _glyphParticles.push({
-        x: 320 + (Math.random()*2-1)*40,
-        y: 320 + (Math.random()*2-1)*40,
-        vx:(Math.random()*2-1)*18,
-        vy:(Math.random()*2-1)*18,
-        a: 0.25 + Math.random()*0.35,
-        r: 1 + Math.random()*2.2
-      });
+    const branches = ensureBranchState(el);
+    branches[_branchSelected] = true;
+
+    // if fully filled, mark completed and return to pentagon next time
+    if (isPathComplete(el)) {
+      state.completed[el] = true;
+      state.path = null; // release lock
+      _uiMode = 'pentagon';
+
+      glyphTitleEl.textContent = `${el.toUpperCase()} COMPLETED`;
+      glyphDescEl.textContent = "Path filled. Next upgrade lets you pick another element.";
+      glyphEnchantBtn.disabled = true;
+      glyphCostEl.textContent = '—';
+      _branchSelected = -1;
+      return;
     }
 
-    glyphCanvas.onclick = onGlyphClick;
-    glyphEnchantBtn.onclick = onGlyphEnchant;
+    // stay in tree mode until complete
+    glyphTitleEl.textContent = `${el.toUpperCase()} PROGRESS`;
+    glyphDescEl.textContent = "Pick another branch to continue filling this path.";
+    glyphEnchantBtn.disabled = true;
+    glyphCostEl.textContent = '—';
+    _branchSelected = -1;
+    return;
+  }
 
-    cancelAnimationFrame(_glyphRAF);
+  // =========================
+  // PENTAGON MODE: enchant element
+  // =========================
+  if (!_glyphSelected) return;
+  if (state.essence < _glyphCost) return;
+
+  state.essence -= _glyphCost;
+  state.path = _glyphSelected;          // lock this element until complete
+  state.tier = Math.max(state.tier, 1);
+
+  // link to gameplay path
+  player.glyphPath = state.path;
+  player.glyphTier = state.tier;
+
+  ensureBranchState(state.path);
+
+  if (glyphEssenceEl) glyphEssenceEl.textContent = String(state.essence);
+
+  // switch to tree mode (everything else disappears)
+  _uiMode = 'tree';
+  _glyphSelected = null;
+
+  glyphTitleEl.textContent = `${state.path.toUpperCase()} — CHOSEN`;
+  glyphDescEl.textContent = "Now fill all 3 branches. Other elements are locked out.";
+  glyphEnchantBtn.disabled = true;
+  glyphCostEl.textContent = '—';
+}
+
+function drawGlyphOverlay(){
+  if (!ovGlyphs || ovGlyphs.style.display !== 'grid') return;
+
+  const time = performance.now()/1000;
+  const W = glyphCanvas.width, H = glyphCanvas.height;
+  gctx.clearRect(0,0,W,H);
+
+  const cx=320, cy=320;
+  const pulse = 0.5 + 0.5*Math.sin(time*1.4);
+  const coreR = 58 + pulse*5;
+
+  // particles
+  for (const p of _glyphParticles){
+    p.x += p.vx*(1/60);
+    p.y += p.vy*(1/60);
+    const dx = p.x - cx, dy = p.y - cy;
+    const d = Math.hypot(dx,dy) || 1;
+    p.vx += (-dy/d)*0.12;
+    p.vy += ( dx/d)*0.12;
+    p.vx *= 0.99; p.vy *= 0.99;
+
+    gctx.globalAlpha = p.a;
+    gctx.fillStyle = `rgba(180,220,255,${p.a})`;
+    gctx.beginPath();
+    gctx.arc(p.x, p.y, p.r, 0, Math.PI*2);
+    gctx.fill();
+  }
+  gctx.globalAlpha = 1;
+
+  // centre core glow
+  const rg = gctx.createRadialGradient(cx,cy,10,cx,cy,coreR*1.4);
+  rg.addColorStop(0, `rgba(255,255,255,${0.22+0.18*pulse})`);
+  rg.addColorStop(0.6, `rgba(140,200,255,${0.10+0.08*pulse})`);
+  rg.addColorStop(1, 'rgba(0,0,0,0)');
+  gctx.fillStyle = rg;
+  gctx.beginPath();
+  gctx.arc(cx,cy,coreR*1.4,0,Math.PI*2);
+  gctx.fill();
+
+  // =========================
+  // TREE MODE DRAW
+  // =========================
+  if (_uiMode === 'tree' && state.path) {
+    const el = state.path;
+    const branches = ensureBranchState(el);
+
+    // chosen glyph in centre
+    const centreImg = GlyphImages[el][0];
+    gctx.save();
+    gctx.globalAlpha = 1;
+    gctx.drawImage(centreImg, cx-72, cy-72, 144, 144);
+    gctx.restore();
+
+    // branch nodes
+    const BR = 190;
+    const branchAngles = [-90, 30, 150];
+    for (let i=0;i<3;i++){
+      const ang = branchAngles[i]*Math.PI/180;
+      const bx = cx + Math.cos(ang)*BR;
+      const by = cy + Math.sin(ang)*BR;
+
+      // line
+      gctx.save();
+      gctx.globalAlpha = 0.22;
+      gctx.strokeStyle = 'rgba(200,230,255,0.6)';
+      gctx.lineWidth = 6;
+      gctx.beginPath();
+      gctx.moveTo(cx,cy);
+      gctx.lineTo(bx,by);
+      gctx.stroke();
+      gctx.restore();
+
+      // branch glyph sprite (use 1..3 assets)
+      const img = GlyphImages[el][i]; // 0..2
+      gctx.save();
+      gctx.globalAlpha = branches[i] ? 1.0 : 0.55;
+      gctx.drawImage(img, bx-56, by-56, 112, 112);
+
+      // ring highlight if selected
+      if (_branchSelected === i){
+        gctx.strokeStyle = 'rgba(255,255,255,0.9)';
+        gctx.lineWidth = 5;
+        gctx.beginPath();
+        gctx.arc(bx,by,64,0,Math.PI*2);
+        gctx.stroke();
+      }
+
+      // tick mark if done
+      if (branches[i]){
+        gctx.fillStyle = 'rgba(255,255,255,0.85)';
+        gctx.beginPath();
+        gctx.arc(bx+38, by-38, 10, 0, Math.PI*2);
+        gctx.fill();
+      }
+
+      gctx.restore();
+    }
+
+    // show tier-2 “ahead” once all 3 branches complete (visual unlock)
+    if (isPathComplete(el)) {
+      const tx = cx, ty = cy - 240;
+      gctx.save();
+      gctx.globalAlpha = 0.95;
+      gctx.drawImage(GlyphImages[el][0], tx-62, ty-62, 124, 124);
+      gctx.strokeStyle = 'rgba(255,255,255,0.8)';
+      gctx.lineWidth = 5;
+      gctx.beginPath();
+      gctx.arc(tx,ty,70,0,Math.PI*2);
+      gctx.stroke();
+      gctx.restore();
+    }
+
+    _glyphRAF = requestAnimationFrame(drawGlyphOverlay);
+      return;
+    }
+
+    // =========================
+    // PENTAGON MODE DRAW
+    // =========================
+    const R = 210;
+
+    // oath lines 
+    gctx.lineWidth = 6;
+    gctx.globalAlpha = 0.18;
+    gctx.strokeStyle = 'rgba(200,230,255,0.55)';
+    for (const k of Object.keys(GLYPH_POS)){
+      const ang = GLYPH_POS[k].a*Math.PI/180;
+      const gx = cx + Math.cos(ang)*R;
+      const gy = cy + Math.sin(ang)*R;
+      gctx.beginPath();
+      gctx.moveTo(cx,cy);
+      gctx.lineTo(gx,gy);
+      gctx.stroke();
+    }
+    gctx.globalAlpha = 1;
+
+    for (const k of Object.keys(GLYPH_POS)){
+      const ang = GLYPH_POS[k].a*Math.PI/180;
+      const gx = cx + Math.cos(ang)*R;
+      const gy = cy + Math.sin(ang)*R;
+
+      const img = GlyphImages[k][0];
+      const sel = (_glyphSelected === k);
+
+      const isDone = !!state.completed[k];
+
+      // glow
+      const glow = 0.18 + (sel?0.22:0) + 0.06*Math.sin(time*2.0 + ang);
+      gctx.save();
+      gctx.globalAlpha = isDone ? 0.08 : glow;
+      gctx.fillStyle = 'rgba(180,220,255,0.65)';
+      gctx.beginPath();
+      gctx.arc(gx,gy,70,0,Math.PI*2);
+      gctx.fill();
+      gctx.restore();
+
+      // sprite
+      gctx.save();
+      const s = sel ? 1.06 : 1.0;
+      gctx.translate(gx,gy);
+      gctx.scale(s,s);
+
+      // completed element greyed; others normal
+      gctx.globalAlpha = isDone ? 0.18 : 1.0;
+      gctx.drawImage(img, -64, -64, 128, 128);
+      gctx.restore();
+
+      // selection ring
+      if (sel && !isDone){
+        gctx.save();
+        gctx.lineWidth = 5;
+        gctx.strokeStyle = 'rgba(255,255,255,0.9)';
+        gctx.beginPath();
+        gctx.arc(gx,gy,74,0,Math.PI*2);
+        gctx.stroke();
+        gctx.restore();
+      }
+    }
+
     _glyphRAF = requestAnimationFrame(drawGlyphOverlay);
   }
 
@@ -4156,7 +4510,13 @@ window.addEventListener('net:snapshot', (ev) => {
     for (let i = noiseEvents.length - 1; i >= 0; i--){ noiseEvents[i].t -= dt; if (noiseEvents[i].t <= 0) noiseEvents.splice(i, 1); }
     const k = input.keys 
     if (k.has('w') || k.has('arrowup'))    dy -= 1; if (k.has('s') || k.has('arrowdown'))  dy += 1; if (k.has('a') || k.has('arrowleft'))  dx -= 1; if (k.has('d') || k.has('arrowright')) dx += 1; dx += input.touch.stick.dx * 1.2; dy += input.touch.stick.dy * 1.2; const mag = Math.hypot(dx, dy) || 1; dx /= mag; dy /= mag;
-
+    // ✅ GLYPH PHASE: hard-disable player control
+    if (!online && state.phase === 'glyph') {
+      dx = 0; dy = 0;
+      input.mouse.down = false;
+      input.touch.fire = false;
+      input.touch.stick.active = false;
+    }
 
     const sens = parseFloat(rngSens.value || '1');
     const mx_css = input.mouse.x, my_css = input.mouse.y;
@@ -4198,7 +4558,7 @@ window.addEventListener('net:snapshot', (ev) => {
 
     
     // Always allow local fire; when online, also broadcast a 'shot' event for VFX
-    if (input.mouse.down || input.touch.fire) {
+    if (state.phase !== 'glyph' && (input.mouse.down || input.touch.fire)) {
       const ammoBefore = player.ammo;
       const lastShotBefore = player.lastShot;
       playerShoot()
