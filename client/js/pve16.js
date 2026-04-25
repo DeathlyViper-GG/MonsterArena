@@ -3919,10 +3919,10 @@ if (btnHomeCustomize){
 // ===============================
 // Glyph overlay system (client) — SCROLLABLE 3D TREE + FULL DESCRIPTIONS
 // ===============================
-const GLYPH_COST_CORE = 15;
-const GLYPH_COST_T1   = 20;
-const GLYPH_COST_T2   = 25;
-const GLYPH_COST_T3   = 30;
+const GLYPH_COST_CORE = 1;
+const GLYPH_COST_T1   = 1;
+const GLYPH_COST_T2   = 1;
+const GLYPH_COST_T3   = 1;
 
 // ---------- Data: full skill names + descriptions ----------
 const GLYPH_CORE = {
@@ -5661,6 +5661,24 @@ window.addEventListener('net:snapshot', (ev) => {
           const baseCol = sampleSpriteColor(e.type);
           spawnTriangleBurst(e.x, e.y, baseCol, { big:6, small:22 });
           spawnGhostSilhouette(e.x, e.y, e.r + 10, currentTheme.accent);
+
+          // 👻 SPIRIT SHADE SPAWN (OFFLINE)
+          if (
+            isPath('spirit') &&
+            (
+              (hasG('spirit','wraithKing') && e.type === 'boss') ||
+              (hasG('spirit','revenant') && Math.random() < 0.25)
+            )
+          ){
+            ents.effects.push({
+              type: 'shade',
+              x: e.x,
+              y: e.y,
+              r: 18,
+              life: hasG('spirit','possession') ? 3.5 : 2.0,
+              t: 0
+            });
+          }
 
           ents.enemies.splice(i, 1);
           audio.hit();
