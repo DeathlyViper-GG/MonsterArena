@@ -1587,6 +1587,7 @@ const gctx = glyphCanvas ? glyphCanvas.getContext('2d') : null;
 
   // Entities ------------------------------------------------------------------
   const ents = { bullets:[], ebullets:[], effects:[], enemies:[], pickups:[] };
+  ents.wisps = [];
   window._ents = ents;
   // ===========================
   // WORLD VFX (3D, persistent)
@@ -1862,6 +1863,7 @@ const gctx = glyphCanvas ? glyphCanvas.getContext('2d') : null;
     glyphPath: null,     // 'fire'|'lightning'|'spirit'|'water'|'earth'
     glyphTier: 0,        // 0..3
     essence: 0,          // XP orb currency (wave-earned)
+    completedGlyphs: {},
     // upgrade flags (set true when you unlock them later)
     glyph: {
       fire: {
@@ -2972,7 +2974,9 @@ if (btnHomeCustomize){
   // GLYPH GAMEPLAY ENGINE (single-player/offline)
   // =========================================================
 
-  function isPath(p){ return player.glyphPath === p; }
+  function isPath(p){
+    return player.glyphPath === p || player.completedGlyphs[p];
+  }
   function hasG(path, key){ return !!(player.glyph?.[path]?.[key]); }
 
   function applyBurn(e, stacks=1, dur=3.6){
@@ -3047,8 +3051,24 @@ if (btnHomeCustomize){
   }
 
   // ----- Wisp orbit shooter -----
-  function tickWisps(dt){
-    if (!isPath('spirit') || !hasG('spirit','wispOrbit')) return;
+ function tickWisps(dt){
+    if (!isPath('spirit') || !hasG('spirit','wispOrbit')) {
+      ents.wisps.length = 0;
+      return;
+    }
+
+    const targetCount = hasG('spirit','wispSwarm') ? 3 : 1;
+
+    // ensure correct number of wisps
+    while (ents.wisps.length < targetCount){
+      ents.wisps.push({
+        a: Math.random()*Math.PI*2,
+        r: 42 + Math.random()*8,
+        shootCD: Math.random()*0.6
+      });
+    }
+    
+ 
     player._wisps = Math.max(player._wisps||0, hasG('spirit','wispSwarm') ? 3 : 1);
     player._wispCD = Math.max(0, (player._wispCD||0) - dt);
 
@@ -3064,6 +3084,40 @@ if (btnHomeCustomize){
         addEffect(best.x,best.y,'hit',0.15,'#c066ff');
       }
       player._wispCD = 0.55;
+    }
+    for (let i=0;i<ents.wisps.length;i++){
+      const w = ents.wisps[i];
+
+      // orbit motion
+      w.a += dt * 1.4;
+      const ox = player.x + Math.cos(w.a + i)*w.r;
+      const oy = player.y + Math.sin(w.a + i)*w.r;
+
+      w.x = ox;
+      w.y = oy;
+
+      // shooting
+      w.shootCD -= dt;
+      if (w.shootCD <= 0){
+        w.shootCD = 0.9;
+
+        let best=null, bestD2=520*520;
+        for (const e of ents.enemies){
+          const d2 = dist2(w.x,w.y,e.x,e.y);
+          if (d2 < bestD2){ best=e; bestD2=d2; }
+        }
+
+        if (best){
+          spawnBullet(
+            w.x,
+            w.y,
+            Math.atan2(best.y - w.y, best.x - w.x),
+            520,
+            5
+          );
+          if (hasG('spirit','haunt')) applyHaunt(best, 2.4);
+        }
+      }
     }
   }
 
@@ -4636,6 +4690,7 @@ function drawGlyphOverlay(){
 
         if (isComplete(_ceremony.el)){
           state.completed[_ceremony.el] = true;
+          player.completedGlyphs[_ceremony.el] = true;
           state.path = null;
           _uiMode = 'pentagon';
           glyphTitleEl.textContent = `${_ceremony.el.toUpperCase()} COMPLETED`;
@@ -6738,6 +6793,25 @@ window.addEventListener('net:snapshot', (ev) => {
         ctx.beginPath(); ctx.arc(ex,ey,22,0,Math.PI*2); ctx.fill();
         ctx.restore();
       }
+    }
+    // === WISPS (floating spirits) ===
+    for (const w of ents.wisps){
+      const x = w.x - cam.x - cam.sx;
+      const y = w.y - cam.y - cam.sy;
+
+      ctx.save();
+      drawSoftShadow(ctx, x, y + 6, 10, 6, 0.3);
+
+      const pulse = 0.6 + 0.4*Math.sin(performance.now()/200);
+      const g = ctx.createRadialGradient(x,y,2,x,y,16);
+      g.addColorStop(0,'rgba(220,180,255,0.9)');
+      g.addColorStop(1,'rgba(120,60,200,0)');
+      ctx.globalAlpha = pulse;
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(x,y,16,0,Math.PI*2);
+      ctx.fill();
+      ctx.restore();
     }
 
     // ---------------------------
