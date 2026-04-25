@@ -4587,6 +4587,15 @@ function drawGlyphOverlay(){
     _glyphRAF = requestAnimationFrame(drawGlyphOverlay);
     return;
   }
+  // =========================
+  // PENTAGON MODE (ACTIVE LOOP)
+  // =========================
+  if (_uiMode === 'pentagon'){
+    drawGlyphPentagonUI(gctx, time);
+    _glyphRAF = requestAnimationFrame(drawGlyphOverlay);
+    return;
+  }
+
 }
   function goHome(){
     state.running = false;
