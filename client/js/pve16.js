@@ -1605,6 +1605,45 @@ const gctx = glyphCanvas ? glyphCanvas.getContext('2d') : null;
       const v = worldVfx[i];
       v.t += dt;
       v.life -= dt;
+
+      // ===== Gameplay tick (offline only) =====
+      if (!isNetActive()){
+        // Napalm: damage + refresh burn
+        if (v.type === 'napalm'){
+          const R = (v.r ?? 60);
+          for (const e of ents.enemies){
+            if (dist2(e.x,e.y,v.x,v.y) <= (R + (e.r??16))*(R + (e.r??16))){
+              e.hp -= 7 * dt;
+              applyBurn(e, 1, 1.2);
+            }
+          }
+        }
+
+        // Sanctuary: heal player inside
+        if (v.type === 'sanctuary'){
+          const R = (v.r ?? 70);
+          if (dist2(player.x,player.y,v.x,v.y) <= R*R){
+            player.hp = Math.min(player.hpMax, player.hp + 10*dt);
+          }
+        }
+
+        // Maelstrom: pull + damage
+        if (v.type === 'maelstrom'){
+          const R = (v.r ?? 95);
+          for (const e of ents.enemies){
+            const dx = v.x - e.x;
+            const dy = v.y - e.y;
+            const d = Math.hypot(dx,dy) || 1;
+            if (d <= R){
+              const pull = (1 - d/R) * 420;
+              e.x += (dx/d) * pull * dt;
+              e.y += (dy/d) * pull * dt;
+              e.hp -= 9 * dt;
+            }
+          }
+        }
+      }
+
       if (v.life <= 0) worldVfx.splice(i,1);
     }
   }
@@ -3912,6 +3951,34 @@ const GLYPH_TREE = {
     ],
   ],
 };
+// ===== Tree node → gameplay flag mapping (3 branches × 3 tiers) =====
+const GLYPH_TREE_KEYS = {
+  fire: [
+    ['hotCoals','searingShots','ashenFinish'],
+    ['detonate','napalmTrail','volcanicCore'],
+    ['cauterise','phoenixStep','rebirth']
+  ],
+  lightning: [
+    ['arcJump','forkedArc','stormConductor'],
+    ['chargedRounds','overload','thunderclap'],
+    ['staticDash','blinkStrike','ballLightning']
+  ],
+  spirit: [
+    ['wispOrbit','wispSwarm','guardianSpirits'],
+    ['haunt','soulBind','dreadBloom'],
+    ['revenant','possession','wraithKing']
+  ],
+  water: [
+    ['chill','iceShards','permafrost'],
+    ['mendingMist','tidalRenewal','sanctuary'],
+    ['rippleShot','tidalWave','maelstrom']
+  ],
+  earth: [
+    ['thornmail','spikedBarrier','jaggedEarth'],
+    ['bulwark','rootedStance','unbreakable'],
+    ['stonePillar','quake','golem']
+  ],
+};
 
 // ---------- Visual style ----------
 const ELEM_STYLE = {
@@ -3979,7 +4046,21 @@ function ensureTreeState(el){
   return state.unlocks[el].tree;
 }
 function isUnlocked(el,b,tier){ return !!ensureTreeState(el)[b][tier-1]; }
-function unlockNode(el,b,tier){ ensureTreeState(el)[b][tier-1] = true; }
+function unlockNode(el,b,tier){
+  ensureTreeState(el)[b][tier-1] = true;
+
+  // Enable the real gameplay flag
+  const key = GLYPH_TREE_KEYS?.[el]?.[b]?.[tier-1];
+  if (key && player.glyph && player.glyph[el]) {
+    player.glyph[el][key] = true;
+  }
+
+  // One-time stat bumps (safe, optional)
+  if (el === 'earth' && key === 'bulwark'){
+    player.hpMax = Math.min(220, (player.hpMax ?? 100) + 25);
+    player.hp = Math.min(player.hpMax, player.hp + 25);
+  }
+}
 function nextTier(el,b){
   if (!isUnlocked(el,b,1)) return 1;
   if (!isUnlocked(el,b,2)) return 2;
@@ -4349,27 +4430,66 @@ function closeGlyphOverlay(){
 
 // ---------- Click selection ----------
 function onGlyphClick(mx, my){
-  const cx = glyphCanvas.width * 0.5;
-  const cy = glyphCanvas.height * 0.5 + 40;
-  const R  = 140;
 
-  const glyphs = getGlyphLayout(cx, cy, R);
+  // -------------------------
+  // PENTAGON MODE (choose element)
+  // -------------------------
+  if (_uiMode === 'pentagon'){
+    const cx = glyphCanvas.width * 0.5;
+    const cy = glyphCanvas.height * 0.5 + 40;
+    const R  = 140;
 
-  for (const g of glyphs){
-    const dx = mx - g.x;
-    const dy = my - g.y;
-    if (dx*dx + dy*dy <= g.r * g.r){
-      _glyphSelected = g.g;
-      player.glyph = g.g;
-      player.glyphPath = g.g;
+    const glyphs = getGlyphLayout(cx, cy, R);
 
-      glyphTitleEl.textContent = GLYPH_CORE[g.g].name;
-      glyphDescEl.textContent  = GLYPH_CORE[g.g].desc;
+    for (const g of glyphs){
+      const dx = mx - g.x;
+      const dy = my - g.y;
+      if (dx*dx + dy*dy <= g.r*g.r){
+        _glyphSelected = g.g;
 
-      _glyphCost = GLYPH_COST_CORE;
-      glyphCostEl.textContent = String(_glyphCost);
-      glyphEnchantBtn.disabled = state.essence < _glyphCost;
-      return;
+        // show text
+        glyphTitleEl.textContent = GLYPH_CORE[g.g].name;
+        glyphDescEl.textContent  = GLYPH_CORE[g.g].desc;
+
+        _glyphCost = GLYPH_COST_CORE;
+        glyphCostEl.textContent = String(_glyphCost);
+        glyphEnchantBtn.disabled = state.essence < _glyphCost;
+        return;
+      }
+    }
+    return;
+  }
+
+  // -------------------------
+  // TREE MODE (choose next node)
+  // -------------------------
+  if (_uiMode === 'tree' && state.path){
+    const el = state.path;
+    ensureTreeState(el);
+
+    for (let b=0;b<3;b++){
+      const need = nextTier(el,b);
+      if (!need) continue;
+
+      const pos = nodePos(b, need);
+      const ss = treeToScreen(pos.x, pos.y);
+
+      const dx = mx - ss.x;
+      const dy = my - ss.y;
+      const hitR = 62; // matches 112px icon
+
+      if (dx*dx + dy*dy <= hitR*hitR){
+        _selBranch = b;
+        _selTier   = need;
+
+        _glyphCost = (need===1)?GLYPH_COST_T1:(need===2)?GLYPH_COST_T2:GLYPH_COST_T3;
+        glyphCostEl.textContent = String(_glyphCost);
+        glyphEnchantBtn.disabled = state.essence < _glyphCost;
+
+        glyphTitleEl.textContent = GLYPH_TREE[el][b][need-1].name;
+        glyphDescEl.textContent  = GLYPH_TREE[el][b][need-1].desc;
+        return;
+      }
     }
   }
 }
@@ -5265,7 +5385,7 @@ window.addEventListener('net:snapshot', (ev) => {
           const e = targets[i];
           if (!e) continue;
 
-          const idKey = e.id ?? e;           // snapshot enemies have e.id; local use object
+          const idKey = e.id ?? e;         
           if (melee._hitSet.has(idKey)) continue;
 
           const dx = e.x - player.x;
@@ -5353,6 +5473,11 @@ window.addEventListener('net:snapshot', (ev) => {
 
           state.phase = 'combat';
           state.phaseEndsAt = 0;
+
+          // 💧 Sanctuary persists into next wave
+          if (isPath('water') && hasG('water','sanctuary')){
+            addWorldVfx({ type:'sanctuary', x: player.x, y: player.y, r: 80, life: 20 });
+          }
 
           startWave(state.wave + 1);
           maybeUpdateBestWave(state.wave);
@@ -5472,6 +5597,10 @@ window.addEventListener('net:snapshot', (ev) => {
       const base = b.dmg * (1 + state.wave * 0.02);
       const mult = onHitGlyph(e, base, 'bullet');
       e.hp -= base * mult;
+      // 🔥 Napalm Trail: drop burning ground on bullet impact
+      if (isPath('fire') && hasG('fire','napalmTrail')){
+        addWorldVfx({ type:'napalm', x: b.x, y: b.y, r: 60, life: 1.2 });
+      }
 
       // Soul Bind copy damage
       if (isPath('spirit') && hasG('spirit','soulBind') && player._linkA && player._linkB && player._linkT > 0){
@@ -5581,6 +5710,55 @@ window.addEventListener('net:snapshot', (ev) => {
     }
 
     if (e.t >= e.life) ents.effects.splice(i, 1);
+    else if (e.type === 'ember'){
+      // homing ember: seek nearest enemy and ignite
+      let best=null, bestD2=260*260;
+      for (const en of ents.enemies){
+        const d2 = dist2(e.x,e.y,en.x,en.y);
+        if (d2 < bestD2){ bestD2=d2; best=en; }
+      }
+      if (best){
+        const dx = best.x - e.x, dy = best.y - e.y;
+        const d = Math.hypot(dx,dy) || 1;
+        const sp = 520;
+        e.vx += (dx/d) * sp * dt;
+        e.vy += (dy/d) * sp * dt;
+
+        // hit check
+        if (d2 < (best.r + 6)*(best.r + 6)){
+          applyBurn(best, 1, 2.4);
+          addEffect(best.x, best.y, 'hit', 0.15, '#ff9a3c');
+          ents.effects.splice(i,1);
+          continue;
+        }
+      }
+      e.x += (e.vx||0)*dt;
+      e.y += (e.vy||0)*dt;
+      e.vx *= 0.90;
+      e.vy *= 0.90;
+    }
+
+    else if (e.type === 'shade'){
+      // simple allied shade: chases nearest enemy and hits
+      let best=null, bestD2=520*520;
+      for (const en of ents.enemies){
+        const d2 = dist2(e.x,e.y,en.x,en.y);
+        if (d2 < bestD2){ bestD2=d2; best=en; }
+      }
+      if (best){
+        const dx = best.x - e.x, dy = best.y - e.y;
+        const d = Math.hypot(dx,dy) || 1;
+        const sp = hasG('spirit','possession') ? 320 : 240;
+        e.x += (dx/d) * sp * dt;
+        e.y += (dy/d) * sp * dt;
+
+        if (bestD2 < (best.r + 14)*(best.r + 14)){
+          best.hp -= hasG('spirit','possession') ? 18 : 12;
+          if (hasG('spirit','haunt')) applyHaunt(best, 2.6);
+          addEffect(best.x, best.y, 'hit', 0.15, '#c066ff');
+        }
+      }
+    }
   }
   updateWorldVfx(dt);
 
@@ -5659,6 +5837,23 @@ window.addEventListener('net:snapshot', (ev) => {
       localStorage.setItem('arenaBest', String(best));
       bestEl.textContent = best;
       showGameOver();
+    }
+    // 💧 Water: Maelstrom periodic vortex
+    if (!isNetActive() && isPath('water') && hasG('water','maelstrom')){
+      player._maelCD = (player._maelCD ?? 0) - dt;
+      if (player._maelCD <= 0){
+        player._maelCD = 7.5;
+        addWorldVfx({ type:'maelstrom', x: player.x, y: player.y, r: 110, life: 3.6 });
+      }
+    }
+    // 🪨 Earth: Quake periodic stomp
+    if (!isNetActive() && isPath('earth') && hasG('earth','quake')){
+      player._quakeCD = (player._quakeCD ?? 0) - dt;
+      if (player._quakeCD <= 0){
+        player._quakeCD = 3.2;
+        aoeDamage(player.x, player.y, 120, 10, { col:'#7dffa3', stun:0.35 });
+        addWorldVfx({ type:'quake', x: player.x, y: player.y, r: 160, life: 0.45, maxLife: 0.45 });
+      }
     }
   }
   
@@ -6518,6 +6713,30 @@ window.addEventListener('net:snapshot', (ev) => {
         ctx.arc(ex, ey, r, 0, Math.PI * 2);
         ctx.fill();
         ctx.globalAlpha = 1;
+      }
+      else if (e.type === 'ember') {
+        // 3D-ish ember orb + tail
+        ctx.save();
+        ctx.globalAlpha = 0.9;
+        const g = ctx.createRadialGradient(ex,ey,2,ex,ey,10);
+        g.addColorStop(0,'rgba(255,220,160,0.95)');
+        g.addColorStop(1,'rgba(255,120,40,0)');
+        ctx.fillStyle = g;
+        ctx.beginPath(); ctx.arc(ex,ey,10,0,Math.PI*2); ctx.fill();
+        ctx.restore();
+      }
+
+      else if (e.type === 'shade') {
+        // 3D-ish spectral body
+        ctx.save();
+        const pulse = 0.7 + 0.3*Math.sin((e.t||0)*8);
+        ctx.globalAlpha = 0.55*pulse;
+        const g = ctx.createRadialGradient(ex,ey,4,ex,ey,22);
+        g.addColorStop(0,'rgba(230,190,255,0.6)');
+        g.addColorStop(1,'rgba(0,0,0,0)');
+        ctx.fillStyle = g;
+        ctx.beginPath(); ctx.arc(ex,ey,22,0,Math.PI*2); ctx.fill();
+        ctx.restore();
       }
     }
 
