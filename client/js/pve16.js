@@ -4325,7 +4325,13 @@ function openGlyphOverlay(seconds=15){
     });
   }
 
-  glyphCanvas.onclick = onGlyphClick;
+  glyphCanvas.onclick = (ev) => {
+    const rect = glyphCanvas.getBoundingClientRect();
+    const mx = (ev.clientX - rect.left) * (glyphCanvas.width  / rect.width);
+    const my = (ev.clientY - rect.top)  * (glyphCanvas.height / rect.height);
+    onGlyphClick(mx, my);
+  };
+
   glyphEnchantBtn.onclick = onGlyphEnchant;
   attachTreeInput();
 
@@ -4343,8 +4349,8 @@ function closeGlyphOverlay(){
 
 // ---------- Click selection ----------
 function onGlyphClick(mx, my){
-  const cx = W * 0.5;
-  const cy = H * 0.5 + 40;
+  const cx = glyphCanvas.width * 0.5;
+  const cy = glyphCanvas.height * 0.5 + 40;
   const R  = 140;
 
   const glyphs = getGlyphLayout(cx, cy, R);
@@ -4352,14 +4358,20 @@ function onGlyphClick(mx, my){
   for (const g of glyphs){
     const dx = mx - g.x;
     const dy = my - g.y;
-    if (dx*dx + dy*dy <= g.r*g.r){
-      player.glyphPath = g.g;
+    if (dx*dx + dy*dy <= g.r * g.r){
+      _glyphSelected = g.g;
       player.glyph = g.g;
-      return true;
+      player.glyphPath = g.g;
+
+      glyphTitleEl.textContent = GLYPH_CORE[g.g].name;
+      glyphDescEl.textContent  = GLYPH_CORE[g.g].desc;
+
+      _glyphCost = GLYPH_COST_CORE;
+      glyphCostEl.textContent = String(_glyphCost);
+      glyphEnchantBtn.disabled = state.essence < _glyphCost;
+      return;
     }
   }
-
-  return false;
 }
 
 // ---------- Enchant ----------
