@@ -328,6 +328,213 @@ const gctx = glyphCanvas ? glyphCanvas.getContext('2d') : null;
 
     return out;
   }
+  // ===================================
+  // STEP 2: GLYPH 3D VISUALS (FULL REPLACE)
+  // ===================================
+
+  function drawGlyphVisuals(ctx, target, sx, sy, t){
+    const path = player.glyphPath;
+    if (!path) return;
+
+    if (path === 'fire')      drawFireVFX(ctx, target, sx, sy, t);
+    if (path === 'lightning') drawLightningVFX(ctx, target, sx, sy, t);
+    if (path === 'spirit')    drawSpiritVFX(ctx, target, sx, sy, t);
+    if (path === 'water')     drawWaterVFX(ctx, target, sx, sy, t);
+    if (path === 'earth')     drawEarthVFX(ctx, target, sx, sy, t);
+  }
+  function drawFireVFX(ctx, e, x, y, t){
+    if ((e.burnT ?? 0) <= 0) return;
+
+    const stacks = Math.min(e.burnStacks ?? 1, 3);
+    const r = (e.r ?? 14) + 10 + stacks * 5;
+    const flick = 0.6 + Math.sin(t * 10 + e.x * 0.01) * 0.4;
+
+    ctx.save();
+
+    // --- Core flame volume
+    const g = ctx.createRadialGradient(x,y,r*0.2,x,y,r*1.6);
+    g.addColorStop(0, `rgba(255,240,210,${0.4*flick})`);
+    g.addColorStop(0.4, `rgba(255,150,60,${0.35*flick})`);
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(x,y,r*1.6,0,Math.PI*2);
+    ctx.fill();
+
+    // --- Flame tongues (stack scaling)
+    ctx.fillStyle = 'rgba(255,130,40,0.8)';
+    for(let i=0;i<2+stacks;i++){
+      const a = t*3 + i*2.1;
+      ctx.beginPath();
+      ctx.arc(
+        x + Math.cos(a)*r*0.6,
+        y + Math.sin(a)*r*0.6,
+        3 + stacks*1.5,
+        0,Math.PI*2
+      );
+      ctx.fill();
+    }
+
+    // --- Detonate visual (3 stacks)
+    if (hasG('fire','detonate') && stacks === 3){
+      ctx.strokeStyle = 'rgba(255,90,40,0.9)';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(x,y,r*2 + Math.sin(t*8)*6,0,Math.PI*2);
+      ctx.stroke();
+    }
+
+    // --- Napalm ground
+    if (hasG('fire','napalmTrail')){
+      ctx.fillStyle = 'rgba(255,120,40,0.25)';
+      ctx.beginPath();
+      ctx.arc(x,y,r*1.2,0,Math.PI*2);
+      ctx.fill();
+    }
+
+    // --- Volcanic Core ring
+    if (hasG('fire','volcanicCore') && player._volcFlash > 0){
+      ctx.strokeStyle = 'rgba(255,80,30,0.9)';
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.arc(x,y,r*3 + player._volcFlash*20,0,Math.PI*2);
+      ctx.stroke();
+    }
+
+    ctx.restore();
+  }
+  function drawLightningVFX(ctx, e, x, y, t){
+    if ((e.staticT ?? 0) <= 0) return;
+
+    const r = (e.r ?? 14) + 12;
+    const pulse = 0.7 + Math.sin(t*12)*0.3;
+
+    ctx.save();
+
+    // --- Charge shell
+    ctx.strokeStyle = `rgba(160,220,255,${0.6*pulse})`;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(x,y,r*pulse,0,Math.PI*2);
+    ctx.stroke();
+
+    // --- Crawling arcs
+    ctx.strokeStyle = 'rgba(210,245,255,0.9)';
+    for(let i=0;i<2;i++){
+      ctx.beginPath();
+      ctx.moveTo(x,y);
+      ctx.lineTo(
+        x + (Math.random()*2-1)*r,
+        y + (Math.random()*2-1)*r
+      );
+      ctx.stroke();
+    }
+
+    // --- Thunderclap ring
+    if (hasG('lightning','thunderclap')){
+      ctx.strokeStyle = 'rgba(180,230,255,0.8)';
+      ctx.beginPath();
+      ctx.arc(x,y,r*2 + Math.sin(t*6)*6,0,Math.PI*2);
+      ctx.stroke();
+    }
+
+    ctx.restore();
+  }
+  function drawSpiritVFX(ctx, e, x, y, t){
+    if ((e.hauntT ?? 0) <= 0) return;
+
+    const r = (e.r ?? 14) + 16;
+
+    ctx.save();
+
+    // --- Haunt haze
+    ctx.globalAlpha = 0.28;
+    ctx.fillStyle = 'rgba(190,120,255,0.6)';
+    ctx.beginPath();
+    ctx.arc(x,y,r,0,Math.PI*2);
+    ctx.fill();
+
+    // --- Wisps
+    const wisps = hasG('spirit','wispSwarm') ? 3 : 1;
+    for(let i=0;i<wisps;i++){
+      const a = t*1.8 + i*2.4;
+      ctx.beginPath();
+      ctx.arc(
+        x + Math.cos(a)*r,
+        y + Math.sin(a)*r,
+        4,0,Math.PI*2
+      );
+      ctx.fill();
+    }
+
+    ctx.restore();
+  }
+  function drawWaterVFX(ctx, e, x, y, t){
+    if ((e.drenchT ?? 0) <= 0) return;
+
+    const r = (e.r ?? 14) + 14;
+
+    ctx.save();
+
+    // --- Wet body sheen
+    const g = ctx.createRadialGradient(x,y,r*0.3,x,y,r*1.5);
+    g.addColorStop(0,'rgba(200,240,255,0.4)');
+    g.addColorStop(1,'rgba(0,0,0,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(x,y,r*1.5,0,Math.PI*2);
+    ctx.fill();
+
+    // --- Ripple
+    ctx.strokeStyle = 'rgba(160,220,255,0.5)';
+    ctx.beginPath();
+    ctx.arc(x,y,r + Math.sin(t*2)*4,0,Math.PI*2);
+    ctx.stroke();
+
+    // --- Freeze cross
+    if ((e.freezeT ?? 0) > 0){
+      ctx.strokeStyle = 'rgba(200,245,255,0.9)';
+      ctx.beginPath();
+      ctx.moveTo(x-r,y); ctx.lineTo(x+r,y);
+      ctx.moveTo(x,y-r); ctx.lineTo(x,y+r);
+      ctx.stroke();
+    }
+
+    ctx.restore();
+  }
+  function drawEarthVFX(ctx, e, x, y, t){
+    if (!hasG('earth','stoneSkin')) return;
+
+    const r = (e.r ?? 14) + 8;
+
+    ctx.save();
+
+    // --- Stone plating
+    ctx.strokeStyle = 'rgba(130,230,180,0.7)';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(x,y,r,0,Math.PI*2);
+    ctx.stroke();
+
+    // --- Crystal facets
+    for(let i=0;i<4;i++){
+      const a = i*Math.PI/2 + t*0.4;
+      ctx.beginPath();
+      ctx.moveTo(x,y);
+      ctx.lineTo(x+Math.cos(a)*(r+10), y+Math.sin(a)*(r+10));
+      ctx.stroke();
+    }
+
+    // --- Quake ring
+    if (hasG('earth','quake') && player._quakeFlash > 0){
+      ctx.strokeStyle = 'rgba(170,255,210,0.9)';
+      ctx.beginPath();
+      ctx.arc(x,y,r*2 + player._quakeFlash*14,0,Math.PI*2);
+      ctx.stroke();
+    }
+
+    ctx.restore();
+  }
   function getVisualPlayerPos(){
     // Always start from immediate local state (instant)
     let x = player.x;
@@ -1381,6 +1588,222 @@ const gctx = glyphCanvas ? glyphCanvas.getContext('2d') : null;
   // Entities ------------------------------------------------------------------
   const ents = { bullets:[], ebullets:[], effects:[], enemies:[], pickups:[] };
   window._ents = ents;
+  // ===========================
+  // WORLD VFX (3D, persistent)
+  // ===========================
+  const worldVfx = []; 
+  // { type, x, y, r, t, life, maxLife, el, data }
+
+  function addWorldVfx(v){
+    v.t = v.t ?? 0;
+    v.maxLife = v.maxLife ?? v.life ?? 1;
+    worldVfx.push(v);
+  }
+
+  function updateWorldVfx(dt){
+    for (let i = worldVfx.length - 1; i >= 0; i--){
+      const v = worldVfx[i];
+      v.t += dt;
+      v.life -= dt;
+      if (v.life <= 0) worldVfx.splice(i,1);
+    }
+  }
+
+  // ---------- 3D draw helpers ----------
+  function drawSoftShadow(ctx, x, y, rx, ry, a=0.35){
+    ctx.save();
+    ctx.globalAlpha = a;
+    ctx.fillStyle = 'rgba(0,0,0,1)';
+    ctx.beginPath();
+    ctx.ellipse(x, y, rx, ry, 0, 0, Math.PI*2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function drawStonePillar3D(ctx, x, y, v){
+    const r = v.r ?? 16;
+    const h = (v.data?.h ?? 34);
+    const wob = 0.9 + 0.1*Math.sin(v.t*2.2);
+
+    ctx.save();
+
+    // ground shadow
+    drawSoftShadow(ctx, x, y + 10, r*1.1, r*0.7, 0.35);
+
+    // pillar body (vertical depth)
+    const g = ctx.createLinearGradient(x-r, y-h, x+r, y+h);
+    g.addColorStop(0.0, '#cfead8');
+    g.addColorStop(0.4, '#6fae8b');
+    g.addColorStop(1.0, '#2f5a49');
+
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.roundRect(x-r, y-h, r*2, h*2, 6);
+    ctx.fill();
+
+    // bevel highlight
+    ctx.strokeStyle = 'rgba(210,255,235,0.55)';
+    ctx.lineWidth = 3;
+    ctx.stroke();
+
+    // top cap glow
+    ctx.globalCompositeOperation = 'screen';
+    ctx.globalAlpha = 0.35*wob;
+    const cap = ctx.createRadialGradient(x, y-h, 2, x, y-h, r*1.3);
+    cap.addColorStop(0,'rgba(255,255,255,0.45)');
+    cap.addColorStop(1,'rgba(0,0,0,0)');
+    ctx.fillStyle = cap;
+    ctx.beginPath();
+    ctx.arc(x, y-h, r*1.3, 0, Math.PI*2);
+    ctx.fill();
+
+    ctx.restore();
+  }
+
+  function drawQuakeRing3D(ctx, x, y, v){
+    const u = 1 - (v.life / v.maxLife);
+    const R = (v.r ?? 120) * u;
+
+    ctx.save();
+    ctx.globalAlpha = 0.85*(1-u);
+
+    // shock ring
+    ctx.strokeStyle = 'rgba(170,255,210,0.95)';
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.arc(x,y,R,0,Math.PI*2);
+    ctx.stroke();
+
+    // debris specks
+    ctx.globalAlpha *= 0.55;
+    ctx.fillStyle = 'rgba(210,255,235,0.9)';
+    for (let i=0;i<10;i++){
+      const a = i*0.63 + v.t*4.0;
+      ctx.fillRect(
+        x + Math.cos(a)*R,
+        y + Math.sin(a)*R,
+        2,2
+      );
+    }
+
+    ctx.restore();
+  }
+
+  function drawSanctuary3D(ctx, x, y, v){
+    const pulse = 0.92 + 0.08*Math.sin(v.t*2.0);
+    const r = (v.r ?? 70) * pulse;
+
+    ctx.save();
+
+    // soft water fill
+    ctx.globalAlpha = 0.18;
+    const g = ctx.createRadialGradient(x,y,0,x,y,r);
+    g.addColorStop(0,'rgba(200,245,255,0.45)');
+    g.addColorStop(1,'rgba(0,0,0,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(x,y,r,0,Math.PI*2);
+    ctx.fill();
+
+    // rim
+    ctx.globalAlpha = 0.6;
+    ctx.strokeStyle = 'rgba(120,220,255,0.8)';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(x,y,r,0,Math.PI*2);
+    ctx.stroke();
+
+    // rotating sigil lines (3D-ish)
+    ctx.globalAlpha = 0.35;
+    ctx.strokeStyle = 'rgba(220,255,255,0.6)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    for (let i=0;i<6;i++){
+      const a = v.t*0.9 + i*(Math.PI/3);
+      ctx.moveTo(x,y);
+      ctx.lineTo(x + Math.cos(a)*r*0.85, y + Math.sin(a)*r*0.85);
+    }
+    ctx.stroke();
+
+    ctx.restore();
+  }
+
+  function drawNapalmPatch3D(ctx, x, y, v){
+    const r = v.r ?? 60;
+    const flick = 0.6 + 0.4*Math.sin(v.t*10);
+
+    ctx.save();
+
+    // molten fill
+    ctx.globalAlpha = 0.24*flick;
+    const g = ctx.createRadialGradient(x,y,0,x,y,r);
+    g.addColorStop(0,'rgba(255,180,90,0.55)');
+    g.addColorStop(0.35,'rgba(255,110,40,0.35)');
+    g.addColorStop(1,'rgba(0,0,0,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(x,y,r,0,Math.PI*2);
+    ctx.fill();
+
+    // crack rim
+    ctx.globalAlpha = 0.40;
+    ctx.strokeStyle = 'rgba(255,200,120,0.6)';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(x,y,r*(0.95+0.05*Math.sin(v.t*3)),0,Math.PI*2);
+    ctx.stroke();
+
+    ctx.restore();
+  }
+
+  function drawMaelstrom3D(ctx, x, y, v){
+    const r = v.r ?? 95;
+    const spin = v.t * 1.8;
+
+    ctx.save();
+
+    // dark core
+    ctx.globalAlpha = 0.25;
+    const g = ctx.createRadialGradient(x,y,r*0.2,x,y,r);
+    g.addColorStop(0,'rgba(40,90,120,0.55)');
+    g.addColorStop(1,'rgba(0,0,0,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(x,y,r,0,Math.PI*2);
+    ctx.fill();
+
+    // spiral arms
+    ctx.globalAlpha = 0.55;
+    ctx.strokeStyle = 'rgba(120,220,255,0.6)';
+    ctx.lineWidth = 3;
+    for (let arm=0; arm<3; arm++){
+      ctx.beginPath();
+      for (let i=0;i<=40;i++){
+        const p = i/40;
+        const rr = r * p;
+        const a = spin + arm*2.09 + p*4.2;
+        const sx = x + Math.cos(a)*rr;
+        const sy = y + Math.sin(a)*rr*0.92;
+        if (i===0) ctx.moveTo(sx,sy); else ctx.lineTo(sx,sy);
+      }
+      ctx.stroke();
+    }
+
+    ctx.restore();
+  }
+
+  function drawWorldVfx(ctx){
+    for (const v of worldVfx){
+      const sx = v.x - cam.x - cam.sx;
+      const sy = v.y - cam.y - cam.sy;
+
+      if (v.type === 'stonePillar') drawStonePillar3D(ctx, sx, sy, v);
+      else if (v.type === 'quake') drawQuakeRing3D(ctx, sx, sy, v);
+      else if (v.type === 'sanctuary') drawSanctuary3D(ctx, sx, sy, v);
+      else if (v.type === 'napalm') drawNapalmPatch3D(ctx, sx, sy, v);
+      else if (v.type === 'maelstrom') drawMaelstrom3D(ctx, sx, sy, v);
+    }
+  }
 
   // Weapons & player ----------------------------------------------------------
   const weapons = [
@@ -3378,318 +3801,175 @@ if (btnHomeCustomize){
     else if (audio.musicOn) audio.startMusic();
   }
 
-  // ===============================
-  // Glyph overlay system (client)
-  // ===============================
-  let _glyphSelected = null;
-  let _glyphCost = 0;
-  let _glyphRAF = 0;
-  const _glyphParticles = [];
-
-  const GLYPH_COST_CORE = 10;
-  const GLYPH_COST_BRANCH = 8;
-
-  const GLYPH_DESC = {
-    fire: "Ignite — Your bullets/melee apply Burn (DoT for 3–4s).",
-    lightning: "Static — Your hits apply Static; next hit discharges bonus damage.",
-    spirit: "Soul Tap — Kills drop soul fragments (XP orbs) that also grant small heal/shield later.",
-    water: "Drench — Hits apply Drench; drenched enemies slow slightly and enable water effects.",
-    earth: "Stone Skin — Gain armour (damage reduction) and sturdier defences."
-  };
-
-  const GLYPH_POS = {
-    fire:      { a: -90 },
-    lightning: { a: -18 },
-    water:     { a: 54 },
-    earth:     { a: 126 },
-    spirit:    { a: 198 },
-  };
-
-  // ---- Glyph UI mode ----
-  // ---- Glyph UI mode ----
-
-  let _branchSelected = -1;     // 0..2 when tree mode
-
-
-  const BRANCH_COST = 8;
-
-  // Tree layout: three subpaths ahead; closest is least transparent (most visible)
-  const BRANCH_NODES = [
-    { x: 320 + 170, y: 320,      a: 0.85 }, // closest
-    { x: 320 + 260, y: 320 - 90, a: 0.45 },
-    { x: 320 + 330, y: 320 + 90, a: 0.25 }
-  ];
-
-  // Ensure unlock arrays exist
-  function ensureBranchState(el){
-    if (!state.unlocks[el]) state.unlocks[el] = {};
-    if (!Array.isArray(state.unlocks[el].branches)) {
-      state.unlocks[el].branches = [false, false, false];
-    }
-    return state.unlocks[el].branches;
-  }
-
-  function nextBranchIndex(el){
-    const b = ensureBranchState(el);
-    for (let i = 0; i < 3; i++){
-      if (!b[i]) return i;
-    }
-    return -1;
-  }
-
-function isPathComplete(el){
-  const b = ensureBranchState(el);
-  return b[0] && b[1] && b[2];
-}
-
-// Decide which UI to open into
-function openGlyphOverlay(seconds=15){
-  if (!ovGlyphs || !glyphCanvas || !gctx) return;
-
-  ovGlyphs.style.display = 'grid';
-
-  // If we are in the middle of filling a path, go straight to its tree view
-  if (state.path && !state.completed[state.path]) {
-    _uiMode = 'tree';
-  } else {
-    _uiMode = 'pentagon';
-  }
-
-  _glyphSelected = null;
-  _branchSelected = -1;
-  _glyphCost = 0;
-
-  glyphTitleEl.textContent = '—';
-  glyphDescEl.textContent = 'Select a path. Enchant to confirm.';
-  glyphEnchantBtn.disabled = true;
-  glyphCostEl.textContent = '—';
-
-  if (glyphTimerEl) glyphTimerEl.textContent = String(seconds);
-  if (glyphEssenceEl) glyphEssenceEl.textContent = String(state.essence);
-
-  // start particles
-  _glyphParticles.length = 0;
-  for (let i=0;i<90;i++){
-    _glyphParticles.push({
-      x: 320 + (Math.random()*2-1)*40,
-      y: 320 + (Math.random()*2-1)*40,
-      vx:(Math.random()*2-1)*18,
-      vy:(Math.random()*2-1)*18,
-      a: 0.25 + Math.random()*0.35,
-      r: 1 + Math.random()*2.2
-    });
-  }
-
-  glyphCanvas.onclick = onGlyphClick;
-  glyphEnchantBtn.onclick = onGlyphEnchant;
-
-  cancelAnimationFrame(_glyphRAF);
-  _glyphRAF = requestAnimationFrame(drawGlyphOverlay);
-}
-
-function closeGlyphOverlay(){
-  if (ovGlyphs) ovGlyphs.style.display = 'none';
-  glyphCanvas && (glyphCanvas.onclick = null);
-  glyphEnchantBtn && (glyphEnchantBtn.onclick = null);
-  cancelAnimationFrame(_glyphRAF);
-}
-
-function onGlyphClick(ev){
-  // no clicking during ceremony
-  if (_uiMode === 'ceremony') return;
-
-  const rect = glyphCanvas.getBoundingClientRect();
-  const mx = (ev.clientX - rect.left) * (glyphCanvas.width / rect.width);
-  const my = (ev.clientY - rect.top)  * (glyphCanvas.height / rect.height);
-
-  const cx = 320, cy = 320;
-
-  // =========================
-  // TREE MODE: choose NEXT branch only (closest available)
-  // =========================
-  if (_uiMode === 'tree') {
-    const el = state.path;
-    if (!el) return;
-
-    const branches = ensureBranchState(el);
-    const next = nextBranchIndex(el);
-
-    for (let i=0;i<3;i++){
-      const n = BRANCH_NODES[i];
-      if (Math.hypot(mx-n.x, my-n.y) <= 60){
-        // only the next unfilled branch is clickable
-        if (i !== next) return;
-
-        _branchSelected = i;
-        _glyphCost = BRANCH_COST;
-
-        glyphTitleEl.textContent = `${el.toUpperCase()} — SUBPATH ${i+1}`;
-        glyphDescEl.textContent = `Enchant this subpath to progress ${el}.`;
-        glyphCostEl.textContent = String(_glyphCost);
-        glyphEnchantBtn.disabled = (state.essence < _glyphCost);
-        return;
-      }
-    }
-    return;
-  }
-
-  // =========================
-  // PENTAGON MODE: choose element
-  // =========================
-  // if locked into a path that isn’t completed, can't choose another
-  if (state.path && !state.completed[state.path]) return;
-
-  const R = 210;
-
-  for (const k of Object.keys(GLYPH_POS)){
-    // completed element is greyed and not selectable
-    if (state.completed[k]) continue;
-
-    const ang = GLYPH_POS[k].a * Math.PI/180;
-    const gx = cx + Math.cos(ang)*R;
-    const gy = cy + Math.sin(ang)*R;
-
-    if (Math.hypot(mx-gx, my-gy) <= 70){
-      _glyphSelected = k;
-      _glyphCost = GLYPH_COST_CORE;
-
-      glyphTitleEl.textContent = k.toUpperCase();
-      glyphDescEl.textContent = GLYPH_DESC[k] || '—';
-      glyphCostEl.textContent = String(_glyphCost);
-
-      glyphEnchantBtn.disabled = (state.essence < _glyphCost);
-      return;
-    }
-  }
-}
-
-function onGlyphEnchant(){
-  if (_uiMode === 'ceremony') return;
-
-  const cx = 320, cy = 320;
-
-  // =========================
-  // TREE MODE: enchant NEXT branch (ceremony at node)
-  // =========================
-  if (_uiMode === 'tree') {
-    const el = state.path;
-    if (!el) return;
-
-    const next = nextBranchIndex(el);
-    if (_branchSelected !== next) return;
-
-    if (state.essence < BRANCH_COST) return;
-    state.essence -= BRANCH_COST;
-    if (glyphEssenceEl) glyphEssenceEl.textContent = String(state.essence);
-
-    const n = BRANCH_NODES[_branchSelected];
-
-    _uiMode = 'ceremony';
-    _ceremony = {
-      type: 'branch',
-      el,
-      idx: _branchSelected,
-      from: { x: n.x, y: n.y },
-      to:   { x: n.x, y: n.y },
-      t0: performance.now(),
-      dur: 650
-    };
-
-    glyphEnchantBtn.disabled = true;
-    glyphTitleEl.textContent = `${el.toUpperCase()} — ENCHANTING…`;
-    glyphDescEl.textContent = `Charging subpath ${_branchSelected+1}…`;
-    glyphCostEl.textContent = '—';
-    return;
-  }
-
-  // =========================
-  // PENTAGON MODE: enchant element (ceremony: whirl + fly to centre)
-  // =========================
-  if (!_glyphSelected) return;
-  if (state.essence < _glyphCost) return;
-
-  state.essence -= _glyphCost;
-  if (glyphEssenceEl) glyphEssenceEl.textContent = String(state.essence);
-
-  // lock the chosen element immediately (so other paths vanish)
-  state.path = _glyphSelected;
-  state.tier = Math.max(state.tier, 1);
-  player.glyphPath = state.path;
-  player.glyphTier = state.tier;
-  ensureBranchState(state.path);
-
-  // start ceremony from pentagon position → centre
-  const R = 210;
-  const ang = GLYPH_POS[_glyphSelected].a * Math.PI/180;
-  const gx = cx + Math.cos(ang)*R;
-  const gy = cy + Math.sin(ang)*R;
-
-  _uiMode = 'ceremony';
-  _ceremony = {
-    type: 'core',
-    el: _glyphSelected,
-    idx: -1,
-    from: { x: gx, y: gy },
-    to:   { x: cx, y: cy },
-    t0: performance.now(),
-    dur: 900
-  };
-
-  // clear selection (we’ll show chosen glyph via state.path)
-  _glyphSelected = null;
-  _branchSelected = -1;
-
-  glyphEnchantBtn.disabled = true;
-  glyphTitleEl.textContent = `${state.path.toUpperCase()} — ENCHANTING…`;
-  glyphDescEl.textContent = "Binding the oath…";
-  glyphCostEl.textContent = '—';
-}
+  
 
 // ===============================
-// Glyph overlay system (client)
+// Glyph overlay system (client) — SCROLLABLE 3D TREE + FULL DESCRIPTIONS
 // ===============================
-
-
-
-
-
-
+const GLYPH_COST_CORE = 10;
 const GLYPH_COST_T1   = 8;
 const GLYPH_COST_T2   = 10;
 const GLYPH_COST_T3   = 14;
 
-// Core descriptions (pentagon)
-
-
-// Pentagon angles
-;
-
-// Mode and ceremony
-let _uiMode = 'pentagon'; // 'pentagon' | 'ceremony' | 'tree'
-let _ceremony = null;     // { type:'core'|'node', el, branch, tier, from:{x,y}, to:{x,y}, t0, dur }
-
-// Tree selection
-let _selBranch = -1;  // 0..2
-let _selTier   = 0;   // 1..3
-
-// Tree camera (scroll + pan)
-const TREE_VIEW = {
-  ox: 0, oy: 0,        // pan offset in tree-space pixels
-  scale: 1.0,
-  dragging: false,
-  lastX: 0,
-  lastY: 0
+// ---------- Data: full skill names + descriptions ----------
+const GLYPH_CORE = {
+  fire:      { name:"Ignite", desc:"Your bullets/melee apply Burn: small DoT for 3–4 seconds." },
+  lightning: { name:"Static", desc:"Your hits apply Static (a mark). On next hit, Static discharges for bonus damage." },
+  spirit:    { name:"Soul Tap", desc:"Enemies drop soul fragments (XP orbs). Collecting them grants minor healing/shield." },
+  water:     { name:"Drench", desc:"Hits apply Drench; drenched enemies slow slightly and enable Water effects." },
+  earth:     { name:"Stone Skin", desc:"Gain armour (damage reduction)." }
 };
 
-// Tree layout (tree space, NOT screen space)
-const BRANCH_ANGLES = [-90, 30, 150];          // 3 branches
-const TIER_DIST     = [220, 340, 470];         // tier 1/2/3 distance from core
-const CORE_POS      = { x: 0, y: 0 };
+// Branches are [A,B,C], each has Tier1→Tier2→Tier3
+const GLYPH_TREE = {
+  fire: [
+    [
+      { name:"Hot Coals",     desc:"Burn stacks up to 3; each stack increases DoT and slightly slows enemies." },
+      { name:"Searing Shots", desc:"Burned enemies take +X% damage from you." },
+      { name:"Ashen Finish",  desc:"If an enemy dies while burning, it bursts tiny embers that seek nearby enemies." }
+    ],
+    [
+      { name:"Detonate",      desc:"When a burning enemy reaches 3 stacks, they pop for AoE." },
+      { name:"Napalm Trail",  desc:"Your shots leave short-lived burning ground patches." },
+      { name:"Volcanic Core", desc:"Every Nth kill triggers a big lava burst ring (visual + damage)." }
+    ],
+    [
+      { name:"Cauterise",     desc:"Killing burning enemies heals you slightly." },
+      { name:"Phoenix Step",  desc:"Short dash leaves a flame burst and clears slows." },
+      { name:"Rebirth",       desc:"Once per wave, lethal damage consumes burn stacks in a radius and revives you at low HP." }
+    ],
+  ],
+
+  lightning: [
+    [
+      { name:"Arc Jump",       desc:"Static discharge chains to 1 additional enemy." },
+      { name:"Forked Arc",     desc:"Chains can fork to 2 enemies but lower damage per jump." },
+      { name:"Storm Conductor",desc:"If 5+ enemies are in chain range, lightning keeps bouncing until it runs out." }
+    ],
+    [
+      { name:"Charged Rounds", desc:"Crit chance increases as you keep firing without missing." },
+      { name:"Overload",       desc:"Critical discharge stuns briefly." },
+      { name:"Thunderclap",    desc:"Discharge creates a small AoE shock ring." }
+    ],
+    [
+      { name:"Static Dash",    desc:"Dash leaves a shock line that discharges marked enemies." },
+      { name:"Blink Strike",   desc:"Short-range blink to cursor with cooldown." },
+      { name:"Ball Lightning", desc:"Summon a slow orb that follows you and zaps marked targets." }
+    ],
+  ],
+
+  spirit: [
+    [
+      { name:"Wisp Orbit",       desc:"Gain 1 wisp that orbits you and shoots weak projectiles." },
+      { name:"Wisp Swarm",       desc:"More wisps; each hit applies Haunt (small DoT)." },
+      { name:"Guardian Spirits", desc:"Wisps can intercept one projectile every few seconds." }
+    ],
+    [
+      { name:"Haunt",      desc:"Your hits apply Haunt; haunted enemies deal reduced touch damage." },
+      { name:"Soul Bind",  desc:"Hit 2 enemies quickly to link them — damage to one copies % to the other." },
+      { name:"Dread Bloom",desc:"Haunted enemy death releases fear pulse (brief slow/weakness around)." }
+    ],
+    [
+      { name:"Revenant",   desc:"Chance on kill to spawn a temporary allied shade (melee chaser)." },
+      { name:"Possession", desc:"Shade duration longer and gains ranged attack." },
+      { name:"Wraith King",desc:"Boss kills always spawn a powerful shade for one wave." }
+    ],
+  ],
+
+  water: [
+    [
+      { name:"Chill",      desc:"Drenched enemies slow more; at stacks freeze briefly." },
+      { name:"Ice Shards", desc:"Your shots occasionally fire a shard that pierces." },
+      { name:"Permafrost", desc:"Freeze causes a shatter AoE." }
+    ],
+    [
+      { name:"Mending Mist", desc:"Collecting XP orbs also restores a tiny amount of HP." },
+      { name:"Tidal Renewal",desc:"Every N hits create a small healing pulse around you." },
+      { name:"Sanctuary",    desc:"Drop a water circle at wave-end that persists into next wave as a safe zone." }
+    ],
+    [
+      { name:"Ripple Shot", desc:"Bullets push enemies slightly back." },
+      { name:"Tidal Wave",  desc:"Every X seconds, emit a cone wave knockback." },
+      { name:"Maelstrom",   desc:"A rotating water vortex that pulls enemies." }
+    ],
+  ],
+
+  earth: [
+    [
+      { name:"Thornmail",      desc:"Contact damage taken reflects a portion." },
+      { name:"Spiked Barrier", desc:"When hit, spawn 3 rock spikes outward." },
+      { name:"Jagged Earth",   desc:"Reflected damage can crit and causes bleed." }
+    ],
+    [
+      { name:"Bulwark",       desc:"Increased max HP or shield cap." },
+      { name:"Rooted Stance", desc:"Standing still briefly increases damage reduction and accuracy." },
+      { name:"Unbreakable",   desc:"Once per wave ignore lethal damage (stone shell shatters)." }
+    ],
+    [
+      { name:"Stone Pillar", desc:"Create a small temporary wall (blocks enemies/shots)." },
+      { name:"Quake",        desc:"Periodic stomp stuns in a small radius." },
+      { name:"Golem",        desc:"Summon a slow ally that taunts (pulls enemies toward it)." }
+    ],
+  ],
+};
+
+// ---------- Visual style ----------
+const ELEM_STYLE = {
+  fire:      { main:'#ff6a2a', rim:'#ffd7a3' },
+  lightning: { main:'#9fe3ff', rim:'#e8f7ff' },
+  water:     { main:'#4fd3ff', rim:'#cfefff' },
+  spirit:    { main:'#c066ff', rim:'#e7c7ff' },
+  earth:     { main:'#7dffa3', rim:'#d9ffe6' }
+};
+
+function hexRgb(hex){
+  const h = String(hex || '#ffffff').replace('#','');
+  const n = parseInt(h.length===3 ? h.split('').map(c=>c+c).join('') : h, 16);
+  return { r:(n>>16)&255, g:(n>>8)&255, b:n&255 };
+}
+function rgba(hex,a){
+  const c = hexRgb(hex);
+  return `rgba(${c.r},${c.g},${c.b},${a})`;
+}
+
+// ---------- Tree layout ----------
+const BRANCH_ANGLES = [-90, 30, 150];
+const TIER_DIST     = [220, 340, 470];
+
+function nodePos(b,tier){
+  const ang = BRANCH_ANGLES[b] * Math.PI/180;
+  const d = TIER_DIST[tier-1];
+  return { x: Math.cos(ang)*d, y: Math.sin(ang)*d };
+}
+
+// ---------- State ----------
+let _uiMode = 'pentagon';     // 'pentagon' | 'tree' | 'ceremony'
+let _ceremony = null;         // { type:'core'|'node', el, branch, tier, from:{x,y}, to:{x,y}, t0, dur }
+let _glyphSelected = null;    // element in pentagon
+let _selBranch = -1;
+let _selTier = 0;
+let _glyphCost = 0;
+
+let _glyphRAF = 0;
+const _glyphParticles = [];
+
+// ---------- Scroll camera ----------
+const TREE_VIEW = { ox:0, oy:0, scale:1.0, dragging:false, lastX:0, lastY:0 };
+
+function treeToScreen(tx,ty){
+  const cx = glyphCanvas.width/2, cy = glyphCanvas.height/2;
+  return { x: cx + (tx + TREE_VIEW.ox) * TREE_VIEW.scale,
+           y: cy + (ty + TREE_VIEW.oy) * TREE_VIEW.scale };
+}
+function screenToTree(sx,sy){
+  const cx = glyphCanvas.width/2, cy = glyphCanvas.height/2;
+  return { x: (sx - cx)/TREE_VIEW.scale - TREE_VIEW.ox,
+           y: (sy - cy)/TREE_VIEW.scale - TREE_VIEW.oy };
+}
 
 function ensureTreeState(el){
   if (!state.unlocks[el]) state.unlocks[el] = {};
   if (!Array.isArray(state.unlocks[el].tree)) {
-    // 3 branches × 3 tiers, all locked
     state.unlocks[el].tree = [
       [false,false,false],
       [false,false,false],
@@ -3698,60 +3978,20 @@ function ensureTreeState(el){
   }
   return state.unlocks[el].tree;
 }
-
-function isBranchTierUnlocked(el, b, tier){
-  const T = ensureTreeState(el);
-  return !!T[b][tier-1];
-}
-
-function setBranchTierUnlocked(el, b, tier, val=true){
-  const T = ensureTreeState(el);
-  T[b][tier-1] = !!val;
-}
-
-function nextUnlockForBranch(el, b){
-  // returns 1..3 for the next tier, or 0 if branch complete
-  if (!isBranchTierUnlocked(el,b,1)) return 1;
-  if (!isBranchTierUnlocked(el,b,2)) return 2;
-  if (!isBranchTierUnlocked(el,b,3)) return 3;
+function isUnlocked(el,b,tier){ return !!ensureTreeState(el)[b][tier-1]; }
+function unlockNode(el,b,tier){ ensureTreeState(el)[b][tier-1] = true; }
+function nextTier(el,b){
+  if (!isUnlocked(el,b,1)) return 1;
+  if (!isUnlocked(el,b,2)) return 2;
+  if (!isUnlocked(el,b,3)) return 3;
   return 0;
 }
-
-function isPathComplete(el){
-  for (let b=0;b<3;b++){
-    if (!isBranchTierUnlocked(el,b,3)) return false;
-  }
+function isComplete(el){
+  for(let b=0;b<3;b++){ if(!isUnlocked(el,b,3)) return false; }
   return true;
 }
 
-// Tree-space → screen-space (glyphCanvas space)
-function treeToScreen(tx, ty){
-  const cx = glyphCanvas.width/2;
-  const cy = glyphCanvas.height/2;
-  return {
-    x: cx + (tx + TREE_VIEW.ox) * TREE_VIEW.scale,
-    y: cy + (ty + TREE_VIEW.oy) * TREE_VIEW.scale
-  };
-}
-
-// screen-space → tree-space
-function screenToTree(sx, sy){
-  const cx = glyphCanvas.width/2;
-  const cy = glyphCanvas.height/2;
-  return {
-    x: (sx - cx) / TREE_VIEW.scale - TREE_VIEW.ox,
-    y: (sy - cy) / TREE_VIEW.scale - TREE_VIEW.oy
-  };
-}
-
-// Node position in tree space
-function nodePos(branchIndex, tier){
-  const ang = BRANCH_ANGLES[branchIndex] * Math.PI/180;
-  const d = TIER_DIST[tier-1];
-  return { x: Math.cos(ang)*d, y: Math.sin(ang)*d };
-}
-
-// Attach/remove scroll handlers
+// ---------- Input attach ----------
 function attachTreeInput(){
   if (!glyphCanvas) return;
 
@@ -3763,14 +4003,11 @@ function attachTreeInput(){
     const sx = (ev.clientX - rect.left) * (glyphCanvas.width / rect.width);
     const sy = (ev.clientY - rect.top)  * (glyphCanvas.height / rect.height);
 
-    const before = screenToTree(sx, sy);
-
+    const before = screenToTree(sx,sy);
     const zoom = (ev.deltaY > 0) ? 0.92 : 1.08;
     TREE_VIEW.scale = clamp(TREE_VIEW.scale * zoom, 0.55, 1.8);
+    const after = screenToTree(sx,sy);
 
-    const after = screenToTree(sx, sy);
-
-    // keep cursor point stable
     TREE_VIEW.ox += (after.x - before.x);
     TREE_VIEW.oy += (after.y - before.y);
   };
@@ -3789,17 +4026,12 @@ function attachTreeInput(){
     const dy = ev.clientY - TREE_VIEW.lastY;
     TREE_VIEW.lastX = ev.clientX;
     TREE_VIEW.lastY = ev.clientY;
-
-    // pan in tree space
     TREE_VIEW.ox += dx / TREE_VIEW.scale;
     TREE_VIEW.oy += dy / TREE_VIEW.scale;
   };
 
-  glyphCanvas.onpointerup = (ev) => {
-    TREE_VIEW.dragging = false;
-  };
+  glyphCanvas.onpointerup = () => { TREE_VIEW.dragging = false; };
 }
-
 function detachTreeInput(){
   if (!glyphCanvas) return;
   glyphCanvas.onwheel = null;
@@ -3808,13 +4040,145 @@ function detachTreeInput(){
   glyphCanvas.onpointerup = null;
 }
 
-// Decide which UI to open into
+// ---------- 3D + element signature draw ----------
+function drawElementAura(ctx, el, x, y, r, time, alpha){
+  const st = ELEM_STYLE[el] || ELEM_STYLE.lightning;
+
+  ctx.save();
+  ctx.globalCompositeOperation = 'screen';
+  ctx.globalAlpha = alpha;
+
+  if (el === 'fire'){
+    // flame tongues
+    for (let k=0;k<3;k++){
+      const a = time*3.2 + k*2.1 + (x+y)*0.002;
+      const fx = x + Math.cos(a)*r*0.55;
+      const fy = y + Math.sin(a)*r*0.55;
+      ctx.fillStyle = rgba(st.main, 0.55);
+      ctx.beginPath(); ctx.arc(fx, fy, 6 + 4*Math.sin(time*8+k), 0, Math.PI*2); ctx.fill();
+    }
+  } else if (el === 'lightning'){
+    // tiny arcs
+    ctx.strokeStyle = rgba(st.main, 0.65);
+    ctx.lineWidth = 2;
+    for (let k=0;k<3;k++){
+      const a = time*4 + k*2.09;
+      const x0 = x + Math.cos(a)*r*0.6;
+      const y0 = y + Math.sin(a)*r*0.6;
+      ctx.beginPath();
+      ctx.moveTo(x0,y0);
+      ctx.lineTo(x0 + (Math.random()*2-1)*18, y0 + (Math.random()*2-1)*18);
+      ctx.stroke();
+    }
+  } else if (el === 'water'){
+    // ripples
+    ctx.strokeStyle = rgba(st.main, 0.35);
+    ctx.lineWidth = 3;
+    const rr = r*0.55 + (Math.sin(time*2.3)*0.5+0.5)*r*0.18;
+    ctx.beginPath(); ctx.arc(x,y,rr,0,Math.PI*2); ctx.stroke();
+  } else if (el === 'spirit'){
+    // wisps
+    ctx.fillStyle = rgba(st.main, 0.35);
+    for (let k=0;k<4;k++){
+      const a = time*1.7 + k*1.57;
+      ctx.beginPath();
+      ctx.arc(x + Math.cos(a)*r*0.55, y + Math.sin(a)*r*0.55, 4.5, 0, Math.PI*2);
+      ctx.fill();
+    }
+  } else if (el === 'earth'){
+    // dust motes
+    ctx.fillStyle = rgba(st.main, 0.28);
+    for (let k=0;k<5;k++){
+      const a = time*1.3 + k*1.1;
+      ctx.beginPath();
+      ctx.arc(x + Math.cos(a)*r*0.58, y + Math.sin(a)*r*0.58, 2.5, 0, Math.PI*2);
+      ctx.fill();
+    }
+  }
+
+  ctx.restore();
+}
+
+function drawGlyphIcon3D(ctx, img, x, y, size, el, alpha, selected, unlocked, time){
+  const st = ELEM_STYLE[el] || ELEM_STYLE.lightning;
+  const flick = (el==='fire') ? (0.7 + 0.3*Math.sin(time*10 + x*0.01 + y*0.01)) : 1;
+
+  ctx.save();
+  ctx.globalAlpha = alpha;
+
+  // shadow
+  ctx.save();
+  ctx.filter = 'drop-shadow(0px 10px 12px rgba(0,0,0,0.55))';
+  ctx.drawImage(img, x - size/2, y - size/2, size, size);
+  ctx.restore();
+
+  // bevel darkening (fake engraved depth)
+  ctx.save();
+  ctx.globalCompositeOperation = 'multiply';
+  ctx.globalAlpha = alpha * 0.35;
+  const dg = ctx.createRadialGradient(x,y,size*0.15, x,y,size*0.62);
+  dg.addColorStop(0,'rgba(0,0,0,0)');
+  dg.addColorStop(1,'rgba(0,0,0,0.85)');
+  ctx.fillStyle = dg;
+  ctx.beginPath(); ctx.arc(x,y,size*0.62,0,Math.PI*2); ctx.fill();
+  ctx.restore();
+
+  // inner glow
+  ctx.save();
+  ctx.globalCompositeOperation = 'screen';
+  ctx.globalAlpha = alpha * (selected ? 0.75 : 0.35) * flick;
+  const g = ctx.createRadialGradient(x,y,size*0.12, x,y,size*0.62);
+  g.addColorStop(0, rgba(st.rim, 0.55));
+  g.addColorStop(0.45, rgba(st.main, 0.32));
+  g.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = g;
+  ctx.beginPath(); ctx.arc(x,y,size*0.62,0,Math.PI*2); ctx.fill();
+  ctx.restore();
+
+  // rim ring
+  ctx.save();
+  ctx.globalAlpha = alpha * (selected ? 0.95 : 0.55);
+  ctx.strokeStyle = rgba(st.rim, 0.85);
+  ctx.lineWidth = 5;
+  ctx.beginPath(); ctx.arc(x,y,size*0.52,0,Math.PI*2); ctx.stroke();
+  ctx.restore();
+
+  // element aura
+  drawElementAura(ctx, el, x, y, size*0.62, time, alpha*(selected?0.85:0.45));
+
+  // unlocked pip
+  if (unlocked){
+    ctx.save();
+    ctx.globalAlpha = alpha * 0.95;
+    ctx.fillStyle = rgba(st.rim, 0.9);
+    ctx.beginPath();
+    ctx.arc(x + size*0.32, y - size*0.32, 9, 0, Math.PI*2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  ctx.restore();
+}
+
+function drawLabel(ctx, x, y, text, alpha){
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.font = '700 13px system-ui, Arial';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'top';
+  ctx.fillStyle = 'rgba(255,255,255,0.92)';
+  ctx.shadowColor = 'rgba(0,0,0,0.65)';
+  ctx.shadowBlur = 6;
+  ctx.fillText(text, x, y + 62);
+  ctx.restore();
+}
+
+// ---------- Open/close ----------
 function openGlyphOverlay(seconds=15){
   if (!ovGlyphs || !glyphCanvas || !gctx) return;
 
   ovGlyphs.style.display = 'grid';
 
-  // If locked into a path and not completed, go straight to tree view
   if (state.path && !state.completed[state.path]) {
     _uiMode = 'tree';
     ensureTreeState(state.path);
@@ -3822,44 +4186,37 @@ function openGlyphOverlay(seconds=15){
     _uiMode = 'pentagon';
   }
 
-  // reset selection
   _glyphSelected = null;
   _selBranch = -1;
   _selTier = 0;
   _glyphCost = 0;
 
-  // initialise tree view when entering tree
-  if (_uiMode === 'tree') {
-    TREE_VIEW.ox = 0;
-    TREE_VIEW.oy = 0;
-    TREE_VIEW.scale = 1.0;
+  if (_uiMode === 'tree'){
+    TREE_VIEW.ox = 0; TREE_VIEW.oy = 0; TREE_VIEW.scale = 1.0;
   }
 
   glyphTitleEl.textContent = '—';
-  glyphDescEl.textContent = 'Select a path. Enchant to confirm.';
+  glyphDescEl.textContent = 'Select a glyph or node to view its description.';
   glyphEnchantBtn.disabled = true;
   glyphCostEl.textContent = '—';
 
   if (glyphTimerEl) glyphTimerEl.textContent = String(seconds);
   if (glyphEssenceEl) glyphEssenceEl.textContent = String(state.essence);
 
-  // particles
   _glyphParticles.length = 0;
-  for (let i=0;i<120;i++){
+  for (let i=0;i<140;i++){
     _glyphParticles.push({
-      x: 0 + (Math.random()*2-1)*60,
-      y: 0 + (Math.random()*2-1)*60,
-      vx:(Math.random()*2-1)*18,
-      vy:(Math.random()*2-1)*18,
-      a: 0.18 + Math.random()*0.35,
-      r: 1 + Math.random()*2.2
+      x:(Math.random()*2-1)*60,
+      y:(Math.random()*2-1)*60,
+      vx:(Math.random()*2-1)*22,
+      vy:(Math.random()*2-1)*22,
+      a:0.18 + Math.random()*0.35,
+      r:1 + Math.random()*2.0
     });
   }
 
-  // click handler still used (selection)
   glyphCanvas.onclick = onGlyphClick;
   glyphEnchantBtn.onclick = onGlyphEnchant;
-
   attachTreeInput();
 
   cancelAnimationFrame(_glyphRAF);
@@ -3870,13 +4227,11 @@ function closeGlyphOverlay(){
   if (ovGlyphs) ovGlyphs.style.display = 'none';
   glyphCanvas && (glyphCanvas.onclick = null);
   glyphEnchantBtn && (glyphEnchantBtn.onclick = null);
-
   detachTreeInput();
-
   cancelAnimationFrame(_glyphRAF);
 }
 
-// Selection (pentagon or tree)
+// ---------- Click selection ----------
 function onGlyphClick(ev){
   if (_uiMode === 'ceremony') return;
 
@@ -3884,39 +4239,26 @@ function onGlyphClick(ev){
   const sx = (ev.clientX - rect.left) * (glyphCanvas.width / rect.width);
   const sy = (ev.clientY - rect.top)  * (glyphCanvas.height / rect.height);
 
-  // =========================
-  // TREE MODE: click next available node in any branch
-  // =========================
+  // TREE MODE: click next available node in a branch
   if (_uiMode === 'tree') {
     const el = state.path;
     if (!el) return;
 
-    const tx = screenToTree(sx, sy).x;
-    const ty = screenToTree(sx, sy).y;
-
-    // hit test nodes (tier 1..3, 3 branches)
+    const p = screenToTree(sx,sy);
     for (let b=0;b<3;b++){
-      const nextTier = nextUnlockForBranch(el, b);
+      const need = nextTier(el,b);
       for (let tier=1;tier<=3;tier++){
-        const p = nodePos(b, tier);
-        const d = Math.hypot(tx - p.x, ty - p.y);
-
-        // node radius in tree space (scaled visually by TREE_VIEW.scale)
-        const hitR = 70;
-
-        if (d <= hitR){
-          // only allow clicking next tier in that branch
-          if (tier !== nextTier) return;
+        const np = nodePos(b,tier);
+        if (Math.hypot(p.x-np.x, p.y-np.y) <= 70){
+          if (tier !== need) return;
 
           _selBranch = b;
-          _selTier = tier;
+          _selTier   = tier;
+          _glyphCost = (tier===1)?GLYPH_COST_T1:(tier===2)?GLYPH_COST_T2:GLYPH_COST_T3;
 
-          if (tier === 1) _glyphCost = GLYPH_COST_T1;
-          if (tier === 2) _glyphCost = GLYPH_COST_T2;
-          if (tier === 3) _glyphCost = GLYPH_COST_T3;
-
-          glyphTitleEl.textContent = `${el.toUpperCase()} — BRANCH ${b+1} (T${tier})`;
-          glyphDescEl.textContent  = `Enchant Tier ${tier} on branch ${b+1}.`;
+          const node = GLYPH_TREE[el][b][tier-1];
+          glyphTitleEl.textContent = `${node.name}`;
+          glyphDescEl.textContent  = node.desc;
           glyphCostEl.textContent  = String(_glyphCost);
           glyphEnchantBtn.disabled = (state.essence < _glyphCost);
           return;
@@ -3926,18 +4268,14 @@ function onGlyphClick(ev){
     return;
   }
 
-  // =========================
-  // PENTAGON MODE: choose element
-  // =========================
+  // PENTAGON MODE
   if (state.path && !state.completed[state.path]) return;
 
   const cx = glyphCanvas.width/2;
   const cy = glyphCanvas.height/2;
   const R = 210;
-
   for (const k of Object.keys(GLYPH_POS)){
     if (state.completed[k]) continue;
-
     const ang = GLYPH_POS[k].a * Math.PI/180;
     const gx = cx + Math.cos(ang)*R;
     const gy = cy + Math.sin(ang)*R;
@@ -3945,127 +4283,86 @@ function onGlyphClick(ev){
     if (Math.hypot(sx-gx, sy-gy) <= 70){
       _glyphSelected = k;
       _glyphCost = GLYPH_COST_CORE;
-
-      glyphTitleEl.textContent = k.toUpperCase();
-      glyphDescEl.textContent = GLYPH_DESC[k] || '—';
-      glyphCostEl.textContent = String(_glyphCost);
-
+      glyphTitleEl.textContent = `${k.toUpperCase()} — ${GLYPH_CORE[k].name}`;
+      glyphDescEl.textContent  = GLYPH_CORE[k].desc;
+      glyphCostEl.textContent  = String(_glyphCost);
       glyphEnchantBtn.disabled = (state.essence < _glyphCost);
       return;
     }
   }
 }
 
-// Enchant (core or node) with ceremony
+// ---------- Enchant ----------
 function onGlyphEnchant(){
   if (_uiMode === 'ceremony') return;
 
   const cx = glyphCanvas.width/2;
   const cy = glyphCanvas.height/2;
 
-  // =========================
-  // TREE MODE: enchant node
-  // =========================
+  // TREE MODE: enchant selected node
   if (_uiMode === 'tree') {
     const el = state.path;
     if (!el) return;
-
     if (_selBranch < 0 || _selTier < 1) return;
     if (state.essence < _glyphCost) return;
 
-    // pay immediately
     state.essence -= _glyphCost;
     if (glyphEssenceEl) glyphEssenceEl.textContent = String(state.essence);
 
-    // ceremony around clicked node (no teleport)
-    const p = nodePos(_selBranch, _selTier);
-    const s = treeToScreen(p.x, p.y);
+    const np = nodePos(_selBranch,_selTier);
+    const sp = treeToScreen(np.x,np.y);
 
     _uiMode = 'ceremony';
-    _ceremony = {
-      type: 'node',
-      el,
-      branch: _selBranch,
-      tier: _selTier,
-      from: { x: s.x, y: s.y },
-      to:   { x: s.x, y: s.y },
-      t0: performance.now(),
-      dur: 650
-    };
+    _ceremony = { type:'node', el, branch:_selBranch, tier:_selTier, from:{x:sp.x,y:sp.y}, to:{x:sp.x,y:sp.y}, t0:performance.now(), dur:650 };
 
     glyphEnchantBtn.disabled = true;
-    glyphTitleEl.textContent = `${el.toUpperCase()} — ENCHANTING…`;
-    glyphDescEl.textContent  = `Branch ${_selBranch+1} Tier ${_selTier}…`;
-    glyphCostEl.textContent  = '—';
+    glyphCostEl.textContent = '—';
     return;
   }
 
-  // =========================
-  // PENTAGON MODE: enchant core glyph
-  // =========================
+  // PENTAGON MODE: enchant core
   if (!_glyphSelected) return;
   if (state.essence < _glyphCost) return;
 
-  // pay immediately
   state.essence -= _glyphCost;
   if (glyphEssenceEl) glyphEssenceEl.textContent = String(state.essence);
 
-  // lock chosen element immediately
   state.path = _glyphSelected;
   state.tier = Math.max(state.tier, 1);
   player.glyphPath = state.path;
   player.glyphTier = state.tier;
   ensureTreeState(state.path);
 
-  // ceremony: whirl at glyph, then fly to centre
   const R = 210;
   const ang = GLYPH_POS[_glyphSelected].a * Math.PI/180;
   const gx = cx + Math.cos(ang)*R;
   const gy = cy + Math.sin(ang)*R;
 
   _uiMode = 'ceremony';
-  _ceremony = {
-    type: 'core',
-    el: _glyphSelected,
-    branch: -1,
-    tier: 0,
-    from: { x: gx, y: gy },
-    to:   { x: cx, y: cy },
-    t0: performance.now(),
-    dur: 900
-  };
+  _ceremony = { type:'core', el:_glyphSelected, branch:-1, tier:0, from:{x:gx,y:gy}, to:{x:cx,y:cy}, t0:performance.now(), dur:900 };
 
   _glyphSelected = null;
-  _selBranch = -1;
-  _selTier = 0;
-
-  // reset view so tree starts centred
-  TREE_VIEW.ox = 0;
-  TREE_VIEW.oy = 0;
-  TREE_VIEW.scale = 1.0;
+  _selBranch = -1; _selTier = 0;
+  TREE_VIEW.ox = 0; TREE_VIEW.oy = 0; TREE_VIEW.scale = 1.0;
 
   glyphEnchantBtn.disabled = true;
-  glyphTitleEl.textContent = `${state.path.toUpperCase()} — ENCHANTING…`;
-  glyphDescEl.textContent  = "Binding the oath…";
-  glyphCostEl.textContent  = '—';
+  glyphCostEl.textContent = '—';
 }
 
-// Draw overlay (pentagon or tree or ceremony)
+// ---------- Draw ----------
 function drawGlyphOverlay(){
   if (!ovGlyphs || ovGlyphs.style.display !== 'grid') return;
 
   const W = glyphCanvas.width, H = glyphCanvas.height;
   gctx.clearRect(0,0,W,H);
 
-  const cx = W/2;
-  const cy = H/2;
+  const cx = W/2, cy = H/2;
   const time = performance.now()/1000;
 
-  // =========================
-  // Particles (in screen space; orbit around ceremony or centre)
-  // =========================
-  let orbitX = cx, orbitY = cy;
-  let orbitForce = 0.12;
+  // particles orbit around centre/ceremony
+  let orbitX = cx, orbitY = cy, orbitForce = 0.10;
+  let activeEl = (state.path || _glyphSelected || (_ceremony && _ceremony.el) || 'lightning');
+  const st = ELEM_STYLE[activeEl] || ELEM_STYLE.lightning;
 
   if (_uiMode === 'ceremony' && _ceremony){
     const t = (performance.now() - _ceremony.t0) / _ceremony.dur;
@@ -4073,105 +4370,85 @@ function drawGlyphOverlay(){
     const ease = 1 - Math.pow(1-u, 3);
     orbitX = _ceremony.from.x + (_ceremony.to.x - _ceremony.from.x) * ease;
     orbitY = _ceremony.from.y + (_ceremony.to.y - _ceremony.from.y) * ease;
-    orbitForce = 0.34;
+    orbitForce = 0.30;
   }
 
   for (const p of _glyphParticles){
-    // p.x / p.y in "tree-space" so we convert to screen around orbit centre
     p.x += p.vx*(1/60);
     p.y += p.vy*(1/60);
-
-    const dx = p.x;
-    const dy = p.y;
-    const d = Math.hypot(dx,dy) || 1;
-
-    p.vx += (-dy/d)*orbitForce;
-    p.vy += ( dx/d)*orbitForce;
+    const d = Math.hypot(p.x,p.y) || 1;
+    p.vx += (-p.y/d)*orbitForce;
+    p.vy += ( p.x/d)*orbitForce;
     p.vx *= 0.99; p.vy *= 0.99;
 
     gctx.globalAlpha = p.a;
-    gctx.fillStyle = `rgba(180,220,255,${p.a})`;
+    gctx.fillStyle = rgba(st.main, p.a);
     gctx.beginPath();
     gctx.arc(orbitX + p.x, orbitY + p.y, p.r, 0, Math.PI*2);
     gctx.fill();
   }
   gctx.globalAlpha = 1;
 
-  // centre core glow
-  const pulse = 0.5 + 0.5*Math.sin(time*1.4);
-  const coreR = 58 + pulse*5;
-  const rg = gctx.createRadialGradient(cx,cy,10,cx,cy,coreR*1.4);
-  rg.addColorStop(0, `rgba(255,255,255,${0.22+0.18*pulse})`);
-  rg.addColorStop(0.6, `rgba(140,200,255,${0.10+0.08*pulse})`);
-  rg.addColorStop(1, 'rgba(0,0,0,0)');
-  gctx.fillStyle = rg;
-  gctx.beginPath();
-  gctx.arc(cx,cy,coreR*1.4,0,Math.PI*2);
-  gctx.fill();
+  // centre “ancient core” (procedural — no sprite required)
+  {
+    const pulse = 0.5 + 0.5*Math.sin(time*1.4);
+    const r0 = 62 + pulse*6;
+    const g = gctx.createRadialGradient(cx,cy,10,cx,cy,r0*1.35);
+    g.addColorStop(0, 'rgba(255,255,255,0.18)');
+    g.addColorStop(0.55, rgba(st.main, 0.12));
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    gctx.fillStyle = g;
+    gctx.beginPath(); gctx.arc(cx,cy,r0*1.35,0,Math.PI*2); gctx.fill();
+  }
 
-  // =========================
   // CEREMONY
-  // =========================
   if (_uiMode === 'ceremony' && _ceremony){
     const t = (performance.now() - _ceremony.t0) / _ceremony.dur;
-    const u = clamp(t, 0, 1);
+    const u = clamp(t,0,1);
     const ease = 1 - Math.pow(1-u, 3);
-
     const px = _ceremony.from.x + (_ceremony.to.x - _ceremony.from.x) * ease;
     const py = _ceremony.from.y + (_ceremony.to.y - _ceremony.from.y) * ease;
 
-    // spinning ring
+    // element-coloured whirl ring
     gctx.save();
     gctx.globalAlpha = 0.95;
-    gctx.strokeStyle = 'rgba(255,255,255,0.92)';
-    gctx.lineWidth = 5;
-    gctx.setLineDash([10, 6]);
-    gctx.lineDashOffset = -performance.now()*0.02;
+    gctx.strokeStyle = rgba(st.rim, 0.95);
+    gctx.lineWidth = 6;
+    gctx.setLineDash([12, 7]);
+    gctx.lineDashOffset = -performance.now()*0.03;
     gctx.beginPath();
-    gctx.arc(px, py, 78 + Math.sin(u*Math.PI)*10, 0, Math.PI*2);
+    gctx.arc(px, py, 82 + Math.sin(u*Math.PI)*12, 0, Math.PI*2);
     gctx.stroke();
     gctx.restore();
 
-    // bright glow
-    gctx.save();
-    gctx.globalAlpha = 0.55 + 0.25*Math.sin(u*Math.PI);
-    gctx.fillStyle = 'rgba(200,235,255,0.7)';
-    gctx.beginPath();
-    gctx.arc(px, py, 94, 0, Math.PI*2);
-    gctx.fill();
-    gctx.restore();
-
-    // glyph sprite
+    // draw icon (3D)
     const img = GlyphImages[_ceremony.el][0];
-    gctx.drawImage(img, px-72, py-72, 144, 144);
+    drawGlyphIcon3D(gctx, img, px, py, 144, _ceremony.el, 1.0, true, true, time);
 
     // finish ceremony
     if (u >= 1){
       if (_ceremony.type === 'node'){
-        // unlock that tier
-        setBranchTierUnlocked(_ceremony.el, _ceremony.branch, _ceremony.tier, true);
+        unlockNode(_ceremony.el, _ceremony.branch, _ceremony.tier);
 
-        if (isPathComplete(_ceremony.el)){
+        if (isComplete(_ceremony.el)){
           state.completed[_ceremony.el] = true;
           state.path = null;
           _uiMode = 'pentagon';
           glyphTitleEl.textContent = `${_ceremony.el.toUpperCase()} COMPLETED`;
-          glyphDescEl.textContent = "Path filled. Next upgrade lets you pick another element.";
+          glyphDescEl.textContent  = "Path filled. Next upgrade lets you pick another element.";
         } else {
           _uiMode = 'tree';
           glyphTitleEl.textContent = `${_ceremony.el.toUpperCase()} — CONTINUE`;
-          glyphDescEl.textContent = "Enchant the next available node on any branch.";
+          glyphDescEl.textContent  = "Enchant the next available tier on each branch.";
         }
 
-        _selBranch = -1;
-        _selTier = 0;
+        _selBranch = -1; _selTier = 0;
         glyphEnchantBtn.disabled = true;
         glyphCostEl.textContent = '—';
       } else {
-        // core finished -> show tree
         _uiMode = 'tree';
         glyphTitleEl.textContent = `${_ceremony.el.toUpperCase()} — CHOSEN`;
-        glyphDescEl.textContent = "Enchant nodes to fill each branch.";
+        glyphDescEl.textContent  = "Unlock each branch (T1→T2→T3). Scroll/drag to move the tree.";
         glyphEnchantBtn.disabled = true;
         glyphCostEl.textContent = '—';
       }
@@ -4182,90 +4459,44 @@ function drawGlyphOverlay(){
     return;
   }
 
-  // =========================
-  // TREE MODE (scrollable)
-  // =========================
+  // TREE MODE
   if (_uiMode === 'tree' && state.path){
     const el = state.path;
     ensureTreeState(el);
 
-    // draw core at tree origin
-    {
-      const s = treeToScreen(0,0);
-      const img0 = GlyphImages[el][0];
-      gctx.save();
-      gctx.globalAlpha = 1.0;
-      gctx.drawImage(img0, s.x-72, s.y-72, 144, 144);
-      gctx.restore();
-    }
+    // core icon (uses tier1 sprite)
+    const s0 = treeToScreen(0,0);
+    drawGlyphIcon3D(gctx, GlyphImages[el][0], s0.x, s0.y, 144, el, 1.0, true, true, time);
+    drawLabel(gctx, s0.x, s0.y, `${GLYPH_CORE[el].name}`, 0.75);
 
-    // draw branches with 3 tiers each
     for (let b=0;b<3;b++){
-      const p1 = nodePos(b, 1);
-      const p2 = nodePos(b, 2);
-      const p3 = nodePos(b, 3);
+      const p1=nodePos(b,1), p2=nodePos(b,2), p3=nodePos(b,3);
+      const a0=treeToScreen(0,0), a1=treeToScreen(p1.x,p1.y), a2=treeToScreen(p2.x,p2.y), a3=treeToScreen(p3.x,p3.y);
 
-      const s0 = treeToScreen(0,0);
-      const s1 = treeToScreen(p1.x, p1.y);
-      const s2 = treeToScreen(p2.x, p2.y);
-      const s3 = treeToScreen(p3.x, p3.y);
-
-      // lines
       gctx.save();
       gctx.globalAlpha = 0.22;
-      gctx.strokeStyle = 'rgba(200,230,255,0.6)';
+      gctx.strokeStyle = rgba(st.main, 0.45);
       gctx.lineWidth = 6;
       gctx.beginPath();
-      gctx.moveTo(s0.x, s0.y);
-      gctx.lineTo(s1.x, s1.y);
-      gctx.lineTo(s2.x, s2.y);
-      gctx.lineTo(s3.x, s3.y);
+      gctx.moveTo(a0.x,a0.y);
+      gctx.lineTo(a1.x,a1.y);
+      gctx.lineTo(a2.x,a2.y);
+      gctx.lineTo(a3.x,a3.y);
       gctx.stroke();
       gctx.restore();
 
-      // node draws (tier sprites)
       for (let tier=1;tier<=3;tier++){
-        const unlocked = isBranchTierUnlocked(el, b, tier);
-        const nextTier = nextUnlockForBranch(el, b);
-        const selectable = (tier === nextTier);
+        const pos = nodePos(b,tier);
+        const ss = treeToScreen(pos.x,pos.y);
+        const unlocked = isUnlocked(el,b,tier);
+        const need = nextTier(el,b);
+        const selectable = (tier === need);
 
-        const pos = nodePos(b, tier);
-        const ss = treeToScreen(pos.x, pos.y);
+        const img = (tier===1)?GlyphImages[el][0]:(tier===2)?GlyphImages[el][1]:GlyphImages[el][2];
+        const alpha = unlocked ? 1.0 : (selectable ? 0.78 : 0.12);
 
-        const img =
-          (tier === 1) ? GlyphImages[el][0] :
-          (tier === 2) ? GlyphImages[el][1] :
-                         GlyphImages[el][2];
-
-        // visibility rules:
-        // - unlocked: full
-        // - next selectable: high
-        // - future locked: dim
-        const alpha = unlocked ? 1.0 : (selectable ? 0.70 : 0.14);
-
-        gctx.save();
-        gctx.globalAlpha = alpha;
-        gctx.drawImage(img, ss.x-56, ss.y-56, 112, 112);
-
-        if (selectable){
-          gctx.globalAlpha = 0.9;
-          gctx.strokeStyle = 'rgba(255,255,255,0.85)';
-          gctx.lineWidth = 5;
-          gctx.beginPath();
-          gctx.arc(ss.x, ss.y, 64, 0, Math.PI*2);
-          gctx.stroke();
-        }
-
-        if (unlocked){
-          // unlocked mark
-          gctx.globalAlpha = 0.85;
-          gctx.fillStyle = 'rgba(255,255,255,0.85)';
-          gctx.beginPath();
-          gctx.arc(ss.x+38, ss.y-38, 10, 0, Math.PI*2);
-          gctx.fill();
-        }
-
-        gctx.restore();
+        drawGlyphIcon3D(gctx, img, ss.x, ss.y, 112, el, alpha, selectable, unlocked, time);
+        drawLabel(gctx, ss.x, ss.y, GLYPH_TREE[el][b][tier-1].name, alpha);
       }
     }
 
@@ -4273,13 +4504,10 @@ function drawGlyphOverlay(){
     return;
   }
 
-  // =========================
   // PENTAGON MODE
-  // =========================
   {
     const R = 210;
 
-    // oath lines
     gctx.lineWidth = 6;
     gctx.globalAlpha = 0.18;
     gctx.strokeStyle = 'rgba(200,230,255,0.55)';
@@ -4299,36 +4527,12 @@ function drawGlyphOverlay(){
       const gx = cx + Math.cos(ang)*R;
       const gy = cy + Math.sin(ang)*R;
 
-      const img = GlyphImages[k][0];
-      const sel = (_glyphSelected === k);
       const done = !!state.completed[k];
+      const sel = (_glyphSelected === k);
 
-      const glow = 0.18 + (sel?0.22:0) + 0.06*Math.sin(time*2.0 + ang);
-      gctx.save();
-      gctx.globalAlpha = done ? 0.08 : glow;
-      gctx.fillStyle = 'rgba(180,220,255,0.65)';
-      gctx.beginPath();
-      gctx.arc(gx,gy,70,0,Math.PI*2);
-      gctx.fill();
-      gctx.restore();
-
-      gctx.save();
-      const s = sel ? 1.06 : 1.0;
-      gctx.translate(gx,gy);
-      gctx.scale(s,s);
-      gctx.globalAlpha = done ? 0.18 : 1.0;
-      gctx.drawImage(img, -64, -64, 128, 128);
-      gctx.restore();
-
-      if (sel && !done){
-        gctx.save();
-        gctx.lineWidth = 5;
-        gctx.strokeStyle = 'rgba(255,255,255,0.9)';
-        gctx.beginPath();
-        gctx.arc(gx,gy,74,0,Math.PI*2);
-        gctx.stroke();
-        gctx.restore();
-      }
+      const alpha = done ? 0.18 : 1.0;
+      drawGlyphIcon3D(gctx, GlyphImages[k][0], gx, gy, 128, k, alpha, sel, done, time);
+      drawLabel(gctx, gx, gy, GLYPH_CORE[k].name, done ? 0.25 : 0.75);
     }
 
     _glyphRAF = requestAnimationFrame(drawGlyphOverlay);
@@ -5319,6 +5523,7 @@ window.addEventListener('net:snapshot', (ev) => {
 
     if (e.t >= e.life) ents.effects.splice(i, 1);
   }
+  updateWorldVfx(dt);
 
     {
       const hz = world.getHazardAt(player.x, player.y, player.r * 0.9);
@@ -5866,7 +6071,7 @@ window.addEventListener('net:snapshot', (ev) => {
         }
       }
     }
-
+    drawWorldVfx(ctx);
 
     // ---------------------------
     // Enemies
@@ -5935,6 +6140,7 @@ window.addEventListener('net:snapshot', (ev) => {
         ctx.fill();
       }
       ctx.restore();
+      drawGlyphVisuals(ctx, e, cx, cy, t);
 
       // HP rings + alerted ring
       ctx.strokeStyle = currentTheme.accent + '55';
@@ -6148,6 +6354,7 @@ window.addEventListener('net:snapshot', (ev) => {
         t,
         player.r
       );
+      drawGlyphVisuals(ctx, player, px, py, t);
 
       const w = weapons[player.weapon];
       const showMelee = (equip === 'melee') || (melee && melee.state === 'using');
