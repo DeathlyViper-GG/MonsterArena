@@ -346,81 +346,50 @@ const gctx = glyphCanvas ? glyphCanvas.getContext('2d') : null;
     if ((e.burnT ?? 0) <= 0) return;
 
     const stacks = Math.min(e.burnStacks ?? 1, 3);
-    const r = (e.r ?? 14) + 10 + stacks * 5;
-    const flick = 0.6 + Math.sin(t * 10 + e.x * 0.01) * 0.4;
+    const r = (e.r ?? 14) + 14 + stacks*4;
+    const pulse = 0.6 + 0.4*Math.sin(t*6 + e.x*0.02);
 
-    ctx.save();
+    // 🔥 Core molten aura
+    drawGlowOrb(ctx, x, y, r, '#ff7a2a', pulse);
 
-    // --- Core flame volume
-    const g = ctx.createRadialGradient(x,y,r*0.2,x,y,r*1.6);
-    g.addColorStop(0, `rgba(255,240,210,${0.4*flick})`);
-    g.addColorStop(0.4, `rgba(255,150,60,${0.35*flick})`);
-    g.addColorStop(1, 'rgba(0,0,0,0)');
-    ctx.fillStyle = g;
-    ctx.beginPath();
-    ctx.arc(x,y,r*1.6,0,Math.PI*2);
-    ctx.fill();
+    // 🔥 Vertical flame volume (3D illusion)
+    drawVerticalEnergyPillar(ctx, x, y, r, '#ff6a00');
 
-    // --- Flame tongues (stack scaling)
-    ctx.fillStyle = 'rgba(255,130,40,0.8)';
-    for(let i=0;i<2+stacks;i++){
-      const a = t*3 + i*2.1;
-      ctx.beginPath();
-      ctx.arc(
-        x + Math.cos(a)*r*0.6,
-        y + Math.sin(a)*r*0.6,
-        3 + stacks*1.5,
-        0,Math.PI*2
-      );
-      ctx.fill();
-    }
+    // 🔥 Flame spikes (replaces simple dots)
+    drawEnergySpikes(ctx, x, y, r*1.1, 6+stacks, '#ffae66', t);
 
-    // --- Detonate visual (3 stacks)
+    // 💥 Detonate ring → now erupting corona
     if (hasG('fire','detonate') && stacks === 3){
-      ctx.strokeStyle = 'rgba(255,90,40,0.9)';
-      ctx.lineWidth = 3;
-      ctx.beginPath();
-      ctx.arc(x,y,r*2 + Math.sin(t*8)*6,0,Math.PI*2);
-      ctx.stroke();
-    }
-
-    // --- Napalm ground
-    if (hasG('fire','napalmTrail')){
-      ctx.fillStyle = 'rgba(255,120,40,0.25)';
-      ctx.beginPath();
-      ctx.arc(x,y,r*1.2,0,Math.PI*2);
-      ctx.fill();
-    }
-
-    // --- Volcanic Core ring
-    if (hasG('fire','volcanicCore') && player._volcFlash > 0){
-      ctx.strokeStyle = 'rgba(255,80,30,0.9)';
+      ctx.save();
+      ctx.globalCompositeOperation = 'screen';
+      ctx.strokeStyle = 'rgba(255,130,60,0.9)';
       ctx.lineWidth = 4;
       ctx.beginPath();
-      ctx.arc(x,y,r*3 + player._volcFlash*20,0,Math.PI*2);
+      ctx.arc(x,y,r*2.8 + Math.sin(t*8)*8,0,Math.PI*2);
       ctx.stroke();
+      ctx.restore();
     }
 
-    ctx.restore();
+    // 🌋 Volcanic Core — MASSIVE pulse
+    if (hasG('fire','volcanicCore') && player._volcFlash > 0){
+      drawGlowOrb(ctx, x, y, r*3.5, '#ff3a00', 1);
+    }
   }
   function drawLightningVFX(ctx, e, x, y, t){
     if ((e.staticT ?? 0) <= 0) return;
 
-    const r = (e.r ?? 14) + 12;
-    const pulse = 0.7 + Math.sin(t*12)*0.3;
+    const r = (e.r ?? 14) + 18;
+    const flick = 0.7 + 0.3*Math.sin(t*10);
 
+    // ⚡ Charged dome
+    drawGlowOrb(ctx, x, y, r, '#9fe3ff', flick);
+
+    // ⚡ Lightning spokes
     ctx.save();
-
-    // --- Charge shell
-    ctx.strokeStyle = `rgba(160,220,255,${0.6*pulse})`;
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.arc(x,y,r*pulse,0,Math.PI*2);
-    ctx.stroke();
-
-    // --- Crawling arcs
-    ctx.strokeStyle = 'rgba(210,245,255,0.9)';
-    for(let i=0;i<2;i++){
+    ctx.strokeStyle = '#e8f7ff';
+    ctx.lineWidth = 2;
+    ctx.globalCompositeOperation = 'screen';
+    for(let i=0;i<4;i++){
       ctx.beginPath();
       ctx.moveTo(x,y);
       ctx.lineTo(
@@ -429,111 +398,87 @@ const gctx = glyphCanvas ? glyphCanvas.getContext('2d') : null;
       );
       ctx.stroke();
     }
-
-    // --- Thunderclap ring
-    if (hasG('lightning','thunderclap')){
-      ctx.strokeStyle = 'rgba(180,230,255,0.8)';
-      ctx.beginPath();
-      ctx.arc(x,y,r*2 + Math.sin(t*6)*6,0,Math.PI*2);
-      ctx.stroke();
-    }
-
     ctx.restore();
+
+    // 🌩 Thunderclap — shockwave cylinder
+    if (hasG('lightning','thunderclap')){
+      drawVerticalEnergyPillar(ctx, x, y, r*1.2, '#cfffff');
+    }
   }
   function drawSpiritVFX(ctx, e, x, y, t){
     if ((e.hauntT ?? 0) <= 0) return;
 
-    const r = (e.r ?? 14) + 16;
+    const r = (e.r ?? 14) + 20;
+    const pulse = 0.6 + 0.4*Math.sin(t*3);
 
-    ctx.save();
+    // 👻 Ethereal body haze
+    drawGlowOrb(ctx, x, y, r, '#c066ff', pulse);
 
-    // --- Haunt haze
-    ctx.globalAlpha = 0.28;
-    ctx.fillStyle = 'rgba(190,120,255,0.6)';
-    ctx.beginPath();
-    ctx.arc(x,y,r,0,Math.PI*2);
-    ctx.fill();
-
-    // --- Wisps
-    const wisps = hasG('spirit','wispSwarm') ? 3 : 1;
-    for(let i=0;i<wisps;i++){
-      const a = t*1.8 + i*2.4;
-      ctx.beginPath();
-      ctx.arc(
-        x + Math.cos(a)*r,
-        y + Math.sin(a)*r,
-        4,0,Math.PI*2
-      );
-      ctx.fill();
+    // 👻 Orbiting wisps (now volumetric)
+    const count = hasG('spirit','wispSwarm') ? 3 : 1;
+    for(let i=0;i<count;i++){
+      const a = t*1.5 + i*2.4;
+      const wx = x + Math.cos(a)*r*0.8;
+      const wy = y + Math.sin(a)*r*0.8;
+      drawGlowOrb(ctx, wx, wy, 10, '#e7c7ff', 1);
     }
 
-    ctx.restore();
+    // 🔗 Soul Bind tether (NEW — fixes invisibility)
+    if (hasG('spirit','soulBind') && player._linkA && player._linkB){
+      ctx.save();
+      ctx.strokeStyle = 'rgba(200,120,255,0.6)';
+      ctx.lineWidth = 3;
+      ctx.setLineDash([8,6]);
+      ctx.beginPath();
+      ctx.moveTo(player._linkA.x - cam.x, player._linkA.y - cam.y);
+      ctx.lineTo(player._linkB.x - cam.x, player._linkB.y - cam.y);
+      ctx.stroke();
+      ctx.restore();
+    }
   }
   function drawWaterVFX(ctx, e, x, y, t){
     if ((e.drenchT ?? 0) <= 0) return;
 
-    const r = (e.r ?? 14) + 14;
+    const r = (e.r ?? 14) + 18;
 
+    // 💧 Liquid body bloom
+    drawGlowOrb(ctx, x, y, r, '#4fd3ff', 0.7);
+
+    // 💧 Flow rings (animated vertical depth)
     ctx.save();
-
-    // --- Wet body sheen
-    const g = ctx.createRadialGradient(x,y,r*0.3,x,y,r*1.5);
-    g.addColorStop(0,'rgba(200,240,255,0.4)');
-    g.addColorStop(1,'rgba(0,0,0,0)');
-    ctx.fillStyle = g;
+    ctx.strokeStyle = 'rgba(180,240,255,0.6)';
+    ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.arc(x,y,r*1.5,0,Math.PI*2);
-    ctx.fill();
-
-    // --- Ripple
-    ctx.strokeStyle = 'rgba(160,220,255,0.5)';
-    ctx.beginPath();
-    ctx.arc(x,y,r + Math.sin(t*2)*4,0,Math.PI*2);
+    ctx.arc(x,y,r + Math.sin(t*2)*6,0,Math.PI*2);
     ctx.stroke();
-
-    // --- Freeze cross
-    if ((e.freezeT ?? 0) > 0){
-      ctx.strokeStyle = 'rgba(200,245,255,0.9)';
-      ctx.beginPath();
-      ctx.moveTo(x-r,y); ctx.lineTo(x+r,y);
-      ctx.moveTo(x,y-r); ctx.lineTo(x,y+r);
-      ctx.stroke();
-    }
-
     ctx.restore();
+
+    // ❄️ Freeze cross becomes ice pillar shards
+    if ((e.freezeT ?? 0) > 0){
+      drawEnergySpikes(ctx, x, y, r*1.1, 4, '#cfefff', t);
+    }
   }
   function drawEarthVFX(ctx, e, x, y, t){
     if (!hasG('earth','stoneSkin')) return;
 
-    const r = (e.r ?? 14) + 8;
+    const r = (e.r ?? 14) + 10;
 
+    // 🪨 Crystalline shell
     ctx.save();
-
-    // --- Stone plating
-    ctx.strokeStyle = 'rgba(130,230,180,0.7)';
-    ctx.lineWidth = 3;
+    ctx.strokeStyle = 'rgba(125,255,163,0.7)';
+    ctx.lineWidth = 4;
     ctx.beginPath();
     ctx.arc(x,y,r,0,Math.PI*2);
     ctx.stroke();
-
-    // --- Crystal facets
-    for(let i=0;i<4;i++){
-      const a = i*Math.PI/2 + t*0.4;
-      ctx.beginPath();
-      ctx.moveTo(x,y);
-      ctx.lineTo(x+Math.cos(a)*(r+10), y+Math.sin(a)*(r+10));
-      ctx.stroke();
-    }
-
-    // --- Quake ring
-    if (hasG('earth','quake') && player._quakeFlash > 0){
-      ctx.strokeStyle = 'rgba(170,255,210,0.9)';
-      ctx.beginPath();
-      ctx.arc(x,y,r*2 + player._quakeFlash*14,0,Math.PI*2);
-      ctx.stroke();
-    }
-
     ctx.restore();
+
+    // 🪨 Growing facets (armor feel)
+    drawEnergySpikes(ctx, x, y, r*1.2, 5, '#d9ffe6', t*0.5);
+
+    // 🌎 Quake pulse
+    if (hasG('earth','quake') && player._quakeFlash > 0){
+      drawGlowOrb(ctx, x, y, r*3, '#7dffa3', 1);
+    }
   }
   function getVisualPlayerPos(){
     // Always start from immediate local state (instant)
@@ -1650,6 +1595,56 @@ const gctx = glyphCanvas ? glyphCanvas.getContext('2d') : null;
   }
 
   // ---------- 3D draw helpers ----------
+  // ================================
+  // ADVANCED GLYPH VFX HELPERS
+  // ================================
+  function drawGlowOrb(ctx, x, y, r, col, pulse=1){
+    ctx.save();
+    ctx.globalCompositeOperation = 'screen';
+    const g = ctx.createRadialGradient(x,y,0,x,y,r*2);
+    g.addColorStop(0, `${col}cc`);
+    g.addColorStop(0.4, `${col}66`);
+    g.addColorStop(1, '#0000');
+    ctx.globalAlpha = 0.6 * pulse;
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(x,y,r*2,0,Math.PI*2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function drawEnergySpikes(ctx, x, y, r, count, col, time){
+    ctx.save();
+    ctx.globalCompositeOperation = 'screen';
+    ctx.strokeStyle = col;
+    ctx.lineWidth = 2;
+    for(let i=0;i<count;i++){
+      const a = (i/count)*Math.PI*2 + time*0.8;
+      const len = r*(0.7 + 0.3*Math.sin(time*4+i));
+      ctx.beginPath();
+      ctx.moveTo(x,y);
+      ctx.lineTo(
+        x + Math.cos(a)*len,
+        y + Math.sin(a)*len
+      );
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  function drawVerticalEnergyPillar(ctx, x, y, r, col){
+    ctx.save();
+    const g = ctx.createLinearGradient(x,y-r*2,x,y+r*2);
+    g.addColorStop(0, `${col}00`);
+    g.addColorStop(0.5, `${col}aa`);
+    g.addColorStop(1, `${col}00`);
+    ctx.globalCompositeOperation = 'screen';
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.ellipse(x,y,r*0.6,r*2,0,0,Math.PI*2);
+    ctx.fill();
+    ctx.restore();
+  }
   function drawSoftShadow(ctx, x, y, rx, ry, a=0.35){
     ctx.save();
     ctx.globalAlpha = a;
@@ -1657,6 +1652,18 @@ const gctx = glyphCanvas ? glyphCanvas.getContext('2d') : null;
     ctx.beginPath();
     ctx.ellipse(x, y, rx, ry, 0, 0, Math.PI*2);
     ctx.fill();
+    ctx.restore();
+  }
+  function drawEnergyBeam(ctx, x1,y1, x2,y2, col, w=2, a=0.7){
+    ctx.save();
+    ctx.globalAlpha = a;
+    ctx.strokeStyle = col;
+    ctx.lineWidth = w;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(x1,y1);
+    ctx.lineTo(x2,y2);
+    ctx.stroke();
     ctx.restore();
   }
 
@@ -3051,60 +3058,46 @@ if (btnHomeCustomize){
   }
 
   // ----- Wisp orbit shooter -----
- function tickWisps(dt){
-    if (!isPath('spirit') || !hasG('spirit','wispOrbit')) {
+  function tickWisps(dt){
+    if (!isPath('spirit') || !hasG('spirit','wispOrbit')){
       ents.wisps.length = 0;
       return;
     }
 
-    const targetCount = hasG('spirit','wispSwarm') ? 3 : 1;
+    const count = hasG('spirit','wispSwarm') ? 3 : 1;
 
-    // ensure correct number of wisps
-    while (ents.wisps.length < targetCount){
+    while (ents.wisps.length < count){
       ents.wisps.push({
-        a: Math.random()*Math.PI*2,
-        r: 42 + Math.random()*8,
-        shootCD: Math.random()*0.6
+        angle: Math.random() * Math.PI * 2,
+        radius: 44 + Math.random()*6,
+        shootCD: Math.random()*0.7,
+        x: player.x,
+        y: player.y
       });
     }
-    
- 
-    player._wisps = Math.max(player._wisps||0, hasG('spirit','wispSwarm') ? 3 : 1);
-    player._wispCD = Math.max(0, (player._wispCD||0) - dt);
+    ents.wisps.length = count;
 
-    if (player._wispCD <= 0){
-      let best=null, bestD2=650*650;
-      for (const e of ents.enemies){
-        const d2 = dist2(player.x,player.y,e.x,e.y);
-        if (d2 < bestD2){ bestD2=d2; best=e; }
-      }
-      if (best){
-        best.hp -= 7;
-        if (hasG('spirit','wispSwarm')) applyHaunt(best, 2.6);
-        addEffect(best.x,best.y,'hit',0.15,'#c066ff');
-      }
-      player._wispCD = 0.55;
-    }
-    for (let i=0;i<ents.wisps.length;i++){
+    for (let i = 0; i < ents.wisps.length; i++){
       const w = ents.wisps[i];
 
-      // orbit motion
-      w.a += dt * 1.4;
-      const ox = player.x + Math.cos(w.a + i)*w.r;
-      const oy = player.y + Math.sin(w.a + i)*w.r;
+      w.angle += dt * 1.5;
+      const a = w.angle + i * (Math.PI * 2 / count);
 
-      w.x = ox;
-      w.y = oy;
+      w.x = player.x + Math.cos(a) * w.radius;
+      w.y = player.y + Math.sin(a) * w.radius;
 
-      // shooting
       w.shootCD -= dt;
       if (w.shootCD <= 0){
         w.shootCD = 0.9;
 
-        let best=null, bestD2=520*520;
+        let best = null;
+        let bestD2 = 520 * 520;
         for (const e of ents.enemies){
-          const d2 = dist2(w.x,w.y,e.x,e.y);
-          if (d2 < bestD2){ best=e; bestD2=d2; }
+          const d2 = dist2(w.x, w.y, e.x, e.y);
+          if (d2 < bestD2){
+            best = e;
+            bestD2 = d2;
+          }
         }
 
         if (best){
@@ -3115,7 +3108,7 @@ if (btnHomeCustomize){
             520,
             5
           );
-          if (hasG('spirit','haunt')) applyHaunt(best, 2.4);
+          if (hasG('spirit','haunt')) applyHaunt(best, 2.6);
         }
       }
     }
@@ -5396,10 +5389,12 @@ window.addEventListener('net:snapshot', (ev) => {
     // (Optional legacy: you can remove sendInput; mesh uses state/event instead)
     // AFTER dx / dy are computed and normalized
     moveWithCollide(player, dx * speed * dt, dy * speed * dt);
+    tickWisps(dt); // ✅ WISPS UPDATE (ANCHOR TO PLAYER)
 
     if (online) {
       Net.sendInput(dx, dy, player.angle, player.x, player.y, player.weapon);
     }
+  
 
     
     // Always allow local fire; when online, also broadcast a 'shot' event for VFX
