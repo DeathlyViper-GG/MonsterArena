@@ -4172,6 +4172,116 @@ function drawLabel(ctx, x, y, text, alpha){
   ctx.fillText(text, x, y + 62);
   ctx.restore();
 }
+// ===========================
+// GLYPH UI POSITIONS (FIX)
+// ===========================
+// ===========================
+// ANCIENT GLYPH PENTAGON UI
+// ===========================
+
+const GLYPHS = ['fire','lightning','spirit','water','earth'];
+
+function getGlyphLayout(cx, cy, R){
+  const out = [];
+  const step = (Math.PI * 2) / 5;
+  const offset = -Math.PI / 2; // point up
+
+  for (let i = 0; i < 5; i++){
+    const a = offset + i * step;
+    out.push({
+      g: GLYPHS[i],
+      x: cx + Math.cos(a) * R,
+      y: cy + Math.sin(a) * R,
+      r: 28
+    });
+  }
+
+  return out;
+}
+function drawGlyphPentagonUI(ctx, t){
+  const cx = W * 0.5;
+  const cy = H * 0.5 + 40;
+  const R  = 140;
+
+  const glyphs = getGlyphLayout(cx, cy, R);
+
+  ctx.save();
+
+  // --- Ancient connecting lines
+  ctx.strokeStyle = 'rgba(200,180,120,0.35)';
+  ctx.lineWidth = 3;
+
+  for (let i = 0; i < glyphs.length; i++){
+    const a = glyphs[i];
+    const b = glyphs[(i + 1) % glyphs.length];
+
+    ctx.beginPath();
+    ctx.moveTo(a.x, a.y);
+    ctx.lineTo(b.x, b.y);
+    ctx.stroke();
+
+    // spoke to centre
+    ctx.beginPath();
+    ctx.moveTo(a.x, a.y);
+    ctx.lineTo(cx, cy);
+    ctx.stroke();
+  }
+
+  // --- Centre mysterious glyph
+  const pulse = 0.9 + Math.sin(t * 1.2) * 0.1;
+
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(t * 0.2);
+
+  const cg = ctx.createRadialGradient(0,0,4,0,0,32);
+  cg.addColorStop(0,'rgba(255,240,200,0.9)');
+  cg.addColorStop(1,'rgba(0,0,0,0)');
+
+  ctx.fillStyle = cg;
+  ctx.beginPath();
+  ctx.arc(0,0,32 * pulse,0,Math.PI*2);
+  ctx.fill();
+
+  ctx.strokeStyle = 'rgba(255,220,150,0.7)';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.arc(0,0,22,0,Math.PI*2);
+  ctx.stroke();
+
+  ctx.restore();
+
+  // --- Outer glyph nodes
+  for (const g of glyphs){
+    const sel = player.glyphPath === g.g;
+
+    // glow
+    const gg = ctx.createRadialGradient(g.x,g.y,4,g.x,g.y,36);
+    gg.addColorStop(0, sel ? 'rgba(255,200,120,0.9)' : 'rgba(200,200,200,0.7)');
+    gg.addColorStop(1,'rgba(0,0,0,0)');
+
+    ctx.fillStyle = gg;
+    ctx.beginPath();
+    ctx.arc(g.x,g.y,36,0,Math.PI*2);
+    ctx.fill();
+
+    // ring
+    ctx.strokeStyle = sel ? 'rgba(255,220,150,1)' : 'rgba(180,180,180,0.8)';
+    ctx.lineWidth = sel ? 4 : 2;
+    ctx.beginPath();
+    ctx.arc(g.x,g.y,g.r,0,Math.PI*2);
+    ctx.stroke();
+
+    // rune letter
+    ctx.fillStyle = '#fff';
+    ctx.font = '16px serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(g.g[0].toUpperCase(), g.x, g.y);
+  }
+
+  ctx.restore();
+}
 
 // ---------- Open/close ----------
 function openGlyphOverlay(seconds=15){
@@ -4232,64 +4342,24 @@ function closeGlyphOverlay(){
 }
 
 // ---------- Click selection ----------
-function onGlyphClick(ev){
-  if (_uiMode === 'ceremony') return;
+function onGlyphClick(mx, my){
+  const cx = W * 0.5;
+  const cy = H * 0.5 + 40;
+  const R  = 140;
 
-  const rect = glyphCanvas.getBoundingClientRect();
-  const sx = (ev.clientX - rect.left) * (glyphCanvas.width / rect.width);
-  const sy = (ev.clientY - rect.top)  * (glyphCanvas.height / rect.height);
+  const glyphs = getGlyphLayout(cx, cy, R);
 
-  // TREE MODE: click next available node in a branch
-  if (_uiMode === 'tree') {
-    const el = state.path;
-    if (!el) return;
-
-    const p = screenToTree(sx,sy);
-    for (let b=0;b<3;b++){
-      const need = nextTier(el,b);
-      for (let tier=1;tier<=3;tier++){
-        const np = nodePos(b,tier);
-        if (Math.hypot(p.x-np.x, p.y-np.y) <= 70){
-          if (tier !== need) return;
-
-          _selBranch = b;
-          _selTier   = tier;
-          _glyphCost = (tier===1)?GLYPH_COST_T1:(tier===2)?GLYPH_COST_T2:GLYPH_COST_T3;
-
-          const node = GLYPH_TREE[el][b][tier-1];
-          glyphTitleEl.textContent = `${node.name}`;
-          glyphDescEl.textContent  = node.desc;
-          glyphCostEl.textContent  = String(_glyphCost);
-          glyphEnchantBtn.disabled = (state.essence < _glyphCost);
-          return;
-        }
-      }
-    }
-    return;
-  }
-
-  // PENTAGON MODE
-  if (state.path && !state.completed[state.path]) return;
-
-  const cx = glyphCanvas.width/2;
-  const cy = glyphCanvas.height/2;
-  const R = 210;
-  for (const k of Object.keys(GLYPH_POS)){
-    if (state.completed[k]) continue;
-    const ang = GLYPH_POS[k].a * Math.PI/180;
-    const gx = cx + Math.cos(ang)*R;
-    const gy = cy + Math.sin(ang)*R;
-
-    if (Math.hypot(sx-gx, sy-gy) <= 70){
-      _glyphSelected = k;
-      _glyphCost = GLYPH_COST_CORE;
-      glyphTitleEl.textContent = `${k.toUpperCase()} — ${GLYPH_CORE[k].name}`;
-      glyphDescEl.textContent  = GLYPH_CORE[k].desc;
-      glyphCostEl.textContent  = String(_glyphCost);
-      glyphEnchantBtn.disabled = (state.essence < _glyphCost);
-      return;
+  for (const g of glyphs){
+    const dx = mx - g.x;
+    const dy = my - g.y;
+    if (dx*dx + dy*dy <= g.r*g.r){
+      player.glyphPath = g.g;
+      player.glyph = g.g;
+      return true;
     }
   }
+
+  return false;
 }
 
 // ---------- Enchant ----------
@@ -4333,10 +4403,12 @@ function onGlyphEnchant(){
   player.glyphTier = state.tier;
   ensureTreeState(state.path);
 
-  const R = 210;
-  const ang = GLYPH_POS[_glyphSelected].a * Math.PI/180;
-  const gx = cx + Math.cos(ang)*R;
-  const gy = cy + Math.sin(ang)*R;
+  const glyphs = getGlyphLayout(cx, cy, 140);
+  const g = glyphs.find(x => x.g === _glyphSelected);
+  if (!g) return;
+
+  const gx = g.x;
+  const gy = g.y;
 
   _uiMode = 'ceremony';
   _ceremony = { type:'core', el:_glyphSelected, branch:-1, tier:0, from:{x:gx,y:gy}, to:{x:cx,y:cy}, t0:performance.now(), dur:900 };
@@ -4502,40 +4574,6 @@ function drawGlyphOverlay(){
 
     _glyphRAF = requestAnimationFrame(drawGlyphOverlay);
     return;
-  }
-
-  // PENTAGON MODE
-  {
-    const R = 210;
-
-    gctx.lineWidth = 6;
-    gctx.globalAlpha = 0.18;
-    gctx.strokeStyle = 'rgba(200,230,255,0.55)';
-    for (const k of Object.keys(GLYPH_POS)){
-      const ang = GLYPH_POS[k].a*Math.PI/180;
-      const gx = cx + Math.cos(ang)*R;
-      const gy = cy + Math.sin(ang)*R;
-      gctx.beginPath();
-      gctx.moveTo(cx,cy);
-      gctx.lineTo(gx,gy);
-      gctx.stroke();
-    }
-    gctx.globalAlpha = 1;
-
-    for (const k of Object.keys(GLYPH_POS)){
-      const ang = GLYPH_POS[k].a*Math.PI/180;
-      const gx = cx + Math.cos(ang)*R;
-      const gy = cy + Math.sin(ang)*R;
-
-      const done = !!state.completed[k];
-      const sel = (_glyphSelected === k);
-
-      const alpha = done ? 0.18 : 1.0;
-      drawGlyphIcon3D(gctx, GlyphImages[k][0], gx, gy, 128, k, alpha, sel, done, time);
-      drawLabel(gctx, gx, gy, GLYPH_CORE[k].name, done ? 0.25 : 0.75);
-    }
-
-    _glyphRAF = requestAnimationFrame(drawGlyphOverlay);
   }
 }
   function goHome(){
