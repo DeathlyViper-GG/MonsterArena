@@ -405,6 +405,22 @@ const gctx = glyphCanvas ? glyphCanvas.getContext('2d') : null;
       drawVerticalEnergyPillar(ctx, x, y, r*1.2, '#cfffff');
     }
   }
+  // ================================
+  // PLAIN BULLET (NO GLYPHS)
+  // ================================
+  function spawnPlainBullet(x, y, ang, speed, dmg){
+    ents.bullets.push({
+      x,
+      y,
+      vx: Math.cos(ang) * speed,
+      vy: Math.sin(ang) * speed,
+      r: 4,
+      dmg,
+      life: 1.1,
+      pierce: 0,
+      noGlyph: true // 🚫 prevents onHitGlyph
+    });
+  }
   function drawSpiritVFX(ctx, e, x, y, t){
     if ((e.hauntT ?? 0) <= 0) return;
 
@@ -3065,33 +3081,34 @@ if (btnHomeCustomize){
     }
 
     const count = hasG('spirit','wispSwarm') ? 3 : 1;
-
     while (ents.wisps.length < count){
       ents.wisps.push({
         angle: Math.random() * Math.PI * 2,
-        radius: 44 + Math.random()*6,
-        shootCD: Math.random()*0.7,
+        radius: 44,
+        shootCD: Math.random() * 0.8,
         x: player.x,
         y: player.y
       });
     }
     ents.wisps.length = count;
 
+    const baseDmg = weapons[player.weapon].dmg / 3; // ✅ 3× weaker
+
     for (let i = 0; i < ents.wisps.length; i++){
       const w = ents.wisps[i];
+      w.angle += dt * 1.6;
 
-      w.angle += dt * 1.5;
       const a = w.angle + i * (Math.PI * 2 / count);
-
       w.x = player.x + Math.cos(a) * w.radius;
       w.y = player.y + Math.sin(a) * w.radius;
 
       w.shootCD -= dt;
       if (w.shootCD <= 0){
-        w.shootCD = 0.9;
+        w.shootCD = 1.0;
 
         let best = null;
         let bestD2 = 520 * 520;
+
         for (const e of ents.enemies){
           const d2 = dist2(w.x, w.y, e.x, e.y);
           if (d2 < bestD2){
@@ -3101,14 +3118,13 @@ if (btnHomeCustomize){
         }
 
         if (best){
-          spawnBullet(
+          spawnPlainBullet(
             w.x,
             w.y,
             Math.atan2(best.y - w.y, best.x - w.x),
             520,
-            5
+            baseDmg
           );
-          if (hasG('spirit','haunt')) applyHaunt(best, 2.6);
         }
       }
     }
@@ -3133,7 +3149,8 @@ if (btnHomeCustomize){
     // Haunt DOT + weaken (touch damage later reads hauntT)
     if ((e.hauntT||0) > 0){
       e.hauntT -= dt;
-      e.hp -= 3.2*dt;
+      // Haunt DOT — minimal chip damage
+      e.hp -= 0.9 * dt;
     }
 
     // Drench slow
@@ -3312,9 +3329,19 @@ if (btnHomeCustomize){
         addEffect(e.x,e.y,'pop',0.25,'#c066ff');
       }
       const isBoss = (e.type === 'boss');
-      if ((hasG('spirit','revenant') && Math.random() < 0.22) || (hasG('spirit','wraithKing') && isBoss)){
-        // spawn a “shade strike” effect (simple minion proxy)
-        ents.effects.push({ type:'shade', x:e.x, y:e.y, life:1.2, t:0, col:'#c066ff' });
+      const spawnShade =
+      (hasG('spirit','wraithKing') && isBoss) ||
+      (hasG('spirit','revenant') && rand(0,1) < 0.25);
+
+      if (spawnShade){
+        ents.effects.push({
+          type:'shade',
+          x:e.x,
+          y:e.y,
+          life: hasG('spirit','possession') ? 2.6 : 1.6,
+          t:0,
+          col:'#550058'
+        });
       }
     }
   }
@@ -3892,10 +3919,10 @@ if (btnHomeCustomize){
 // ===============================
 // Glyph overlay system (client) — SCROLLABLE 3D TREE + FULL DESCRIPTIONS
 // ===============================
-const GLYPH_COST_CORE = 10;
-const GLYPH_COST_T1   = 8;
-const GLYPH_COST_T2   = 10;
-const GLYPH_COST_T3   = 14;
+const GLYPH_COST_CORE = 15;
+const GLYPH_COST_T1   = 20;
+const GLYPH_COST_T2   = 25;
+const GLYPH_COST_T3   = 30;
 
 // ---------- Data: full skill names + descriptions ----------
 const GLYPH_CORE = {
@@ -5645,8 +5672,15 @@ window.addEventListener('net:snapshot', (ev) => {
     for (let i = ents.bullets.length - 1; i >= 0; i--){ const b = ents.bullets[i]; const kill = lineWallHit(b.x, b.y, b.vx, b.vy, dt, b.r); b.x += b.vx * dt; b.y += b.vy * dt; b.life -= dt; if (kill || b.life <= 0){ ents.bullets.splice(i,1); continue; } let hit = -1; for (let j = 0; j < ents.enemies.length; j++){ const e = ents.enemies[j]; const r = e.r + b.r; if (dist2(b.x,b.y,e.x,e.y) < r*r){ hit = j; break; } } if (hit >= 0){ const e = ents.enemies[hit] 
       
       const base = b.dmg * (1 + state.wave * 0.02);
-      const mult = onHitGlyph(e, base, 'bullet');
-      e.hp -= base * mult;
+      let dmg = b.dmg;
+
+      // 🚫 Skip glyph logic for plain bullets (wisps)
+      if (!b.noGlyph){
+        const mult = onHitGlyph(e, dmg, 'bullet');
+        dmg *= mult;
+      }
+
+      e.hp -= dmg;
       // 🔥 Napalm Trail: drop burning ground on bullet impact
       if (isPath('fire') && hasG('fire','napalmTrail')){
         addWorldVfx({ type:'napalm', x: b.x, y: b.y, r: 60, life: 1.2 });
