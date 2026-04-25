@@ -4199,8 +4199,8 @@ function getGlyphLayout(cx, cy, R){
   return out;
 }
 function drawGlyphPentagonUI(ctx, t){
-  const cx = W * 0.5;
-  const cy = H * 0.5 + 40;
+  const cx = glyphCanvas.width * 0.5;
+  const cy = glyphCanvas.height * 0.5 + 40;
   const R  = 140;
 
   const glyphs = getGlyphLayout(cx, cy, R);
