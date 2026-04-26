@@ -5908,6 +5908,10 @@ window.addEventListener('net:snapshot', (ev) => {
       e.y += ((e.vy || -110)) * dt;
       if (e.vy) e.vy *= 0.98;
     }
+    else if (e.type === 'mendingPulse'){
+      // healing pulse is visual-only, no movement needed
+      // keep alive purely by lifetime
+    }
 
     if (e.t >= e.life) ents.effects.splice(i, 1);
     else if (e.type === 'ember'){
