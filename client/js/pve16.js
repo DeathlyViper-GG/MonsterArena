@@ -5868,6 +5868,10 @@ window.addEventListener('net:snapshot', (ev) => {
     }
 
     else if (e.type === 'shade'){
+      
+      const x = e.x - cam.x;
+      const y = e.y - cam.y;
+
       const t = e.t || 0;
       const pulse = 0.65 + 0.35 * Math.sin(t * 6);
       const baseR = e.r || 18;
