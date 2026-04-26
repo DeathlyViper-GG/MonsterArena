@@ -3300,13 +3300,13 @@ if (btnHomeCustomize){
           });
         }
       }
-      // 🌊 Tidal Wave (cone pushback + visual)
-      if (hasG('water','tidalWave')){
+      // 🌊 Tidal Wave — timed cone pushback (OFFLINE ONLY)
+      if (!online && hasG('water','tidalWave')){
         player._tidalWaveCD = (player._tidalWaveCD ?? 0) - dt;
         if (player._tidalWaveCD <= 0){
           player._tidalWaveCD = 5.0;
 
-          // gameplay: cone pushback
+          // pushback cone
           for (const en of ents.enemies){
             const dx = en.x - player.x;
             const dy = en.y - player.y;
@@ -3320,7 +3320,7 @@ if (btnHomeCustomize){
             }
           }
 
-          // visual: 3D tidal wave
+          // visual travelling wave
           ents.effects.push({
             type:'tidalWave',
             x: player.x,
