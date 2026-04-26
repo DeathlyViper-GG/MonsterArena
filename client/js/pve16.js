@@ -3287,8 +3287,17 @@ if (btnHomeCustomize){
       if (hasG('water','tidalRenewal')){
         player._tidalHits = (player._tidalHits||0) + 1;
         if (player._tidalHits % 10 === 0){
-          player.hp = Math.min(player.hpMax, player.hp + 8);
-          addEffect(player.x,player.y,'pop',0.25,'#9fe3ff');
+          player.hp = Math.min(player.hpMax, player.hp + 5);
+
+          // 🌊 replace old pop ring with proper 3D healing pulse
+          ents.effects.push({
+            type: 'mendingPulse',
+            x: player.x,
+            y: player.y,
+            r: player.r * 3,
+            life: 1.4,
+            t: 0
+          });
         }
       }
     }
