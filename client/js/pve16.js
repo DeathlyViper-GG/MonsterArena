@@ -5704,10 +5704,22 @@ window.addEventListener('net:snapshot', (ev) => {
         addWorldVfx({ type:'napalm', x: b.x, y: b.y, r: 60, life: 1.2 });
       }
 
-      // Soul Bind copy damage
-      if (isPath('spirit') && hasG('spirit','soulBind') && player._linkA && player._linkB && player._linkT > 0){
-        const other = (player._linkA === e) ? player._linkB : (player._linkB === e ? player._linkA : null);
-        if (other && other !== e) other.hp -= base * mult * 0.35;
+      // Soul Bind copy damage (use final applied damage)
+      if (
+        isPath('spirit') &&
+        hasG('spirit','soulBind') &&
+        player._linkA &&
+        player._linkB &&
+        player._linkT > 0
+      ){
+        const other =
+          (player._linkA === e) ? player._linkB :
+          (player._linkB === e) ? player._linkA :
+          null;
+
+        if (other && other !== e){
+          other.hp -= dmg * 0.35;
+        }
       }
 
 
