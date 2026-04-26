@@ -3150,7 +3150,6 @@ if (btnHomeCustomize){
     if ((e.hauntT||0) > 0){
       e.hauntT -= dt;
       // Haunt DOT — minimal chip damage
-      e.hp -= 0.9 * dt;
     }
 
     // Drench slow
@@ -5580,13 +5579,19 @@ window.addEventListener('net:snapshot', (ev) => {
         const d2 = dist2(e.x, e.y, player.x, player.y);
         const rr = e.r + player.r;
         if (d2 < rr * rr) {
-          const dmg = ( e.type==='tank'?22
-                      : e.type==='boss'?30
-                      : e.type==='swarm'?6
-                      : e.type==='healer'?0
-                      : e.type==='bomber'?8
-                      : 12 ) * state.diff;
-          hurtPlayer(dmg * dt * 1.4);
+          let dmg = ( e.type==='tank'?22
+          : e.type==='boss'?30
+          : e.type==='swarm'?6
+          : e.type==='healer'?0
+          : e.type==='bomber'?8
+          : 12 ) * state.diff;
+
+        // 👻 Haunt: enemies deal half damage
+        if (e.hauntT > 0){
+          dmg *= 0.5;
+        }
+
+        hurtPlayer(dmg * dt * 1.4);
           const d = Math.sqrt(d2) || 1;
           moveWithCollide(player, (player.x - e.x)/d * 40 * dt, (player.y - e.y)/d * 40 * dt);
         }
