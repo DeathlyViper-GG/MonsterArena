@@ -5775,7 +5775,28 @@ window.addEventListener('net:snapshot', (ev) => {
 
       // ✅ track last hitter for PvE leaderboard
       e.lastHitBy = 'local';
-      addEffect(b.x,b.y,'hit',0.15,'#fff'); cam.shake = Math.max(cam.shake,1.5); if (b.pierce > 0) b.pierce--; else ents.bullets.splice(i,1); e.alerted = true; e.alertT = Math.max(e.alertT, 3); broadcastAlertFrom(e.x,e.y); } }
+      addEffect(b.x,b.y,'hit',0.15,'#fff') 
+      // 💧 Mending Mist hit counter (OFFLINE ONLY)
+      if (!online && isPath('water') && hasG('water','mendingMist')){
+        player._mistHits = (player._mistHits ?? 0) + 1;
+
+        if (player._mistHits >= 10){
+          player._mistHits = 0;
+
+          // heal pulse
+          player.hp = Math.min(player.hpMax, player.hp + 5);
+
+          ents.effects.push({
+            type: 'mendingPulse',
+            x: player.x,
+            y: player.y,
+            r: player.r * 3,   // ✅ 3× player width
+            life: 1.2,
+            t: 0
+          });
+        }
+      }
+      cam.shake = Math.max(cam.shake,1.5); if (b.pierce > 0) b.pierce--; else ents.bullets.splice(i,1); e.alerted = true; e.alertT = Math.max(e.alertT, 3); broadcastAlertFrom(e.x,e.y); } }
 
     for (let i = ents.ebullets.length - 1; i >= 0; i--){ const b = ents.ebullets[i]; b.x += b.vx * dt; b.y += b.vy * dt; b.life -= dt; if (b.kind === 'bomb'){ const hitWall = lineWallHit(b.x, b.y, b.vx, b.vy, 0, b.r); const timeUp=(b.life<=0); if (hitWall || timeUp){ const R=(b.splashR||110)+player.r; if(dist2(b.x,b.y,player.x,player.y) < R*R){ hurtPlayer(b.dmg); addEffect(b.x,b.y,'hit',0.12,'#ffd7d7'); } addEffect(b.x,b.y,'pop',0.55,'#ffb38a'); cam.shake=Math.max(cam.shake,5); ents.ebullets.splice(i, 1); continue; } continue; } if (lineWallHit(b.x,b.y,b.vy,b.vx,0,b.r) || b.life <= 0){ ents.ebullets.splice(i,1); continue; } const r = player.r + b.r; if (dist2(b.x,b.y,player.x,player.y) < r*r){ if (currentTheme.id === 3) player.slowT = Math.max(player.slowT, 1.6); hurtPlayer(b.dmg); addEffect(b.x,b.y,'hit',0.1,'#ffd7d7'); ents.ebullets.splice(i,1); } }
 
@@ -6953,6 +6974,39 @@ window.addEventListener('net:snapshot', (ev) => {
         g.addColorStop(1,'rgba(255,120,40,0)');
         ctx.fillStyle = g;
         ctx.beginPath(); ctx.arc(ex,ey,10,0,Math.PI*2); ctx.fill();
+        ctx.restore();
+      }
+      else if (e.type === 'mendingPulse'){
+        const x = e.x - cam.x;
+        const y = e.y - cam.y;
+
+        const p = e.t / e.life;               // 0 → 1
+        const alpha = (1 - p) * 0.45;
+
+        ctx.save();
+        ctx.globalCompositeOperation = 'screen';
+
+        // outer volumetric mist
+        const g = ctx.createRadialGradient(x, y, 0, x, y, e.r);
+        g.addColorStop(0, `rgba(140,240,255,${alpha})`);
+        g.addColorStop(0.6, `rgba(120,200,230,${alpha * 0.5})`);
+        g.addColorStop(1, 'rgba(0,0,0,0)');
+
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.arc(x, y, e.r, 0, Math.PI * 2);
+        ctx.fill();
+
+        // slow swirling bands (3D feel)
+        ctx.strokeStyle = `rgba(180,255,255,${alpha * 0.6})`;
+        ctx.lineWidth = 4;
+        for (let i = 0; i < 4; i++){
+          const a = e.t * 1.5 + i * (Math.PI * 2 / 4);
+          ctx.beginPath();
+          ctx.arc(x, y, e.r * (0.6 + i * 0.05), a, a + Math.PI * 0.7);
+          ctx.stroke();
+        }
+
         ctx.restore();
       }
 
