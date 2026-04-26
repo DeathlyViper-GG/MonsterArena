@@ -5868,55 +5868,25 @@ window.addEventListener('net:snapshot', (ev) => {
     }
 
     else if (e.type === 'shade'){
-      
-      const x = e.x - cam.x;
-      const y = e.y - cam.y;
-
-      const t = e.t || 0;
-      const pulse = 0.65 + 0.35 * Math.sin(t * 6);
-      const baseR = e.r || 18;
-      const scale = e.isWraith ? 1.6 : 1.0;
-
-      ctx.save();
-      ctx.globalCompositeOperation = 'screen';
-      ctx.translate(x, y);
-
-      // 👻 Core ghost body
-      const g = ctx.createRadialGradient(0, 0, 2, 0, 0, baseR * 1.4 * scale);
-      g.addColorStop(0, `rgba(220,180,255,${0.7 * pulse})`);
-      g.addColorStop(1, 'rgba(0,0,0,0)');
-      ctx.fillStyle = g;
-      ctx.beginPath();
-      ctx.arc(0, 0, baseR * 1.4 * scale, 0, Math.PI * 2);
-      ctx.fill();
-
-      // 👻 Shimmering ghost arms
-      ctx.strokeStyle = `rgba(200,150,255,${0.35 * pulse})`;
-      ctx.lineWidth = 3 * scale;
-      for (let i = 0; i < 3; i++){
-        const a = t * 1.6 + i * (Math.PI * 2 / 3);
-        const len = baseR * (1.6 + 0.3 * Math.sin(t * 4 + i)) * scale;
-        ctx.beginPath();
-        ctx.moveTo(0, 0);
-        ctx.lineTo(Math.cos(a) * len, Math.sin(a) * len);
-        ctx.stroke();
+      // simple allied shade: chases nearest enemy and hits
+      let best=null, bestD2=520*520;
+      for (const en of ents.enemies){
+        const d2 = dist2(e.x,e.y,en.x,en.y);
+        if (d2 < bestD2){ bestD2=d2; best=en; }
       }
+      if (best){
+        const dx = best.x - e.x, dy = best.y - e.y;
+        const d = Math.hypot(dx,dy) || 1;
+        const sp = hasG('spirit','possession') ? 320 : 240;
+        e.x += (dx/d) * sp * dt;
+        e.y += (dy/d) * sp * dt;
 
-      // 👑 Crown for powerful wraith
-      if (e.isWraith){
-        ctx.strokeStyle = 'rgba(255,215,120,0.9)';
-        ctx.lineWidth = 2.5;
-        ctx.beginPath();
-        const cr = baseR * 1.2 * scale;
-        ctx.moveTo(-cr, -cr);
-        ctx.lineTo(-cr * 0.5, -cr * 1.4);
-        ctx.lineTo(0, -cr);
-        ctx.lineTo(cr * 0.5, -cr * 1.4);
-        ctx.lineTo(cr, -cr);
-        ctx.stroke();
+        if (bestD2 < (best.r + 14)*(best.r + 14)){
+          best.hp -= hasG('spirit','possession') ? 18 : 12;
+          if (hasG('spirit','haunt')) applyHaunt(best, 2.6);
+          addEffect(best.x, best.y, 'hit', 0.15, '#c066ff');
+        }
       }
-
-      ctx.restore();
     }
   }
   updateWorldVfx(dt);
@@ -6885,18 +6855,54 @@ window.addEventListener('net:snapshot', (ev) => {
         ctx.restore();
       }
 
-      else if (e.type === 'shade') {
+      else if (e.type === 'shade'){
         const x = e.x - cam.x;
         const y = e.y - cam.y;
-        // 3D-ish spectral body
+
+        const t = e.t || 0;
+        const pulse = 0.65 + 0.35 * Math.sin(t * 6);
+        const baseR = e.r || 18;
+        const scale = e.isWraith ? 1.6 : 1.0;
+
         ctx.save();
-        const pulse = 0.7 + 0.3*Math.sin((e.t||0)*8);
-        ctx.globalAlpha = 0.55*pulse;
-        const g = ctx.createRadialGradient(ex,ey,4,ex,ey,22);
-        g.addColorStop(0,'rgba(230,190,255,0.6)');
-        g.addColorStop(1,'rgba(0,0,0,0)');
+        ctx.globalCompositeOperation = 'screen';
+        ctx.translate(x, y);
+
+        // 👻 Core ghost body
+        const g = ctx.createRadialGradient(0, 0, 2, 0, 0, baseR * 1.4 * scale);
+        g.addColorStop(0, `rgba(220,180,255,${0.7 * pulse})`);
+        g.addColorStop(1, 'rgba(0,0,0,0)');
         ctx.fillStyle = g;
-        ctx.beginPath(); ctx.arc(ex,ey,22,0,Math.PI*2); ctx.fill();
+        ctx.beginPath();
+        ctx.arc(0, 0, baseR * 1.4 * scale, 0, Math.PI * 2);
+        ctx.fill();
+
+        // 👻 Shimmering arms
+        ctx.strokeStyle = `rgba(200,150,255,${0.35 * pulse})`;
+        ctx.lineWidth = 3 * scale;
+        for (let i = 0; i < 3; i++){
+          const a = t * 1.6 + i * (Math.PI * 2 / 3);
+          const len = baseR * (1.6 + 0.3 * Math.sin(t * 4 + i)) * scale;
+          ctx.beginPath();
+          ctx.moveTo(0, 0);
+          ctx.lineTo(Math.cos(a) * len, Math.sin(a) * len);
+          ctx.stroke();
+        }
+
+        // 👑 Crown for wraiths
+        if (e.isWraith){
+          ctx.strokeStyle = 'rgba(255,215,120,0.9)';
+          ctx.lineWidth = 2.5;
+          ctx.beginPath();
+          const cr = baseR * 1.2 * scale;
+          ctx.moveTo(-cr, -cr);
+          ctx.lineTo(-cr * 0.5, -cr * 1.4);
+          ctx.lineTo(0, -cr);
+          ctx.lineTo(cr * 0.5, -cr * 1.4);
+          ctx.lineTo(cr, -cr);
+          ctx.stroke();
+        }
+
         ctx.restore();
       }
     }
