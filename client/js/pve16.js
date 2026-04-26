@@ -6882,6 +6882,8 @@ window.addEventListener('net:snapshot', (ev) => {
       }
 
       else if (e.type === 'shade') {
+        const x = e.x - cam.x;
+        const y = e.y - cam.y;
         // 3D-ish spectral body
         ctx.save();
         const pulse = 0.7 + 0.3*Math.sin((e.t||0)*8);
