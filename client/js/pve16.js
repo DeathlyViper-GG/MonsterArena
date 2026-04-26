@@ -6985,29 +6985,47 @@ window.addEventListener('net:snapshot', (ev) => {
         const y = e.y - cam.y;
 
         const p = e.t / e.life;               // 0 → 1
-        const alpha = (1 - p) * 0.45;
+        const fade = Math.max(0, 1 - p);
+        const depth = e.r * (0.9 + 0.1 * Math.sin(e.t * 3));
 
         ctx.save();
+
+        // 🌊 shadow base (grounded 3D depth)
+        ctx.globalCompositeOperation = 'multiply';
+        const gShadow = ctx.createRadialGradient(
+          x, y, depth * 0.3,
+          x, y, e.r * 1.15
+        );
+        gShadow.addColorStop(0, 'rgba(0,0,0,0)');
+        gShadow.addColorStop(1, `rgba(40,70,90,${0.35 * fade})`);
+        ctx.fillStyle = gShadow;
+        ctx.beginPath();
+        ctx.arc(x, y, e.r * 1.15, 0, Math.PI * 2);
+        ctx.fill();
+
+        // 🌫 volumetric mist body
         ctx.globalCompositeOperation = 'screen';
-
-        // outer volumetric mist
-        const g = ctx.createRadialGradient(x, y, 0, x, y, e.r);
-        g.addColorStop(0, `rgba(140,240,255,${alpha})`);
-        g.addColorStop(0.6, `rgba(120,200,230,${alpha * 0.5})`);
-        g.addColorStop(1, 'rgba(0,0,0,0)');
-
-        ctx.fillStyle = g;
+        const gBody = ctx.createRadialGradient(x, y, 0, x, y, e.r);
+        gBody.addColorStop(0, `rgba(140,220,255,${0.38 * fade})`);
+        gBody.addColorStop(0.45, `rgba(110,180,210,${0.22 * fade})`);
+        gBody.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = gBody;
         ctx.beginPath();
         ctx.arc(x, y, e.r, 0, Math.PI * 2);
         ctx.fill();
 
-        // slow swirling bands (3D feel)
-        ctx.strokeStyle = `rgba(180,255,255,${alpha * 0.6})`;
-        ctx.lineWidth = 4;
+        // 🌀 slow swirling mist bands (3D illusion)
+        ctx.strokeStyle = `rgba(185,245,255,${0.45 * fade})`;
+        ctx.lineWidth = e.r * 0.06;
         for (let i = 0; i < 4; i++){
-          const a = e.t * 1.5 + i * (Math.PI * 2 / 4);
+          const a = e.t * 1.2 + i * (Math.PI * 2 / 4);
           ctx.beginPath();
-          ctx.arc(x, y, e.r * (0.6 + i * 0.05), a, a + Math.PI * 0.7);
+          ctx.arc(
+            x, y,
+            depth * (0.55 + i * 0.08),
+            a,
+            a + Math.PI * 0.85
+          );
           ctx.stroke();
         }
 
