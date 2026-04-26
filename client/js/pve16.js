@@ -3300,6 +3300,39 @@ if (btnHomeCustomize){
           });
         }
       }
+      // 🌊 Tidal Wave (cone pushback + visual)
+      if (hasG('water','tidalWave')){
+        player._tidalWaveCD = (player._tidalWaveCD ?? 0) - dt;
+        if (player._tidalWaveCD <= 0){
+          player._tidalWaveCD = 5.0;
+
+          // gameplay: cone pushback
+          for (const en of ents.enemies){
+            const dx = en.x - player.x;
+            const dy = en.y - player.y;
+            const d = Math.hypot(dx,dy) || 1;
+            const ang = Math.atan2(dy,dx);
+            const diff = Math.abs(((ang - player.angle + Math.PI*3) % (Math.PI*2)) - Math.PI);
+
+            if (d < 260 && diff < Math.PI/6){
+              en.x += (dx/d) * 180;
+              en.y += (dy/d) * 180;
+            }
+          }
+
+          // visual: 3D tidal wave
+          ents.effects.push({
+            type:'tidalWave',
+            x: player.x,
+            y: player.y,
+            ang: player.angle,
+            r: 260,
+            spread: Math.PI/3,
+            life: 0.9,
+            t: 0
+          });
+        }
+      }
     }
 
     // EARTH core: Stone Skin affects incoming damage in hurtPlayer()
@@ -5918,8 +5951,9 @@ window.addEventListener('net:snapshot', (ev) => {
       if (e.vy) e.vy *= 0.98;
     }
     else if (e.type === 'mendingPulse'){
-      // healing pulse is visual-only, no movement needed
-      // keep alive purely by lifetime
+      // 🌊 follow player while active
+      e.x = player.x;
+      e.y = player.y;
     }
 
     if (e.t >= e.life) ents.effects.splice(i, 1);
@@ -5980,6 +6014,10 @@ window.addEventListener('net:snapshot', (ev) => {
 
       ctx.restore();
     }
+    else if (e.type === 'tidalWave'){
+      // static effect; no per-frame movement
+    }
+    
 
 
     else if (e.type === 'shade'){
@@ -6961,6 +6999,63 @@ window.addEventListener('net:snapshot', (ev) => {
           ctx.restore();
         }
         ctx.globalAlpha = 1;
+      }
+      else if (e.type === 'tidalWave'){
+        const x = e.x - cam.x;
+        const y = e.y - cam.y;
+
+        const p = e.t / e.life;        // 0 → 1
+        const fade = 1 - p;
+
+        // 🌊 expanding wave front
+        const frontR = e.r * p;
+        const thickness = e.r * 0.18;
+
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.rotate(e.ang);
+        ctx.globalCompositeOperation = 'screen';
+
+        // shadowed base for depth
+        ctx.globalCompositeOperation = 'multiply';
+        const gShadow = ctx.createRadialGradient(
+          0, 0, frontR - thickness,
+          0, 0, frontR
+        );
+        gShadow.addColorStop(0, 'rgba(0,0,0,0)');
+        gShadow.addColorStop(1, `rgba(30,60,90,${0.35 * fade})`);
+        ctx.fillStyle = gShadow;
+
+        ctx.beginPath();
+        ctx.arc(0, 0, frontR, -e.spread/2, e.spread/2);
+        ctx.arc(0, 0, Math.max(0, frontR - thickness), e.spread/2, -e.spread/2, true);
+        ctx.closePath();
+        ctx.fill();
+
+        // luminous water crest
+        ctx.globalCompositeOperation = 'screen';
+        const gWave = ctx.createRadialGradient(
+          0, 0, frontR - thickness,
+          0, 0, frontR
+        );
+        gWave.addColorStop(0, `rgba(160,230,255,${0.25 * fade})`);
+        gWave.addColorStop(1, `rgba(110,180,220,${0.45 * fade})`);
+        ctx.fillStyle = gWave;
+
+        ctx.beginPath();
+        ctx.arc(0, 0, frontR, -e.spread/2, e.spread/2);
+        ctx.arc(0, 0, Math.max(0, frontR - thickness), e.spread/2, -e.spread/2, true);
+        ctx.closePath();
+        ctx.fill();
+
+        // crest lines (3D illusion)
+        ctx.strokeStyle = `rgba(200,250,255,${0.5 * fade})`;
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.arc(0, 0, frontR, -e.spread/2, e.spread/2);
+        ctx.stroke();
+
+        ctx.restore();
       }
       else if (e.type === 'ghost') {
         const a = Math.max(0, 0.65 * (1 - e.t / e.life));
