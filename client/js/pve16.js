@@ -5583,6 +5583,14 @@ window.addEventListener('net:snapshot', (ev) => {
         }
 
         // AI tick
+        // 💧 Drench slow (OFFLINE ONLY)
+        if (!online && e.drenchT > 0){
+          e.spdMul = 0.75;
+        } else {
+          e.spdMul = 1;
+        }
+
+        // AI tick
         if (!isNetActive() || !Net.state.snapshot) {
           enemyBehavior(e, dt);
         }
@@ -5801,10 +5809,18 @@ window.addEventListener('net:snapshot', (ev) => {
           case 'xp':
             state.essence += (p.v ?? 1);
 
-            // 👻 Soul Tap: XP orbs heal (NOT shield)
-            if (isPath('spirit')){
-              const heal = 2 + (p.v ?? 1); // small heal per orb
-              player.hp = Math.min(player.hpMax, player.hp + heal);
+            // 💧 Mending Mist: heal on XP pickup (OFFLINE ONLY)
+            if (!online && isPath('water') && hasG('water','mendingMist')){
+              player.hp = Math.min(player.hpMax, player.hp + 5);
+
+              ents.effects.push({
+                type: 'mendingMist',
+                x: player.x,
+                y: player.y,
+                r: 70,
+                life: 0.9,
+                t: 0
+              });
             }
             break;
 
@@ -5900,6 +5916,37 @@ window.addEventListener('net:snapshot', (ev) => {
       e.vx *= 0.90;
       e.vy *= 0.90;
     }
+    else if (e.type === 'mendingMist'){
+      const x = e.x - cam.x;
+      const y = e.y - cam.y;
+
+      const pulse = 0.6 + 0.4 * Math.sin(e.t * 8);
+
+      ctx.save();
+      ctx.globalCompositeOperation = 'screen';
+
+      const g = ctx.createRadialGradient(x, y, 10, x, y, e.r);
+      g.addColorStop(0, `rgba(120,220,255,${0.35 * pulse})`);
+      g.addColorStop(0.6, 'rgba(80,180,220,0.18)');
+      g.addColorStop(1, 'rgba(0,0,0,0)');
+
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(x, y, e.r, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.strokeStyle = `rgba(180,240,255,${0.45 * pulse})`;
+      ctx.lineWidth = 2;
+      for (let i = 0; i < 3; i++){
+        const a = e.t * 2 + i * (Math.PI * 2 / 3);
+        ctx.beginPath();
+        ctx.arc(x, y, e.r * 0.6, a, a + Math.PI * 0.7);
+        ctx.stroke();
+      }
+
+      ctx.restore();
+    }
+
 
     else if (e.type === 'shade'){
       // simple allied shade: chases nearest enemy and hits
