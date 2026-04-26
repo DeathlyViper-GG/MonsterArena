@@ -5704,21 +5704,30 @@ window.addEventListener('net:snapshot', (ev) => {
         addWorldVfx({ type:'napalm', x: b.x, y: b.y, r: 60, life: 1.2 });
       }
 
-      // Soul Bind copy damage (use final applied damage)
+      // 👻 Soul Bind — split damage, conserve total
       if (
         isPath('spirit') &&
         hasG('spirit','soulBind') &&
         player._linkA &&
         player._linkB &&
-        player._linkT > 0
+        player._linkT > 0 &&
+        (e === player._linkA || e === player._linkB)
       ){
-        const other =
-          (player._linkA === e) ? player._linkB :
-          (player._linkB === e) ? player._linkA :
-          null;
+        const other = (e === player._linkA) ? player._linkB : player._linkA;
 
-        if (other && other !== e){
-          other.hp -= dmg * 0.35;
+        // Safety: kill broken links
+        if (!other || other.hp <= 0){
+          player._linkA = player._linkB = null;
+          player._linkT = 0;
+        } else {
+          const shared = dmg * 0.35;
+          const primary = dmg - shared;
+
+          e.hp -= primary;
+          other.hp -= shared;
+
+          // cancel earlier full damage
+          e.hp += dmg;
         }
       }
 
