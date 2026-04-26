@@ -3338,7 +3338,7 @@ if (btnHomeCustomize){
           x: e.x,
           y: e.y,
           r: (e.type === 'boss') ? 26 : 18,   // 🔺 bigger for powerful wraith
-          life: hasG('spirit','possession') ? 3.5 : 2.0,
+          life: hasG('spirit','possession') ? 10 : 2.0,
           t: 0,
           isWraith: e.type === 'boss'         // 👑 marks powerful wraith
         });
@@ -5569,6 +5569,18 @@ window.addEventListener('net:snapshot', (ev) => {
     if (!online) {
       for (let i = ents.enemies.length - 1; i >= 0; i--) {
         const e = ents.enemies[i];
+        // 👻 Check Dread Bloom aura
+        e._dread = false;
+        for (const fx of ents.effects){
+          if (fx.type === 'dreadBloom'){
+            const dx = e.x - fx.x;
+            const dy = e.y - fx.y;
+            if (dx*dx + dy*dy < fx.r * fx.r){
+              e._dread = true;
+              break;
+            }
+          }
+        }
 
         // AI tick
         if (!isNetActive() || !Net.state.snapshot) {
@@ -5590,6 +5602,10 @@ window.addEventListener('net:snapshot', (ev) => {
         // 👻 Haunt: enemies deal half damage
         if (e.hauntT > 0){
           dmg *= 0.5;
+        }
+        // 👻 Dread Bloom: reduce damage by 1/3
+        if (e._dread){
+          dmg *= 0.66;
         }
 
         hurtPlayer(dmg * dt * 1.4);
@@ -5685,6 +5701,17 @@ window.addEventListener('net:snapshot', (ev) => {
               t: 0
             });
           }
+          // 👻 Dread Bloom aura on death
+          if (isPath('spirit') && hasG('spirit','dreadBloom')){
+            ents.effects.push({
+              type: 'dreadBloom',
+              x: e.x,
+              y: e.y,
+              r: 120,
+              life: 4.5,
+              t: 0
+            });
+          }
 
           ents.enemies.splice(i, 1);
           audio.hit();
@@ -5773,7 +5800,14 @@ window.addEventListener('net:snapshot', (ev) => {
 
           case 'xp':
             state.essence += (p.v ?? 1);
+
+            // 👻 Soul Tap: XP orbs heal (NOT shield)
+            if (isPath('spirit')){
+              const heal = 2 + (p.v ?? 1); // small heal per orb
+              player.hp = Math.min(player.hpMax, player.hp + heal);
+            }
             break;
+
         }
         addEffect(p.x,p.y,'pop',0.4,'#aef');
         audio.pickup();
@@ -6803,6 +6837,26 @@ window.addEventListener('net:snapshot', (ev) => {
         ctx.beginPath();
         ctx.arc(ex, ey, 20 * (e.t / e.life), 0, Math.PI * 2);
         ctx.stroke();
+      }
+      else if (e.type === 'dreadBloom'){
+        const x = e.x - cam.x;
+        const y = e.y - cam.y;
+        const pulse = 0.6 + 0.4 * Math.sin(e.t * 3);
+
+        ctx.save();
+        ctx.globalCompositeOperation = 'screen';
+
+        const g = ctx.createRadialGradient(x, y, 0, x, y, e.r);
+        g.addColorStop(0, `rgba(170,120,255,${0.25 * pulse})`);
+        g.addColorStop(0.7, 'rgba(140,90,220,0.12)');
+        g.addColorStop(1, 'rgba(0,0,0,0)');
+
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.arc(x, y, e.r, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.restore();
       }
       else if (e.type === 'triBurst') {
         for (const s of e.shards) {
