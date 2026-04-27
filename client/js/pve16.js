@@ -5913,25 +5913,6 @@ window.addEventListener('net:snapshot', (ev) => {
       }
      // 🌊 Tidal Wave hit counter
      // 🌊 Tidal Wave hit counter (OFFLINE)
-      if (!online && isPath('water') && hasG('water','tidalWave')) {
-
-        player._tidalWaveHits = (player._tidalWaveHits ?? 0) + 1;
-
-        if (player._tidalWaveHits >= 5) {
-          player._tidalWaveHits = 0;
-
-          ents.effects.push({
-            type: 'tidalWave',
-            x: player.x,
-            y: player.y,
-            ang: player.angle,
-            r: 300,
-            spread: Math.PI / 1.8,
-            life: 0.9,
-            t: 0
-          });
-        }
-      }
     
       cam.shake = Math.max(cam.shake,1.5); if (b.pierce > 0) b.pierce--; else ents.bullets.splice(i,1); e.alerted = true; e.alertT = Math.max(e.alertT, 3); broadcastAlertFrom(e.x,e.y); } }
 
@@ -6221,6 +6202,29 @@ window.addEventListener('net:snapshot', (ev) => {
       if (player._maelCD <= 0){
         player._maelCD = 7.5;
         addWorldVfx({ type:'maelstrom', x: player.x, y: player.y, r: 110, life: 3.6 });
+      }
+    }
+    // 🌊 Water: TIDAL WAVE — periodic cone knockback
+    if (
+      !isNetActive() &&
+      isPath('water') &&
+      hasG('water','tidalWave')
+    ){
+      player._tidalWaveCD = (player._tidalWaveCD ?? 0) - dt;
+
+      if (player._tidalWaveCD <= 0){
+        player._tidalWaveCD = 6.5; // seconds (tune as needed)
+
+        ents.effects.push({
+          type: 'tidalWave',
+          x: player.x,
+          y: player.y,
+          ang: player.angle,
+          r: 300,
+          spread: Math.PI / 1.8,
+          life: 0.9,
+          t: 0
+        });
       }
     }
     // 🪨 Earth: Quake periodic stomp
