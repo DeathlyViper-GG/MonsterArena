@@ -7110,8 +7110,10 @@ window.addEventListener('net:snapshot', (ev) => {
         const fade = 1 - p;
 
         // 🌊 expanding wave front
-        const frontR = e.r * p;
+        // 🌊 expanding wave front (SAFE)
+        const frontR = Math.max(0.01, e.r * p);
         const thickness = e.r * 0.18;
+        const innerR = Math.max(0, frontR - thickness);
 
         ctx.save();
         ctx.translate(x, y);
@@ -7121,7 +7123,7 @@ window.addEventListener('net:snapshot', (ev) => {
         // shadowed base for depth
         ctx.globalCompositeOperation = 'multiply';
         const gShadow = ctx.createRadialGradient(
-          0, 0, frontR - thickness,
+          0, 0, innerR,
           0, 0, frontR
         );
         gShadow.addColorStop(0, 'rgba(0,0,0,0)');
@@ -7137,7 +7139,7 @@ window.addEventListener('net:snapshot', (ev) => {
         // luminous water crest
         ctx.globalCompositeOperation = 'screen';
         const gWave = ctx.createRadialGradient(
-          0, 0, frontR - thickness,
+          0, 0, innerR,
           0, 0, frontR
         );
         gWave.addColorStop(0, `rgba(160,230,255,${0.25 * fade})`);
