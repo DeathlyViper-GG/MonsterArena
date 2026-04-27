@@ -6034,6 +6034,39 @@ window.addEventListener('net:snapshot', (ev) => {
       e.x = player.x;
       e.y = player.y;
     }
+    // 🌊 TIDAL WAVE GAMEPLAY EFFECT (push + drench over lifetime)
+    if (e.type === 'tidalWave') {
+
+      const p = e.t / e.life;               // 0 → 1
+      const maxR = e.r;
+      const curR = maxR * p;                // expanding front
+
+      const PUSH_FORCE = 220;               // tune this
+      const ARC = e.spread ?? Math.PI / 3;
+
+      for (const en of ents.enemies) {
+        const dx = en.x - e.x;
+        const dy = en.y - e.y;
+        const d = Math.hypot(dx, dy);
+        if (d <= 0 || d > curR + en.r) continue;
+
+        // angle check (cone)
+        const ang = Math.atan2(dy, dx);
+        const diff = Math.abs(((ang - e.ang + Math.PI * 3) % (Math.PI * 2)) - Math.PI);
+        if (diff > ARC / 2) continue;
+
+        // ✅ APPLY DRENCH CONTINUOUSLY
+        applyDrench(en, 1, 1.2);   // keeps Drench refreshed
+
+        // ✅ CONTINUOUS PUSH (feels like a wave)
+        const nx = dx / d;
+        const ny = dy / d;
+
+        const strength = (1 - d / curR); // stronger near front
+        en.x += nx * PUSH_FORCE * strength * dt;
+        en.y += ny * PUSH_FORCE * strength * dt;
+      }
+    }
 
     if (e.t >= e.life) ents.effects.splice(i, 1);
     else if (e.type === 'ember'){
