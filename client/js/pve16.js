@@ -3300,11 +3300,11 @@ if (btnHomeCustomize){
           });
         }
       }
-      // 🌊 Tidal Wave — timed cone pushback (OFFLINE ONLY)
+      // 🌊 Tidal Wave — activates every 5 shots (OFFLINE ONLY)
       if (!online && hasG('water','tidalWave')){
-        player._tidalWaveCD = (player._tidalWaveCD ?? 0) - dt;
-        if (player._tidalWaveCD <= 0){
-          player._tidalWaveCD = 5.0;
+        player._tidalWaveHits = (player._tidalWaveHits ?? 0) + 1;
+
+        if (player._tidalWaveHits % 5 === 0){
 
           // pushback cone
           for (const en of ents.enemies){
