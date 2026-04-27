@@ -5892,25 +5892,27 @@ window.addEventListener('net:snapshot', (ev) => {
           });
         }
       }
-      // 🌊 Tidal Wave hit counter (OFFLINE ONLY)
-      if (!online && isPath('water') && hasG('water','tidalWave')) {
-        player._tidalWaveHits = (player._tidalWaveHits ?? 0) + 1;
+     // 🌊 Tidal Wave hit counter
+    if (isPath('water') && hasG('water','tidalWave')) {
 
-        if (player._tidalWaveHits >= 5) {
-          player._tidalWaveHits = 0;
+      // NOTE: do NOT gate this behind !online unless you want it offline‑only
+      player._tidalWaveHits = (player._tidalWaveHits ?? 0) + 1;
 
-          ents.effects.push({
-            type: 'tidalWave',
-            x: player.x,
-            y: player.y,
-            ang: player.angle,        // 🔑 cone direction
-            r: 280,                   // 🔑 wave reach
-            spread: Math.PI / 1.8,    // 🔑 cone width (~100°)
-            life: 0.9,                // emergence speed
-            t: 0
-          });
-        }
+      if (player._tidalWaveHits >= 5) {
+        player._tidalWaveHits = 0;
+
+        ents.effects.push({
+          type: 'tidalWave',
+          x: player.x,
+          y: player.y,
+          ang: player.angle,      // forward‑facing cone
+          r: 280,
+          spread: Math.PI / 1.8,  // wide cone (~100°)
+          life: 0.9,
+          t: 0
+        });
       }
+    }
       cam.shake = Math.max(cam.shake,1.5); if (b.pierce > 0) b.pierce--; else ents.bullets.splice(i,1); e.alerted = true; e.alertT = Math.max(e.alertT, 3); broadcastAlertFrom(e.x,e.y); } }
 
     for (let i = ents.ebullets.length - 1; i >= 0; i--){ const b = ents.ebullets[i]; b.x += b.vx * dt; b.y += b.vy * dt; b.life -= dt; if (b.kind === 'bomb'){ const hitWall = lineWallHit(b.x, b.y, b.vx, b.vy, 0, b.r); const timeUp=(b.life<=0); if (hitWall || timeUp){ const R=(b.splashR||110)+player.r; if(dist2(b.x,b.y,player.x,player.y) < R*R){ hurtPlayer(b.dmg); addEffect(b.x,b.y,'hit',0.12,'#ffd7d7'); } addEffect(b.x,b.y,'pop',0.55,'#ffb38a'); cam.shake=Math.max(cam.shake,5); ents.ebullets.splice(i, 1); continue; } continue; } if (lineWallHit(b.x,b.y,b.vy,b.vx,0,b.r) || b.life <= 0){ ents.ebullets.splice(i,1); continue; } const r = player.r + b.r; if (dist2(b.x,b.y,player.x,player.y) < r*r){ if (currentTheme.id === 3) player.slowT = Math.max(player.slowT, 1.6); hurtPlayer(b.dmg); addEffect(b.x,b.y,'hit',0.1,'#ffd7d7'); ents.ebullets.splice(i,1); } }
