@@ -1966,8 +1966,11 @@
     _guardianCD:0,
     _charged:0,          // lightning charged rounds meter (0..1)
     _lastHitT:0,         // for charged rounds decay
-    _killCount:0,        // for volcanic core
-    _tidalHits:0,        // for tidal renewal
+    _killCount:0,    
+    
+    _tidalHits:0,        // tidal renewal
+    _tidalWaveHits:0,    // ✅ REQUIRED
+    _tidalWaveCD:0,       // for tidal renewal
     _quakeCD:0,          // earth quake timer
     _ballCD:0,           // ball lightning zap timer
     _wisps:0,            // number of wisps
