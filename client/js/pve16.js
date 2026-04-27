@@ -22,17 +22,81 @@
   const ovSettings = document.getElementById('overlaySettings');
   const ovCustomize = document.getElementById('overlayCustomize');
 
-  // ===== Glyph overlay elements =====
-const ovGlyphs = document.getElementById('overlayGlyphs');
-const glyphCanvas = document.getElementById('glyphCanvas');
-const glyphTimerEl = document.getElementById('glyphTimer');
-const glyphEssenceEl = document.getElementById('glyphEssence');
-const glyphTitleEl = document.getElementById('glyphTitle');
-const glyphDescEl = document.getElementById('glyphDesc');
-const glyphCostEl = document.getElementById('glyphCost');
-const glyphEnchantBtn = document.getElementById('glyphEnchant');
+  const IS_MOBILE = /Mobi|Android|iPad|iPhone/i.test(navigator.userAgent);
 
-const gctx = glyphCanvas ? glyphCanvas.getContext('2d') : null;
+  let mobileAim = { active:false, x:0, y:0 };
+
+  if (IS_MOBILE) {
+
+    window.addEventListener('touchstart', (e) => {
+      if (e.target.closest('#stickL')) return;
+
+      const t = e.changedTouches[0];
+      const rect = game.getBoundingClientRect();
+
+      mobileAim.active = true;
+      mobileAim.x = cam.x + (t.clientX - rect.left);
+      mobileAim.y = cam.y + (t.clientY - rect.top);
+
+      input.mouse.down = true; // ✅ fire immediately on tap
+    }, { passive:true });
+
+    window.addEventListener('touchmove', (e) => {
+      if (!mobileAim.active) return;
+
+      const t = e.changedTouches[0];
+      const rect = game.getBoundingClientRect();
+
+      mobileAim.x = cam.x + (t.clientX - rect.left);
+      mobileAim.y = cam.y + (t.clientY - rect.top);
+    }, { passive:true });
+
+    window.addEventListener('touchend', () => {
+      mobileAim.active = false;
+      input.mouse.down = false;
+    });
+  }
+  // ================================
+  // 📱 Mobile Dash & Melee Buttons
+  // ================================
+
+  if (IS_MOBILE) {
+
+    // DASH button (acts like Space key)
+    document.getElementById('btnDash')?.addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+
+      input.key.Space = true;
+      setTimeout(() => {
+        input.key.Space = false;
+      }, 40);
+    }, { passive: false });
+
+    // MELEE button
+    document.getElementById('btnMelee')?.addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+
+      if (window.Melee && typeof Melee.tryAttack === 'function') {
+        Melee.tryAttack();
+      }
+    }, { passive: false });
+
+  }
+
+  // ===== Glyph overlay elements =====
+  const ovGlyphs = document.getElementById('overlayGlyphs');
+  const glyphCanvas = document.getElementById('glyphCanvas');
+  const glyphTimerEl = document.getElementById('glyphTimer');
+  const glyphEssenceEl = document.getElementById('glyphEssence');
+  const glyphTitleEl = document.getElementById('glyphTitle');
+  const glyphDescEl = document.getElementById('glyphDesc');
+  const glyphCostEl = document.getElementById('glyphCost');
+  const glyphEnchantBtn = document.getElementById('glyphEnchant');
+
+  const gctx = glyphCanvas ? glyphCanvas.getContext('2d') : null;
+
 
   const btnPause = document.getElementById('btnPause');
   const btnRestart = document.getElementById('btnRestart');
@@ -5429,8 +5493,15 @@ window.addEventListener('net:snapshot', (ev) => {
     const mx_css = input.mouse.x, my_css = input.mouse.y;
 
     // Mouse screen → world (same space your world is drawn in)
-    const aimX = cam.x + cam.sx + mx_css;
-    const aimY = cam.y + cam.sy + my_css;
+    let aimX, aimY;
+
+    if (IS_MOBILE && mobileAim.active) {
+      aimX = mobileAim.x;
+      aimY = mobileAim.y;
+    } else {
+      aimX = cam.x + cam.sx + mx_css;
+      aimY = cam.y + cam.sy + my_css;
+    }
 
     // ✅ Compute angle from the SAME position you render the player at
     const { x: ax, y: ay } = getVisualPlayerPos();
@@ -5440,6 +5511,14 @@ window.addEventListener('net:snapshot', (ev) => {
       angleTo(ax, ay, aimX, aimY),
       0.28 * sens
     );
+    // 📱 Mobile tap-to-aim override (fires towards tap crosshair)
+    if (IS_MOBILE && mobileAim.active) {
+      player.angle = lerpAngle(
+        player.angle,
+        angleTo(player.x, player.y, mobileAim.x, mobileAim.y),
+        0.4
+      );
+    }
     if (player.reloading){ player.reloadT -= dt; if (player.reloadT <= 0){ const w = weapons[player.weapon]; const need = w.ammo - player.ammo; const give = Math.min(need, player.reserve); player.ammo += give; player.reserve -= give; player.reloading = false; } }
     player.inSand = false;
     player.onIce  = false; // <-- add this reset
