@@ -32,7 +32,7 @@
       if (e.target.closest('#stickL')) return;
 
       const t = e.changedTouches[0];
-      const rect = game.getBoundingClientRect();
+      const rect = canvas.getBoundingClientRect()
 
       mobileAim.active = true;
       mobileAim.x = cam.x + (t.clientX - rect.left);
@@ -45,7 +45,7 @@
       if (!mobileAim.active) return;
 
       const t = e.changedTouches[0];
-      const rect = game.getBoundingClientRect();
+      const rect = canvas.getBoundingClientRect()
 
       mobileAim.x = cam.x + (t.clientX - rect.left);
       mobileAim.y = cam.y + (t.clientY - rect.top);
@@ -60,30 +60,6 @@
   // 📱 Mobile Dash & Melee Buttons
   // ================================
 
-  if (IS_MOBILE) {
-
-    // DASH button (acts like Space key)
-    document.getElementById('btnDash')?.addEventListener('touchstart', (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-
-      input.key.Space = true;
-      setTimeout(() => {
-        input.key.Space = false;
-      }, 40);
-    }, { passive: false });
-
-    // MELEE button
-    document.getElementById('btnMelee')?.addEventListener('touchstart', (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-
-      if (window.Melee && typeof Melee.tryAttack === 'function') {
-        Melee.tryAttack();
-      }
-    }, { passive: false });
-
-  }
 
   // ===== Glyph overlay elements =====
   const ovGlyphs = document.getElementById('overlayGlyphs');
@@ -7668,6 +7644,43 @@ window.__ASSETS__ = window.__ASSETS__ || {};
 window.__ASSETS__.loadImages = loadImages;
 window.__ASSETS__.loadGunImages = loadGunImages;
 window.__ASSETS__.loadMelee = () => Melee.loadAll();
+// ================================
+// 📱 Mobile Dash & Melee Buttons
+// ✅ MUST RUN AFTER DOM IS READY
+// ================================
+window.addEventListener('DOMContentLoaded', () => {
+
+  if (!IS_MOBILE) return;
+
+  const btnDash  = document.getElementById('btnDash');
+  const btnMelee = document.getElementById('btnMelee');
+
+  // DASH → same as Space key
+  if (btnDash) {
+    btnDash.addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+
+      input.key.Space = true;
+      setTimeout(() => {
+        input.key.Space = false;
+      }, 40);
+    }, { passive: false });
+  }
+
+  // MELEE
+  if (btnMelee) {
+    btnMelee.addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+
+      if (window.Melee && typeof Melee.tryAttack === 'function') {
+        Melee.tryAttack();
+      }
+    }, { passive: false });
+  }
+
+});
 // ===== DEBUG HOOKS =====
 window.__dbg = {
   ents,
