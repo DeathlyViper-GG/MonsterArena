@@ -6036,69 +6036,62 @@ window.addEventListener('net:snapshot', (ev) => {
     }
     // 🌊 TIDAL WAVE GAMEPLAY EFFECT (push + drench over lifetime)
     if (e.type === 'tidalWave') {
+      const p = e.t / e.life;        // 0 → 1
+      const curR = e.r * p;
+      const ARC  = e.spread ?? Math.PI / 3;
 
-      const p = e.t / e.life;               // 0 → 1
-      const maxR = e.r;
-      const curR = maxR * p;                // expanding front
-
-      const PUSH_FORCE = 220;               // tune this
-      const ARC = e.spread ?? Math.PI / 3;
-
+      /* =======================
+        ENEMIES — carried
+        ======================= */
       for (const en of ents.enemies) {
         const dx = en.x - e.x;
         const dy = en.y - e.y;
-        const d = Math.hypot(dx, dy);
+        const d  = Math.hypot(dx, dy);
         if (d <= 0 || d > curR + en.r) continue;
 
-        // angle check (cone)
-        const ang = Math.atan2(dy, dx);
+        const ang  = Math.atan2(dy, dx);
         const diff = Math.abs(((ang - e.ang + Math.PI * 3) % (Math.PI * 2)) - Math.PI);
         if (diff > ARC / 2) continue;
 
-        // ✅ APPLY DRENCH CONTINUOUSLY
-        applyDrench(en, 1, 1.2);   // keeps Drench refreshed
+        applyDrench(en, 1, 1.2);
 
-        // ✅ CONTINUOUS PUSH (feels like a wave)
-       // 🌊 lock enemies to the wave front
         const nx = dx / d;
         const ny = dy / d;
 
-        // distance enemy SHOULD be at (slightly inside the front)
         const targetDist = curR - 8;
-
-        // if enemy is behind the wave front, carry it forward
         if (d < targetDist) {
-          const move = (targetDist - d);
-
+          const move = targetDist - d;
           en.x += nx * move;
           en.y += ny * move;
         }
-        // 🌊 DRAG ENEMY BULLETS WITH THE TIDAL WAVE
-        for (const b of ents.ebullets) {
-          if (!b || b.life <= 0) continue;
+      }
 
-          const dx = b.x - e.x;
-          const dy = b.y - e.y;
-          const d  = Math.hypot(dx, dy);
-          if (d <= 0 || d > curR) continue;
+      /* =======================
+        ENEMY BULLETS — carried
+        (IDENTICAL LOGIC)
+        ======================= */
+      for (const b of ents.ebullets) {
+        if (!b || b.life <= 0) continue;
 
-          // cone check
-          const ang = Math.atan2(dy, dx);
-          const diff =
-            Math.abs(((ang - e.ang + Math.PI * 3) % (Math.PI * 2)) - Math.PI);
-          if (diff > ARC / 2) continue;
+        const dx = b.x - e.x;
+        const dy = b.y - e.y;
+        const d  = Math.hypot(dx, dy);
+        if (d <= 0 || d > curR) continue;
 
-          // wave direction
-          const wx = Math.cos(e.ang);
-          const wy = Math.sin(e.ang);
+        const ang  = Math.atan2(dy, dx);
+        const diff = Math.abs(((ang - e.ang + Math.PI * 3) % (Math.PI * 2)) - Math.PI);
+        if (diff > ARC / 2) continue;
 
-          // stronger drag near wave front
-          const strength = 0.35 + 0.65 * (1 - d / curR);
-          const DRAG_SPEED = 260;
+        const nx = dx / d;
+        const ny = dy / d;
 
-          // ✅ positional advection only (velocity unchanged)
-          b.x += wx * DRAG_SPEED * strength * dt;
-          b.y += wy * DRAG_SPEED * strength * dt;
+        const BULLET_MARGIN = 6;          // slightly tighter than enemies
+        const targetDist = curR - BULLET_MARGIN;
+
+        if (d < targetDist) {
+          const move = targetDist - d;
+          b.x += nx * move;
+          b.y += ny * move;
         }
       }
     }
