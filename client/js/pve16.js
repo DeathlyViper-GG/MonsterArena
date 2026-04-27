@@ -6059,12 +6059,20 @@ window.addEventListener('net:snapshot', (ev) => {
         applyDrench(en, 1, 1.2);   // keeps Drench refreshed
 
         // ✅ CONTINUOUS PUSH (feels like a wave)
+       // 🌊 lock enemies to the wave front
         const nx = dx / d;
         const ny = dy / d;
 
-        const strength = (1 - d / curR); // stronger near front
-        en.x += nx * PUSH_FORCE * strength * dt;
-        en.y += ny * PUSH_FORCE * strength * dt;
+        // distance enemy SHOULD be at (slightly inside the front)
+        const targetDist = curR - 8;
+
+        // if enemy is behind the wave front, carry it forward
+        if (d < targetDist) {
+          const move = (targetDist - d);
+
+          en.x += nx * move;
+          en.y += ny * move;
+        }
       }
     }
 
