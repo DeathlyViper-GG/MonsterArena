@@ -6073,6 +6073,33 @@ window.addEventListener('net:snapshot', (ev) => {
           en.x += nx * move;
           en.y += ny * move;
         }
+        // 🌊 DRAG ENEMY BULLETS WITH THE TIDAL WAVE
+        for (const b of ents.ebullets) {
+          if (!b || b.life <= 0) continue;
+
+          const dx = b.x - e.x;
+          const dy = b.y - e.y;
+          const d  = Math.hypot(dx, dy);
+          if (d <= 0 || d > curR) continue;
+
+          // cone check
+          const ang = Math.atan2(dy, dx);
+          const diff =
+            Math.abs(((ang - e.ang + Math.PI * 3) % (Math.PI * 2)) - Math.PI);
+          if (diff > ARC / 2) continue;
+
+          // wave direction
+          const wx = Math.cos(e.ang);
+          const wy = Math.sin(e.ang);
+
+          // stronger drag near wave front
+          const strength = 0.35 + 0.65 * (1 - d / curR);
+          const DRAG_SPEED = 260;
+
+          // ✅ positional advection only (velocity unchanged)
+          b.x += wx * DRAG_SPEED * strength * dt;
+          b.y += wy * DRAG_SPEED * strength * dt;
+        }
       }
     }
 
