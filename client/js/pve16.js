@@ -1675,32 +1675,30 @@
     ctx.fill();
     ctx.restore();
   }
-  function drawIceShardsOrbit(ctx, x, y, t) {
+  function drawIceShardsOrbit(ctx, cx, cy, t) {
     const count = player._iceShards | 0;
-    const r = 36;
+    const r = player.r + 18;
 
     player._iceOrbitT += 1 / 60;
 
-    ctx.save(); // 🔒 protect render state
+    ctx.save();
 
     for (let i = 0; i < count; i++) {
-      const a = player._iceOrbitT * 2 + i * (Math.PI * 2 / 6);
-      const ix = x + Math.cos(a) * r;
-      const iy = y + Math.sin(a) * r * 0.8;
+      const a = player._iceOrbitT * 2.0 + i * (Math.PI * 2 / 6);
+      const x = cx + Math.cos(a) * r;
+      const y = cy + Math.sin(a) * r * 0.8;
 
       // shadow
-      ctx.save();
       ctx.globalAlpha = 0.25;
       ctx.fillStyle = '#000';
       ctx.beginPath();
-      ctx.ellipse(ix, iy + 12, 6, 3, 0, 0, Math.PI * 2);
+      ctx.ellipse(x, y + 10, 6, 3, 0, 0, Math.PI * 2);
       ctx.fill();
-      ctx.restore();
 
-      // shard
+      // shard body
       ctx.save();
-      ctx.translate(ix, iy);
-      ctx.rotate(a * 2.0);
+      ctx.translate(x, y);
+      ctx.rotate(a * 1.6);
 
       ctx.globalAlpha = 1;
       ctx.fillStyle = '#e9fbff';
@@ -1708,25 +1706,25 @@
       ctx.lineWidth = 2;
 
       ctx.beginPath();
-      ctx.moveTo(0, -10);
+      ctx.moveTo(0, -9);
       ctx.lineTo(6, -2);
-      ctx.lineTo(2, 10);
+      ctx.lineTo(2, 9);
       ctx.lineTo(-6, 4);
       ctx.closePath();
       ctx.fill();
       ctx.stroke();
 
       // edge glint
-      ctx.strokeStyle = 'rgba(255,255,255,0.8)';
+      ctx.strokeStyle = 'rgba(255,255,255,0.75)';
       ctx.beginPath();
-      ctx.moveTo(0, -10);
+      ctx.moveTo(0, -9);
       ctx.lineTo(6, -2);
       ctx.stroke();
 
       ctx.restore();
     }
 
-    ctx.restore(); // 🔓 state fully restored
+    ctx.restore();
   }
 
   function drawEnergySpikes(ctx, x, y, r, count, col, time){
@@ -7074,6 +7072,10 @@ window.addEventListener('net:snapshot', (ev) => {
       }
       ctx.restore();
       drawGlyphVisuals(ctx, e, cx, cy, t);
+      // ❄️ Ice shards — anchored exactly like wisps
+      if (!isNetActive() && isPath('water') && hasG('water','iceShards')) {
+        drawIceShardsOrbit(ctx, cx, cy, t);
+      }
 
       // HP rings + alerted ring
       ctx.strokeStyle = currentTheme.accent + '55';
