@@ -7278,19 +7278,21 @@ window.addEventListener('net:snapshot', (ev) => {
       }
 
       ctx.save();
-        ctx.translate(px, py);
-        ctx.rotate(player.angle);
+      ctx.translate(px, py);
+      ctx.rotate(player.angle);
 
-        drawDesign(
-          selectedDesign,
-          COLORS[selectedColor].c,
-          t,
-          player.r
-        );
+      drawDesign(
+        selectedDesign,
+        COLORS[selectedColor].c,
+        t,
+        player.r
+      );
 
-        ctx.restore(); // 🔴 CRITICAL: end gun rotation BEFORE glyphs
-
-        drawGlyphVisuals(ctx, player, px, py, t);
+      // ✅ Draw glyphs WITHOUT inheriting gun rotation
+      ctx.save();
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      drawGlyphVisuals(ctx, player, px, py, t);
+      ctx.restore();
 
       const w = weapons[player.weapon];
       const showMelee = (equip === 'melee') || (melee && melee.state === 'using');
