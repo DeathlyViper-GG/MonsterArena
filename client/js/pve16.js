@@ -379,14 +379,6 @@
     if (path === 'lightning') drawLightningVFX(ctx, target, sx, sy, t);
     if (path === 'spirit')    drawSpiritVFX(ctx, target, sx, sy, t);
     if (path === 'water')     drawWaterVFX(ctx, target, sx, sy, t);
-    if (target === player && isPath('water') && hasG('water','iceShards')) {
-      drawIceShardsOrbit(
-        ctx,
-        player.x - cam.x,
-        player.y - cam.y,
-        t
-      );
-    }
     if (path === 'earth')     drawEarthVFX(ctx, target, sx, sy, t);
   }
   function drawFireVFX(ctx, e, x, y, t){
@@ -7286,16 +7278,19 @@ window.addEventListener('net:snapshot', (ev) => {
       }
 
       ctx.save();
-      ctx.translate(px, py);
-      ctx.rotate(player.angle);
+        ctx.translate(px, py);
+        ctx.rotate(player.angle);
 
-      drawDesign(
-        selectedDesign,
-        COLORS[selectedColor].c,
-        t,
-        player.r
-      );
-      drawGlyphVisuals(ctx, player, px, py, t);
+        drawDesign(
+          selectedDesign,
+          COLORS[selectedColor].c,
+          t,
+          player.r
+        );
+
+        ctx.restore(); // 🔴 CRITICAL: end gun rotation BEFORE glyphs
+
+        drawGlyphVisuals(ctx, player, px, py, t);
 
       const w = weapons[player.weapon];
       const showMelee = (equip === 'melee') || (melee && melee.state === 'using');
