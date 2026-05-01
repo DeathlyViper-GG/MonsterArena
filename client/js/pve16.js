@@ -1629,17 +1629,25 @@
         }
 
         // Maelstrom: pull + damage
-        if (v.type === 'maelstrom'){
-          const R = (v.r ?? 95);
-          for (const e of ents.enemies){
-            const dx = v.x - e.x;
-            const dy = v.y - e.y;
-            const d = Math.hypot(dx,dy) || 1;
-            if (d <= R){
-              const pull = (1 - d/R) * 420;
-              e.x += (dx/d) * pull * dt;
-              e.y += (dy/d) * pull * dt;
-              e.hp -= 9 * dt;
+        // 🌊 MAELSTROM — QUICKSAND BEHAVIOUR (CIRCULAR PIT)
+        if (v.type === 'maelstrom') {
+          const R = v.r ?? 120;
+
+          // Fake a sand hazard object so we reuse the real quicksand logic
+          const hz = {
+            type: 'sand',
+            x: v.x - R,
+            y: v.y - R,
+            w: R * 2,
+            h: R * 2
+          };
+
+          for (const e of ents.enemies) {
+            // circular check (same feel as sand pit edges)
+            const dx = e.x - v.x;
+            const dy = e.y - v.y;
+            if (dx * dx + dy * dy <= R * R) {
+              applyQuicksand(e, hz, dt, { isPlayer: false });
             }
           }
         }
@@ -1858,40 +1866,79 @@
     ctx.restore();
   }
 
-  function drawMaelstrom3D(ctx, x, y, v){
-    const r = v.r ?? 95;
-    const spin = v.t * 1.8;
+  function drawMaelstrom3D(ctx, x, y, v) {
+    const r = v.r ?? 120;
+    const t = v.t;
+    const spinA = t * 2.0;
+    const spinB = -t * 1.3;
 
     ctx.save();
 
-    // dark core
-    ctx.globalAlpha = 0.25;
-    const g = ctx.createRadialGradient(x,y,r*0.2,x,y,r);
-    g.addColorStop(0,'rgba(40,90,120,0.55)');
-    g.addColorStop(1,'rgba(0,0,0,0)');
-    ctx.fillStyle = g;
+    // ===== DEEP RECESSED CORE =====
+    const core = ctx.createRadialGradient(x, y, r * 0.15, x, y, r);
+    core.addColorStop(0, 'rgba(10,22,34,0.9)');
+    core.addColorStop(0.45, 'rgba(40,90,130,0.6)');
+    core.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = core;
     ctx.beginPath();
-    ctx.arc(x,y,r,0,Math.PI*2);
+    ctx.arc(x, y, r, 0, Math.PI * 2);
     ctx.fill();
 
-    // spiral arms
-    ctx.globalAlpha = 0.55;
+    ctx.globalCompositeOperation = 'screen';
+
+    // ===== PRIMARY SPIRAL ARMS =====
     ctx.strokeStyle = 'rgba(120,220,255,0.6)';
     ctx.lineWidth = 3;
-    for (let arm=0; arm<3; arm++){
+    for (let a = 0; a < 4; a++) {
       ctx.beginPath();
-      for (let i=0;i<=40;i++){
-        const p = i/40;
+      for (let i = 0; i <= 50; i++) {
+        const p = i / 50;
         const rr = r * p;
-        const a = spin + arm*2.09 + p*4.2;
-        const sx = x + Math.cos(a)*rr;
-        const sy = y + Math.sin(a)*rr*0.92;
-        if (i===0) ctx.moveTo(sx,sy); else ctx.lineTo(sx,sy);
+        const ang = spinA + a * (Math.PI / 2) + p * 5.2;
+        const px = x + Math.cos(ang) * rr;
+        const py = y + Math.sin(ang) * rr * 0.8; // depth squash
+        i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
       }
       ctx.stroke();
     }
 
+    // ===== COUNTER‑ROTATING DEPTH ARMS =====
+    ctx.strokeStyle = 'rgba(200,245,255,0.35)';
+    ctx.lineWidth = 2;
+    for (let a = 0; a < 3; a++) {
+      ctx.beginPath();
+      for (let i = 0; i <= 44; i++) {
+        const p = i / 44;
+        const rr = r * (0.3 + p * 0.7);
+        const ang = spinB + a * (Math.PI * 2 / 3) + p * 4.0;
+        const px = x + Math.cos(ang) * rr;
+        const py = y + Math.sin(ang) * rr * 0.75;
+        i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+      }
+      ctx.stroke();
+    }
+
+    // ===== RIPPLE POCKETS =====
+    ctx.strokeStyle = 'rgba(180,240,255,0.4)';
+    ctx.lineWidth = 2;
+    for (let i = 0; i < 6; i++) {
+      const rr = r * (0.35 + 0.25 * Math.sin(t * 2.2 + i));
+      ctx.globalAlpha = 0.18;
+      ctx.beginPath();
+      ctx.arc(x, y, rr, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+
+    // ===== ENERGY RIM =====
+    ctx.globalAlpha = 0.7;
+    ctx.strokeStyle = 'rgba(220,255,255,0.9)';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(x, y, r * (0.95 + 0.05 * Math.sin(t * 3.2)), 0, Math.PI * 2);
+    ctx.stroke();
+
     ctx.restore();
+    ctx.globalCompositeOperation = 'source-over';
   }
 
   function drawWorldVfx(ctx){
@@ -5838,6 +5885,21 @@ window.addEventListener('net:snapshot', (ev) => {
               t: 0
             });
           }
+          // 🌊 WATER — MAELSTROM (SINGLE‑PLAYER, 75% ON KILL)
+          if (
+            !isNetActive() &&
+            isPath('water') &&
+            hasG('water', 'maelstrom') &&
+            Math.random() < 0.75
+          ) {
+            addWorldVfx({
+              type: 'maelstrom',
+              x: e.x,
+              y: e.y,
+              r: 120,
+              life: 4.0 // ✅ EXACTLY 4 SECONDS
+            });
+          }
 
           ents.enemies.splice(i, 1);
           audio.hit();
@@ -6259,14 +6321,6 @@ window.addEventListener('net:snapshot', (ev) => {
       localStorage.setItem('arenaBest', String(best));
       bestEl.textContent = best;
       showGameOver();
-    }
-    // 💧 Water: Maelstrom periodic vortex
-    if (!isNetActive() && isPath('water') && hasG('water','maelstrom')){
-      player._maelCD = (player._maelCD ?? 0) - dt;
-      if (player._maelCD <= 0){
-        player._maelCD = 7.5;
-        addWorldVfx({ type:'maelstrom', x: player.x, y: player.y, r: 110, life: 3.6 });
-      }
     }
     // 🌊 Water: TIDAL WAVE — periodic cone knockback
     if (
