@@ -380,7 +380,12 @@
     if (path === 'spirit')    drawSpiritVFX(ctx, target, sx, sy, t);
     if (path === 'water')     drawWaterVFX(ctx, target, sx, sy, t);
     if (target === player && isPath('water') && hasG('water','iceShards')) {
-      drawIceShardsOrbit(ctx, sx, sy, t);
+      drawIceShardsOrbit(
+        ctx,
+        player.x - cam.x,
+        player.y - cam.y,
+        t
+      );
     }
     if (path === 'earth')     drawEarthVFX(ctx, target, sx, sy, t);
   }
@@ -1679,42 +1684,57 @@
     ctx.restore();
   }
   function drawIceShardsOrbit(ctx, x, y, t) {
-    const count = player._iceShards ?? 0;
-    const r = 42;
+    const count = player._iceShards | 0;
+    const r = 36;
 
-    player._iceOrbitT += 0.9 * (1/60);
+    player._iceOrbitT += 1 / 60;
+
+    ctx.save(); // 🔒 protect render state
 
     for (let i = 0; i < count; i++) {
-      const a = player._iceOrbitT + i * (Math.PI * 2 / 6);
+      const a = player._iceOrbitT * 2 + i * (Math.PI * 2 / 6);
       const ix = x + Math.cos(a) * r;
-      const iy = y + Math.sin(a) * r * 0.85;
+      const iy = y + Math.sin(a) * r * 0.8;
 
       // shadow
-      ctx.globalAlpha = 0.3;
+      ctx.save();
+      ctx.globalAlpha = 0.25;
       ctx.fillStyle = '#000';
       ctx.beginPath();
       ctx.ellipse(ix, iy + 12, 6, 3, 0, 0, Math.PI * 2);
       ctx.fill();
+      ctx.restore();
 
       // shard
       ctx.save();
       ctx.translate(ix, iy);
-      ctx.rotate(a * 2.2);
-      ctx.globalAlpha = 0.95;
-      ctx.fillStyle = '#e8f7ff';
-      ctx.strokeStyle = '#9fe3ff';
+      ctx.rotate(a * 2.0);
+
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = '#e9fbff';
+      ctx.strokeStyle = '#8fd9ff';
       ctx.lineWidth = 2;
 
       ctx.beginPath();
       ctx.moveTo(0, -10);
-      ctx.lineTo(6, 0);
-      ctx.lineTo(0, 12);
-      ctx.lineTo(-6, 0);
+      ctx.lineTo(6, -2);
+      ctx.lineTo(2, 10);
+      ctx.lineTo(-6, 4);
       ctx.closePath();
       ctx.fill();
       ctx.stroke();
+
+      // edge glint
+      ctx.strokeStyle = 'rgba(255,255,255,0.8)';
+      ctx.beginPath();
+      ctx.moveTo(0, -10);
+      ctx.lineTo(6, -2);
+      ctx.stroke();
+
       ctx.restore();
     }
+
+    ctx.restore(); // 🔓 state fully restored
   }
 
   function drawEnergySpikes(ctx, x, y, r, count, col, time){
@@ -2067,7 +2087,8 @@
     // ❄️ ICE SHARDS (WATER → ICE SHARDS)
     _iceShards: 6,
     _iceShardCD: 0,        // respawn timer
-    _iceOrbitT: 0          // rotation timer
+    _iceOrbitT: 0       ,   // rotation timer
+    _iceFireCD: 0
   };
   // 🔍 DEBUG: detect illegal writes to player (lockstep / render bugs)
   Object.seal(player);
@@ -3998,37 +4019,45 @@ if (btnHomeCustomize){
   function lineWallHit(px,py,vx,vy, dt, r){ const nx=px+vx*dt, ny=py+vy*dt; for(const o of world.walls){ const cx=clamp(nx,o.x,o.x+o.w), cy=clamp(ny,o.y,o.y+o.h); const dx=nx-cx, dy=ny-cy; if(dx*dx+dy*dy < r*r) return true; } return false; }
   function stepProjectiles(dt){
     // ❄️ Ice shard auto‑fire (short range)
+    // ❄️ Ice shard auto‑fire (fixed interval)
     if (
       !isNetActive() &&
       isPath('water') &&
       hasG('water','iceShards') &&
       player._iceShards > 0
     ) {
-      let best = null;
-      let bestD2 = 180 * 180;
+      player._iceFireCD -= dt;
 
-      for (const e of ents.enemies) {
-        const d2 = (e.x-player.x)**2 + (e.y-player.y)**2;
-        if (d2 < bestD2) {
-          bestD2 = d2;
-          best = e;
+      if (player._iceFireCD <= 0) {
+        let best = null;
+        let bestD2 = 180 * 180;
+
+        for (const e of ents.enemies) {
+          const dx = e.x - player.x;
+          const dy = e.y - player.y;
+          const d2 = dx*dx + dy*dy;
+          if (d2 < bestD2) {
+            bestD2 = d2;
+            best = e;
+          }
         }
-      }
 
-      if (best) {
-        const d = Math.sqrt(bestD2) || 1;
+        if (best) {
+          const d = Math.sqrt(bestD2) || 1;
 
-        player._iceShards--;
+          player._iceShards--;
+          player._iceFireCD = 0.35; // ✅ regular interval
 
-        ents.effects.push({
-          type:'iceShard',
-          x:player.x,
-          y:player.y,
-          vx:(best.x-player.x)/d*520,
-          vy:(best.y-player.y)/d*520,
-          life:0.45,
-          t:0
-        });
+          ents.effects.push({
+            type: 'iceShard',
+            x: player.x,
+            y: player.y,
+            vx: (best.x - player.x) / d * 520,
+            vy: (best.y - player.y) / d * 520,
+            life: 0.45,
+            t: 0
+          });
+        }
       }
     }
     
