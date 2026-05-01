@@ -7073,9 +7073,6 @@ window.addEventListener('net:snapshot', (ev) => {
       ctx.restore();
       drawGlyphVisuals(ctx, e, cx, cy, t);
       // ❄️ Ice shards — anchored exactly like wisps
-      if (!isNetActive() && isPath('water') && hasG('water','iceShards')) {
-        drawIceShardsOrbit(ctx, cx, cy, t);
-      }
 
       // HP rings + alerted ring
       ctx.strokeStyle = currentTheme.accent + '55';
@@ -7289,6 +7286,19 @@ window.addEventListener('net:snapshot', (ev) => {
         t,
         player.r
       );
+
+      // ❄️ Ice shards — PLAYER ONLY, not enemies
+      ctx.save();
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+
+      drawIceShardsOrbit(
+        ctx,
+        player.x - cam.x,
+        player.y - cam.y,
+        t
+      );
+
+      ctx.restore();
 
       // ✅ Draw glyphs WITHOUT inheriting gun rotation
       ctx.save();
