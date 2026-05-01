@@ -379,6 +379,9 @@
     if (path === 'lightning') drawLightningVFX(ctx, target, sx, sy, t);
     if (path === 'spirit')    drawSpiritVFX(ctx, target, sx, sy, t);
     if (path === 'water')     drawWaterVFX(ctx, target, sx, sy, t);
+    if (target === player && isPath('water') && hasG('water','iceShards')) {
+      drawIceShardsOrbit(ctx, sx, sy, t);
+    }
     if (path === 'earth')     drawEarthVFX(ctx, target, sx, sy, t);
   }
   function drawFireVFX(ctx, e, x, y, t){
@@ -1675,6 +1678,44 @@
     ctx.fill();
     ctx.restore();
   }
+  function drawIceShardsOrbit(ctx, x, y, t) {
+    const count = player._iceShards ?? 0;
+    const r = 42;
+
+    player._iceOrbitT += 0.9 * (1/60);
+
+    for (let i = 0; i < count; i++) {
+      const a = player._iceOrbitT + i * (Math.PI * 2 / 6);
+      const ix = x + Math.cos(a) * r;
+      const iy = y + Math.sin(a) * r * 0.85;
+
+      // shadow
+      ctx.globalAlpha = 0.3;
+      ctx.fillStyle = '#000';
+      ctx.beginPath();
+      ctx.ellipse(ix, iy + 12, 6, 3, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // shard
+      ctx.save();
+      ctx.translate(ix, iy);
+      ctx.rotate(a * 2.2);
+      ctx.globalAlpha = 0.95;
+      ctx.fillStyle = '#e8f7ff';
+      ctx.strokeStyle = '#9fe3ff';
+      ctx.lineWidth = 2;
+
+      ctx.beginPath();
+      ctx.moveTo(0, -10);
+      ctx.lineTo(6, 0);
+      ctx.lineTo(0, 12);
+      ctx.lineTo(-6, 0);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
 
   function drawEnergySpikes(ctx, x, y, r, count, col, time){
     ctx.save();
@@ -2023,6 +2064,10 @@
     _wisps:0,            // number of wisps
     _wispCD:0,           // wisp fire timer
     _linkA:null, _linkB:null, _linkT:0, // soul bind
+    // ❄️ ICE SHARDS (WATER → ICE SHARDS)
+    _iceShards: 6,
+    _iceShardCD: 0,        // respawn timer
+    _iceOrbitT: 0          // rotation timer
   };
   // 🔍 DEBUG: detect illegal writes to player (lockstep / render bugs)
   Object.seal(player);
@@ -3952,6 +3997,41 @@ if (btnHomeCustomize){
   }
   function lineWallHit(px,py,vx,vy, dt, r){ const nx=px+vx*dt, ny=py+vy*dt; for(const o of world.walls){ const cx=clamp(nx,o.x,o.x+o.w), cy=clamp(ny,o.y,o.y+o.h); const dx=nx-cx, dy=ny-cy; if(dx*dx+dy*dy < r*r) return true; } return false; }
   function stepProjectiles(dt){
+    // ❄️ Ice shard auto‑fire (short range)
+    if (
+      !isNetActive() &&
+      isPath('water') &&
+      hasG('water','iceShards') &&
+      player._iceShards > 0
+    ) {
+      let best = null;
+      let bestD2 = 180 * 180;
+
+      for (const e of ents.enemies) {
+        const d2 = (e.x-player.x)**2 + (e.y-player.y)**2;
+        if (d2 < bestD2) {
+          bestD2 = d2;
+          best = e;
+        }
+      }
+
+      if (best) {
+        const d = Math.sqrt(bestD2) || 1;
+
+        player._iceShards--;
+
+        ents.effects.push({
+          type:'iceShard',
+          x:player.x,
+          y:player.y,
+          vx:(best.x-player.x)/d*520,
+          vy:(best.y-player.y)/d*520,
+          life:0.45,
+          t:0
+        });
+      }
+    }
+    
     // player bullets 
     for (let i = ents.bullets.length - 1; i >= 0; i--){ 
     const b = ents.bullets[i]; 
@@ -4011,11 +4091,61 @@ if (btnHomeCustomize){
 
     // effects timer so muzzle flashes don’t stick 
     for (let i = ents.effects.length - 1; i >= 0; i--){ 
-    const e = ents.effects[i]; 
-    e.t = (e.t || 0) + dt; 
-    if (e.t >= e.life) ents.effects.splice(i,1); 
+      const e = ents.effects[i]; 
+      e.t = (e.t || 0) + dt; 
+      if (e.t >= e.life) ents.effects.splice(i,1); 
+      else if (e.type === 'iceShard') {
+        e.t += dt;
+
+        e.x += e.vx * dt;
+        e.y += e.vy * dt;
+
+        // short range lifetime cutoff
+        if (e.t >= e.life) {
+          // shatter on expiry
+          for (let k = 0; k < 16; k++) {
+            const a = Math.random() * Math.PI * 2;
+            ents.effects.push({
+              type: 'iceShardBit',
+              x: e.x,
+              y: e.y,
+              vx: Math.cos(a) * 240,
+              vy: Math.sin(a) * 240,
+              life: 0.35,
+              t: 0
+            });
+          }
+          ents.effects.splice(i, 1);
+          continue;
+        }
+
+        // collision with enemies
+        for (const en of ents.enemies) {
+          const rr = (en.r + 6);
+          if ((e.x - en.x) * (e.x - en.x) + (e.y - en.y) * (e.y - en.y) < rr * rr) {
+            en.hp -= 10;
+
+            // shatter on hit
+            for (let k = 0; k < 16; k++) {
+              const a = Math.random() * Math.PI * 2;
+              ents.effects.push({
+                type: 'iceShardBit',
+                x: e.x,
+                y: e.y,
+                vx: Math.cos(a) * 240,
+                vy: Math.sin(a) * 240,
+                life: 0.35,
+                t: 0
+              });
+            }
+
+            ents.effects.splice(i, 1);
+            break;
+          }
+        }
+      }  
     } 
-    } 
+  } 
   // Touch controls ------------------------------------------------------------
   const touch = { idL:null, init(){ const rel=(el,e)=>{ const r=el.getBoundingClientRect(); return {x:e.clientX-r.left, y:e.clientY-r.top}; }; stickL.addEventListener('touchstart', e=>{ e.preventDefault(); for(const t of e.changedTouches){ if(!this.idL){ const p=rel(stickL,t); if(p.x>=0&&p.y>=0&&p.x<=stickL.clientWidth&&p.y<=stickL.clientHeight){ this.idL=t.identifier; } } } }, {passive:false}); stickL.addEventListener('touchmove', e=>{ e.preventDefault(); for(const t of e.changedTouches){ if(t.identifier===this.idL){ const r=stickL.getBoundingClientRect(); const x=t.clientX-(r.left+r.width/2), y=t.clientY-(r.top+r.height/2), m=Math.hypot(x,y), lim=44; const nx=(m>lim? x/m*lim:x), ny=(m>lim? y/m*lim:y); nubL.style.transform=`translate(${nx}px,${ny}px)`; input.touch.stick.dx=nx/lim; input.touch.stick.dy=ny/lim; input.touch.stick.active=true; } } }, {passive:false}); stickL.addEventListener('touchend', e=>{ e.preventDefault(); for(const t of e.changedTouches){ if(t.identifier===this.idL){ this.idL=null; input.touch.stick={dx:0,dy:0,active:false}; nubL.style.transform='translate(0px,0px)'; } } }, {passive:false}); btnSwap.addEventListener('touchstart', e=>{ e.preventDefault(); swapWeapon(1); }, {passive:false}); } };
   touch.init();
@@ -5436,6 +5566,19 @@ window.addEventListener('net:snapshot', (ev) => {
         player.hp = me.hp;
       }
     }
+    // ❄️ Ice shard recharge
+    if (
+      !isNetActive() &&
+      isPath('water') &&
+      hasG('water','iceShards') &&
+      player._iceShards <= 0
+    ) {
+      player._iceShardCD -= dt;
+      if (player._iceShardCD <= 0) {
+        player._iceShardCD = 10;
+        player._iceShards = 6;
+      }
+    }
     // ✅ Online: spawn death VFX when enemies disappear from snapshot
     if (online && hasFreshSnapshot()){
       const snap = Net.state?.snapshot;
@@ -5890,7 +6033,7 @@ window.addEventListener('net:snapshot', (ev) => {
             !isNetActive() &&
             isPath('water') &&
             hasG('water', 'maelstrom') &&
-            Math.random() < 0.75
+            Math.random() < 0.30
           ) {
             addWorldVfx({
               type: 'maelstrom',
@@ -6214,6 +6357,22 @@ window.addEventListener('net:snapshot', (ev) => {
         ctx.stroke();
       }
 
+      ctx.restore();
+    }
+    else if (e.type === 'iceShardBit') {
+      e.t += dt;
+      e.x += e.vx * dt;
+      e.y += e.vy * dt;
+
+      const x = e.x - cam.x;
+      const y = e.y - cam.y;
+
+      ctx.save();
+      ctx.translate(x,y);
+      ctx.rotate(e.t * 10);
+      ctx.globalAlpha = 1 - (e.t / e.life);
+      ctx.fillStyle = '#dff4ff';
+      ctx.fillRect(-2,-2,4,4);
       ctx.restore();
     }
     else if (e.type === 'tidalWave'){
