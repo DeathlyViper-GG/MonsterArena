@@ -295,7 +295,7 @@
             const DMG = 14;
             const mult = onHitGlyph(en, DMG, 'iceShard');
             en.hp -= DMG * mult;
-            en.lastHitBy = 'local';
+            en.lastHitBy = 'iceShard';
 
             shatterIceShard(sx, sy);
 
@@ -6028,6 +6028,14 @@ window.addEventListener('net:snapshot', (ev) => {
         tickEnemyStatuses(e, dt);
         // Death & loot
         if (e.hp <= 0) {
+          // ❄️ PERMAFROST — ice shard kill
+          if (
+            e.lastHitBy === 'iceShard' &&
+            isPath('water') &&
+            hasG('water','permafrost')
+          ) {
+            spawnPermafrostField(e.x, e.y);
+          }
           const typeKey = (e.type === 'chaser' || e.type === 'swarm')
             ? 'ravener'
             : e.type;
