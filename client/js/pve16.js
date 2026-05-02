@@ -4026,7 +4026,6 @@ if (btnHomeCustomize){
       e.t = (e.t || 0) + dt; 
       if (e.t >= e.life) ents.effects.splice(i,1); 
       else if (e.type === 'iceShard') {
-        e.t += dt;
 
         e.x += e.vx * dt;
         e.y += e.vy * dt;
@@ -4054,7 +4053,10 @@ if (btnHomeCustomize){
         for (const en of ents.enemies) {
           const rr = (en.r + 6);
           if ((e.x - en.x) * (e.x - en.x) + (e.y - en.y) * (e.y - en.y) < rr * rr) {
-            en.hp -= 10;
+            const DMG = 10;
+            const mult = onHitGlyph(en, DMG, 'iceShard');
+            en.hp -= DMG * mult;
+            en.lastHitBy = 'local';
 
             // shatter on hit
             for (let k = 0; k < 16; k++) {
@@ -5698,7 +5700,30 @@ window.addEventListener('net:snapshot', (ev) => {
             player._iceFireCD = 0.35;
 
             // ✅ take ONE shard from orbit
-            const s = ents.iceShards.pop();
+            let s = null;
+            let bestDot = -Infinity;
+
+            const tx = best.x - player.x;
+            const ty = best.y - player.y;
+            const td = Math.hypot(tx, ty) || 1;
+            const nx = tx / td, ny = ty / td;
+
+            for (const sh of ents.iceShards) {
+              const ax = sh.x - player.x;
+              const ay = sh.y - player.y;
+              const ad = Math.hypot(ax, ay) || 1;
+              const dot = (ax/ad)*nx + (ay/ad)*ny;
+
+              if (dot > bestDot) {
+                bestDot = dot;
+                s = sh;
+              }
+            }
+
+            ents.iceShards.splice(ents.iceShards.indexOf(s), 1);
+
+            s.mode = 'detach';
+            s.detachT = 0;
             s.mode = 'detach';
             s.detachT = 0;
 
