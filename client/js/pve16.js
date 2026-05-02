@@ -3960,46 +3960,8 @@ if (btnHomeCustomize){
   function stepProjectiles(dt){
     // ❄️ Ice shard auto‑fire (short range)
     // ❄️ Ice shard auto‑fire (fixed interval)
-    if (
-      !isNetActive() &&
-      isPath('water') &&
-      hasG('water','iceShards') &&
-      player._iceShards > 0
-    ) {
-      player._iceFireCD -= dt;
-
-      if (player._iceFireCD <= 0) {
-        let best = null;
-        let bestD2 = 180 * 180;
-
-        for (const e of ents.enemies) {
-          const dx = e.x - player.x;
-          const dy = e.y - player.y;
-          const d2 = dx*dx + dy*dy;
-          if (d2 < bestD2) {
-            bestD2 = d2;
-            best = e;
-          }
-        }
-
-        if (best) {
-          const d = Math.sqrt(bestD2) || 1;
-
-          player._iceShards--;
-          player._iceFireCD = 0.35; // ✅ regular interval
-
-          ents.effects.push({
-            type: 'iceShard',
-            x: player.x,
-            y: player.y,
-            vx: (best.x - player.x) / d * 520,
-            vy: (best.y - player.y) / d * 520,
-            life: 0.45,
-            t: 0
-          });
-        }
-      }
-    }
+    
+    
     
     // player bullets 
     for (let i = ents.bullets.length - 1; i >= 0; i--){ 
@@ -5700,106 +5662,104 @@ window.addEventListener('net:snapshot', (ev) => {
 
       // ensure 6 shards exist
       while (ents.iceShards.length < 6) {
+        const idx = ents.iceShards.length;
+        const total = 6;
+
         ents.iceShards.push({
-          ang: Math.random() * Math.PI * 2,
-          r: player.r * 0.6 + 18,
-          spin: 1.2,
+          idx,                  // ✅ fixed slot index
+          angBase: (idx / total) * Math.PI * 2, // ✅ even spacing
+          ang: 0,               // dynamic rotation offset
+          r: player.r * 0.42,   // ✅ INSIDE the player body
+          spin: 0.8,
           x: player.x,
           y: player.y,
           mode: 'orbit'
         });
+      }
+      // ❄️ Ice shard firing (ENTITY BASED — THE ONLY ONE)
+      if (
+        !isNetActive() &&
+        ents.iceShards.length &&
+        ents.enemies.length
+      ) {
+        player._iceFireCD = (player._iceFireCD ?? 0) - dt;
+
+        if (player._iceFireCD <= 0) {
+          // find nearest enemy
+          let best = null;
+          let bestD2 = 180 * 180;
+
+          for (const e of ents.enemies) {
+            const d2 = (e.x - player.x)**2 + (e.y - player.y)**2;
+            if (d2 < bestD2) { bestD2 = d2; best = e; }
+          }
+
+          if (best) {
+            player._iceFireCD = 0.35;
+
+            // ✅ take ONE shard from orbit
+            const s = ents.iceShards.pop();
+            s.mode = 'detach';
+            s.detachT = 0;
+
+            const dx = best.x - s.x;
+            const dy = best.y - s.y;
+            const d  = Math.hypot(dx, dy) || 1;
+
+            s.vx = (dx / d) * 520;
+            s.vy = (dy / d) * 520;
+          }
+        }
       }
 
     } else {
       // glyph off → remove shards cleanly (WHY wisps work)
       ents.iceShards.length = 0;
     }
-    for (const s of ents.iceShards) {
-      if (s.mode === 'orbit') {
-        s.ang += s.spin * dt;
-        s.x = player.x + Math.cos(s.ang) * s.r;
-        s.y = player.y + Math.sin(s.ang) * s.r * 0.8;
-      }
-    }
-    // ❄️ Ice shard firing
-    if (!isNetActive() && ents.iceShards.length && ents.enemies.length) {
-      player._iceFireCD = (player._iceFireCD ?? 0) - dt;
+    for (const s of ents.iceShards.slice()) {
 
-      if (player._iceFireCD <= 0) {
-        const s = ents.iceShards.pop(); // ✅ VISIBLY leaves the ring
-        let best = null, bestD2 = 180 * 180;
+      // ✅ 1) DETACH PHASE — shard visibly leaves the ring
+      if (s.mode === 'detach') {
+        s.detachT += dt;
 
-        for (const e of ents.enemies) {
-          const d2 = (e.x - s.x) ** 2 + (e.y - s.y) ** 2;
-          if (d2 < bestD2) { bestD2 = d2; best = e; }
-        }
+        const a = s.angBase + s.ang;
 
-        if (best) {
-          const dx = best.x - s.x;
-          const dy = best.y - s.y;
-          const d = Math.hypot(dx, dy) || 1;
+        // push outward for visible separation
+        s.x += Math.cos(a) * 220 * dt;
+        s.y += Math.sin(a) * 220 * dt * 0.8;
 
+        // after a few frames → become a projectile
+        if (s.detachT >= 0.09) {
           ents.effects.push({
             type: 'iceShard',
             x: s.x,
             y: s.y,
-            vx: dx / d * 520,
-            vy: dy / d * 520,
+            vx: s.vx,
+            vy: s.vy,
+            rot: a,
+            vr: 16,
             life: 0.45,
             t: 0
           });
 
-          player._iceFireCD = 0.35;
+          // ✅ remove from orbit only AFTER visible exit
+          ents.iceShards.splice(ents.iceShards.indexOf(s), 1);
         }
+
+        continue; // 🚨 do NOT fall through to orbit logic
+      }
+
+      // ✅ 2) NORMAL ORBIT PHASE — perfectly symmetrical
+      if (s.mode === 'orbit') {
+        s.ang += s.spin * dt;
+
+        const a = s.angBase + s.ang;
+
+        s.x = player.x + Math.cos(a) * s.r;
+        s.y = player.y + Math.sin(a) * s.r * 0.8;
       }
     }
-    if (
-      !isNetActive() &&
-      isPath('water') &&
-      hasG('water','iceShards') &&
-      player._iceShards > 0
-    ) {
-      player._iceShardFireCD = (player._iceShardFireCD ?? 0) - dt;
-
-      if (player._iceShardFireCD <= 0) {
-        let best = null;
-        let bestD2 = 180 * 180;
-
-        for (const e of ents.enemies) {
-          const d2 = (e.x - player.x) ** 2 + (e.y - player.y) ** 2;
-          if (d2 < bestD2) {
-            bestD2 = d2;
-            best = e;
-          }
-        }
-
-        if (best) {
-          // fire exactly ONE shard
-          player._iceShardFireCD = 0.35;
-          player._iceShards--;
-
-          const idx = player._iceShards;
-          const a = player._iceOrbitT * 2.0 + idx * (Math.PI * 2 / 6);
-
-          const sx = player.x + Math.cos(a) * (player.r * 0.55 + 18);
-          const sy = player.y + Math.sin(a) * (player.r * 0.55 + 18) * 0.8;
-
-          const dx = best.x - sx;
-          const dy = best.y - sy;
-          const d = Math.hypot(dx, dy) || 1;
-
-          ents.effects.push({
-            type: 'iceShard',
-            x: sx,
-            y: sy,
-            vx: dx / d * 520,
-            vy: dy / d * 520,
-            life: 0.45,
-            t: 0
-          });
-        }
-      }
-    }
+    // ❄️ Ice shard firing
 
     if (online) {
       Net.sendInput(dx, dy, player.angle, player.x, player.y, player.weapon);
