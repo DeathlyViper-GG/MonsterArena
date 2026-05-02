@@ -1601,7 +1601,6 @@
   // Entities ------------------------------------------------------------------
   const ents = { bullets:[], ebullets:[], effects:[], enemies:[], pickups:[] };
   ents.wisps = [];
-  ents.iceShards = [];
   window._ents = ents;
   // ===========================
   // WORLD VFX (3D, persistent)
@@ -3749,9 +3748,53 @@ if (btnHomeCustomize){
 
   // Bullets / effects / pickups / chests -------------------------------------
   function spawnBullet(x,y,a, speed,dmg,pierce=0){ ents.bullets.push({x,y,vx:Math.cos(a)*speed, vy:Math.sin(a)*speed, r:4, dmg, life:1.2, pierce}); }
+  function fireIceShard() {
+    if (!ents.enemies.length) return;
+
+    let best = null;
+    let bestD2 = Infinity;
+
+    for (const e of ents.enemies) {
+      const d2 = (e.x - player.x) ** 2 + (e.y - player.y) ** 2;
+      if (d2 < bestD2) {
+        bestD2 = d2;
+        best = e;
+      }
+    }
+
+    if (!best) return;
+
+    const dx = best.x - player.x;
+    const dy = best.y - player.y;
+    const d = Math.hypot(dx, dy) || 1;
+
+    ents.effects.push({
+      type: 'iceShard',
+      x: player.x + (dx / d) * player.r,
+      y: player.y + (dy / d) * player.r,
+      vx: (dx / d) * 520,
+      vy: (dy / d) * 520,
+      r: 6,
+      life: 0.45,
+      t: 0
+    });
+  }
   function spawnEBullet(x,y,a, speed,dmg){ ents.ebullets.push({x,y,vx:Math.cos(a)*speed, vy:Math.sin(a)*speed, r:4, dmg, life:2.5}); }
   function spawnBomb(x,y,a, speed,dmg, splashR=110, fuse=0.75){ ents.ebullets.push({ x,y, vx:Math.cos(a)*speed, vy:Math.sin(a)*speed, r:6, dmg, life:fuse, kind:'bomb', splashR }); }
   function addEffect(x,y,type,life=0.4,color='#9cf'){ ents.effects.push({x,y,type,life,color,t:0,r:6}); }
+  function shatterIceShard(x, y) {
+    for (let k = 0; k < 14; k++) {
+      const a = Math.random() * Math.PI * 2;
+      ents.effects.push({
+        type: 'iceShardBit',
+        x, y,
+        vx: Math.cos(a) * 240,
+        vy: Math.sin(a) * 240,
+        life: 0.35,
+        t: 0
+      });
+    }
+  }
   function dropPickup(x,y, forcedType=null){
     const opts=['health','speed','shield','ammo'];
     const type = forcedType || opts[rint(0,opts.length-1)];
@@ -4039,60 +4082,50 @@ if (btnHomeCustomize){
       e.t = (e.t || 0) + dt; 
       if (e.t >= e.life) ents.effects.splice(i,1);   
       else if (e.type === 'iceShard') {
-      // ✅ BULLET‑STYLE ICE SHARD (single update source)
 
-      const x0 = e.x;
-      const y0 = e.y;
+        const x0 = e.x;
+        const y0 = e.y;
 
-      // move like a bullet
-      e.x += e.vx * dt;
-      e.y += e.vy * dt;
+        e.x += e.vx * dt;
+        e.y += e.vy * dt;
 
-      // lifetime
-      if (e.t >= e.life) {
-        shatterIceShard(e.x, e.y);
-        ents.effects.splice(i, 1);
-        continue;
-      }
+        // expiry → splinter
+        if (e.t >= e.life) {
+          shatterIceShard(e.x, e.y);
+          ents.effects.splice(i, 1);
+          continue;
+        }
 
-      // ✅ SWEPT collision vs enemies (same as bullets)
-      const dx = e.x - x0;
-      const dy = e.y - y0;
-      const dist = Math.hypot(dx, dy);
-      const steps = Math.max(1, Math.ceil(dist / 4));
+        // swept collision (bullet‑grade)
+        const dx = e.x - x0;
+        const dy = e.y - y0;
+        const dist = Math.hypot(dx, dy);
+        const steps = Math.max(1, Math.ceil(dist / 3));
 
-      let hit = false;
-      let hx = e.x, hy = e.y;
+        for (let s = 1; s <= steps; s++) {
+          const t = s / steps;
+          const sx = x0 + dx * t;
+          const sy = y0 + dy * t;
 
-      for (let s = 1; s <= steps && !hit; s++) {
-        const t = s / steps;
-        const sx = x0 + dx * t;
-        const sy = y0 + dy * t;
+          for (const en of ents.enemies) {
+            const rr = (en.r ?? 16) + e.r;
+            if ((sx - en.x) ** 2 + (sy - en.y) ** 2 <= rr * rr) {
 
-        for (const en of ents.enemies) {
-          const rr = (en.r ?? 16) + 8;
-          if (dist2(sx, sy, en.x, en.y) <= rr * rr) {
-            const DMG = 10;
-            const mult = onHitGlyph(en, DMG, 'iceShard');
-            en.hp -= DMG * mult;
-            en.lastHitBy = 'local';
+              const DMG = 14;
+              const mult = onHitGlyph(en, DMG, 'iceShard');
+              en.hp -= DMG * mult;
+              en.lastHitBy = 'local';
 
-            hx = sx;
-            hy = sy;
-            hit = true;
-            break;
+              shatterIceShard(sx, sy);
+              addEffect(sx, sy, 'hit', 0.15, '#e9fbff');
+              cam.shake = Math.max(cam.shake, 1.2);
+
+              ents.effects.splice(i, 1);
+              return;
+            }
           }
         }
       }
-
-      if (hit) {
-        shatterIceShard(hx, hy);
-        addEffect(hx, hy, 'hit', 0.15, '#e9fbff');
-        cam.shake = Math.max(cam.shake, 1.2);
-        ents.effects.splice(i, 1);
-        continue;
-      }
-    }
     } 
   } 
   // Touch controls ------------------------------------------------------------
@@ -5516,18 +5549,7 @@ window.addEventListener('net:snapshot', (ev) => {
       }
     }
     // ❄️ Ice shard recharge
-    if (
-      !isNetActive() &&
-      isPath('water') &&
-      hasG('water','iceShards') &&
-      player._iceShards <= 0
-    ) {
-      player._iceShardCD -= dt;
-      if (player._iceShardCD <= 0) {
-        player._iceShardCD = 10;
-        player._iceShards = 6;
-      }
-    }
+
     // ✅ Online: spawn death VFX when enemies disappear from snapshot
     if (online && hasFreshSnapshot()){
       const snap = Net.state?.snapshot;
@@ -5674,137 +5696,7 @@ window.addEventListener('net:snapshot', (ev) => {
     // AFTER dx / dy are computed and normalized
     moveWithCollide(player, dx * speed * dt, dy * speed * dt);
     tickWisps(dt); // ✅ WISPS UPDATE (ANCHOR TO PLAYER)
-    // ❄️ Ice Shards — auto‑fire at nearby enemies (OFFLINE ONLY)
-    // ❄️ Ice Shards — entity-based orbit (EXACTLY like wisps)
-    if (!isNetActive() && isPath('water') && hasG('water','iceShards')) {
 
-      // ensure 6 shards exist
-      while (ents.iceShards.length < 6) {
-        const idx = ents.iceShards.length;
-        const total = 6;
-
-        ents.iceShards.push({
-          idx,                  // ✅ fixed slot index
-          angBase: (idx / total) * Math.PI * 2, // ✅ even spacing
-          ang: 0,               // dynamic rotation offset
-          r: player.r * 0.42,   // ✅ INSIDE the player body
-          spin: 0.8,
-          x: player.x,
-          y: player.y,
-          mode: 'orbit'
-        });
-      }
-      // ❄️ Ice shard firing (ENTITY BASED — THE ONLY ONE)
-      if (
-        !isNetActive() &&
-        ents.iceShards.length &&
-        ents.enemies.length
-      ) {
-        player._iceFireCD = (player._iceFireCD ?? 0) - dt;
-
-        if (player._iceFireCD <= 0) {
-          // find nearest enemy
-          let best = null;
-          let bestD2 = 180 * 180;
-
-          for (const e of ents.enemies) {
-            const d2 = (e.x - player.x)**2 + (e.y - player.y)**2;
-            if (d2 < bestD2) { bestD2 = d2; best = e; }
-          }
-
-          if (best) {
-            player._iceFireCD = 0.35;
-
-            // ✅ take ONE shard from orbit
-            let s = null;
-            let bestDot = -Infinity;
-
-            const tx = best.x - player.x;
-            const ty = best.y - player.y;
-            const td = Math.hypot(tx, ty) || 1;
-            const nx = tx / td, ny = ty / td;
-
-            for (const sh of ents.iceShards) {
-              const ax = sh.x - player.x;
-              const ay = sh.y - player.y;
-              const ad = Math.hypot(ax, ay) || 1;
-              const dot = (ax/ad)*nx + (ay/ad)*ny;
-
-              if (dot > bestDot) {
-                bestDot = dot;
-                s = sh;
-              }
-            }
-
-            ents.iceShards.splice(ents.iceShards.indexOf(s), 1);
-
-            s.mode = 'detach';
-            s.detachT = 0;
-            s.mode = 'detach';
-            s.detachT = 0;
-
-            const dx = best.x - s.x;
-            const dy = best.y - s.y;
-            const d  = Math.hypot(dx, dy) || 1;
-
-            s.vx = (dx / d) * 520;
-            s.vy = (dy / d) * 520;
-          }
-        }
-      }
-
-    } else {
-      // glyph off → remove shards cleanly (WHY wisps work)
-      ents.iceShards.length = 0;
-    }
-    for (const s of ents.iceShards.slice()) {
-
-      // ✅ 1) DETACH PHASE — shard visibly leaves the ring
-      if (s.mode === 'detach') {
-        s.detachT += dt;
-
-        const a = s.angBase + s.ang;
-
-        // push outward for visible separation
-        s.x += Math.cos(a) * 220 * dt;
-        s.y += Math.sin(a) * 220 * dt * 0.8;
-
-        // after a few frames → become a projectile
-        if (s.detachT >= 0.09) {
-          ents.effects.push({
-            type: 'iceShard',
-            x: s.x,
-            y: s.y,
-            vx: s.vx,
-            vy: s.vy,
-            rot: a,
-            vr: 16,
-            life: 0.45,
-            t: 0
-          });
-
-          // ✅ remove from orbit only AFTER visible exit
-          ents.iceShards.splice(ents.iceShards.indexOf(s), 1);
-        }
-
-        continue; // 🚨 do NOT fall through to orbit logic
-      }
-
-      // ✅ 2) NORMAL ORBIT PHASE — perfectly symmetrical
-      if (s.mode === 'orbit') {
-        s.ang += s.spin * dt;
-
-        const a = s.angBase + s.ang;
-
-        s.x = player.x + Math.cos(a) * s.r;
-        s.y = player.y + Math.sin(a) * s.r * 0.8;
-      }
-    }
-    // ❄️ Ice shard firing
-
-    if (online) {
-      Net.sendInput(dx, dy, player.angle, player.x, player.y, player.weapon);
-    }
   
 
     
@@ -6293,7 +6185,6 @@ window.addEventListener('net:snapshot', (ev) => {
   for (let i = ents.effects.length - 1; i >= 0; i--) {
     const e = ents.effects[i];
 
-    // ❌ iceShard updates ONLY happen in stepProjectiles
     if (e.type === 'iceShard') continue;
 
     e.t += dt;
@@ -6584,6 +6475,19 @@ window.addEventListener('net:snapshot', (ev) => {
           life: 0.9,
           t: 0
         });
+      }
+    }
+    // ❄️ ICE SHARD — fires every 5 seconds (OFFLINE)
+    if (
+      !isNetActive() &&
+      isPath('water') &&
+      hasG('water','iceShards')
+    ) {
+      player._iceShardCD = (player._iceShardCD ?? 5) - dt;
+
+      if (player._iceShardCD <= 0) {
+        player._iceShardCD = 5;
+        fireIceShard();
       }
     }
     // 🪨 Earth: Quake periodic stomp
@@ -7696,44 +7600,6 @@ window.addEventListener('net:snapshot', (ev) => {
     }
     
     // ❄️ Ice shard entities (3D glint + shadow)
-    for (const s of ents.iceShards) {
-      const x = s.x - cam.x - cam.sx;
-      const y = s.y - cam.y - cam.sy;
-
-      // shadow
-      ctx.save();
-      ctx.globalAlpha = 0.25;
-      ctx.fillStyle = '#000';
-      ctx.beginPath();
-      ctx.ellipse(x, y + 10, 6, 3, 0, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.restore();
-
-      // shard body
-      ctx.save();
-      ctx.translate(x, y);
-      ctx.rotate(s.ang * 1.6);
-
-      const g = ctx.createLinearGradient(-6,-10,6,10);
-      g.addColorStop(0,'#ffffff');
-      g.addColorStop(0.3,'#e9fbff');
-      g.addColorStop(1,'#7fcfff');
-
-      ctx.fillStyle = g;
-      ctx.strokeStyle = '#9fe3ff';
-      ctx.lineWidth = 2;
-
-      ctx.beginPath();
-      ctx.moveTo(0, -10);
-      ctx.lineTo(6, -2);
-      ctx.lineTo(2, 10);
-      ctx.lineTo(-6, 4);
-      ctx.closePath();
-      ctx.fill();
-      ctx.stroke();
-
-      ctx.restore();
-    }
 
     // === WISPS (floating spirits) ===
     for (const w of ents.wisps){
