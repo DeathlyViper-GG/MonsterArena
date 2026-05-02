@@ -1588,6 +1588,7 @@
   // Entities ------------------------------------------------------------------
   const ents = { bullets:[], ebullets:[], effects:[], enemies:[], pickups:[] };
   ents.wisps = [];
+  ents.iceShards = [];
   window._ents = ents;
   // ===========================
   // WORLD VFX (3D, persistent)
@@ -1675,51 +1676,6 @@
     ctx.fill();
     ctx.restore();
   }
-  function drawIceShardsOrbit(ctx, cx, cy, t) {
-    const count = player._iceShards | 0;
-    const r = player.r * 0.55 + 18;
-
-    player._iceOrbitT += 1 / 60;
-
-    ctx.save();
-
-    for (let i = 0; i < count; i++) {
-      const a = player._iceOrbitT * 2.0 + i * (Math.PI * 2 / 6);
-
-      const x = cx + Math.cos(a) * r;
-      const y = cy + Math.sin(a) * r * 0.8;
-
-      // shadow
-      ctx.globalAlpha = 0.25;
-      ctx.fillStyle = '#000';
-      ctx.beginPath();
-      ctx.ellipse(x, y + 10, 6, 3, 0, 0, Math.PI * 2);
-      ctx.fill();
-
-      // shard body
-      ctx.save();
-      ctx.translate(x, y);
-      ctx.rotate(a * 1.6);
-
-      ctx.globalAlpha = 1;
-      ctx.fillStyle = '#e9fbff';
-      ctx.strokeStyle = '#8fd9ff';
-      ctx.lineWidth = 2;
-
-      ctx.beginPath();
-      ctx.moveTo(0, -9);
-      ctx.lineTo(6, -2);
-      ctx.lineTo(2, 9);
-      ctx.lineTo(-6, 4);
-      ctx.closePath();
-      ctx.fill();
-      ctx.stroke();
-
-      ctx.restore();
-    }
-
-    ctx.restore();
-}
 
   function drawEnergySpikes(ctx, x, y, r, count, col, time){
     ctx.save();
@@ -5739,6 +5695,64 @@ window.addEventListener('net:snapshot', (ev) => {
     moveWithCollide(player, dx * speed * dt, dy * speed * dt);
     tickWisps(dt); // ✅ WISPS UPDATE (ANCHOR TO PLAYER)
     // ❄️ Ice Shards — auto‑fire at nearby enemies (OFFLINE ONLY)
+    // ❄️ Ice Shards — entity-based orbit (EXACTLY like wisps)
+    if (!isNetActive() && isPath('water') && hasG('water','iceShards')) {
+
+      // ensure 6 shards exist
+      while (ents.iceShards.length < 6) {
+        ents.iceShards.push({
+          ang: Math.random() * Math.PI * 2,
+          r: player.r * 0.6 + 18,
+          spin: 1.2,
+          x: player.x,
+          y: player.y,
+          mode: 'orbit'
+        });
+      }
+
+    } else {
+      // glyph off → remove shards cleanly (WHY wisps work)
+      ents.iceShards.length = 0;
+    }
+    for (const s of ents.iceShards) {
+      if (s.mode === 'orbit') {
+        s.ang += s.spin * dt;
+        s.x = player.x + Math.cos(s.ang) * s.r;
+        s.y = player.y + Math.sin(s.ang) * s.r * 0.8;
+      }
+    }
+    // ❄️ Ice shard firing
+    if (!isNetActive() && ents.iceShards.length && ents.enemies.length) {
+      player._iceFireCD = (player._iceFireCD ?? 0) - dt;
+
+      if (player._iceFireCD <= 0) {
+        const s = ents.iceShards.pop(); // ✅ VISIBLY leaves the ring
+        let best = null, bestD2 = 180 * 180;
+
+        for (const e of ents.enemies) {
+          const d2 = (e.x - s.x) ** 2 + (e.y - s.y) ** 2;
+          if (d2 < bestD2) { bestD2 = d2; best = e; }
+        }
+
+        if (best) {
+          const dx = best.x - s.x;
+          const dy = best.y - s.y;
+          const d = Math.hypot(dx, dy) || 1;
+
+          ents.effects.push({
+            type: 'iceShard',
+            x: s.x,
+            y: s.y,
+            vx: dx / d * 520,
+            vy: dy / d * 520,
+            life: 0.45,
+            t: 0
+          });
+
+          player._iceFireCD = 0.35;
+        }
+      }
+    }
     if (
       !isNetActive() &&
       isPath('water') &&
@@ -7330,17 +7344,6 @@ window.addEventListener('net:snapshot', (ev) => {
       );
 
       // ❄️ Ice shards — PLAYER ONLY, not enemies
-      ctx.save();
-      ctx.setTransform(1, 0, 0, 1, 0, 0);
-
-      drawIceShardsOrbit(
-        ctx,
-        px,
-        py,
-        t
-      );
-
-      ctx.restore();
 
       // ✅ Draw glyphs WITHOUT inheriting gun rotation
       ctx.save();
@@ -7645,6 +7648,46 @@ window.addEventListener('net:snapshot', (ev) => {
         ctx.restore();
       }
     }
+    // ❄️ Ice shard entities (3D glint + shadow)
+    for (const s of ents.iceShards) {
+      const x = s.x - cam.x - cam.sx;
+      const y = s.y - cam.y - cam.sy;
+
+      // shadow
+      ctx.save();
+      ctx.globalAlpha = 0.25;
+      ctx.fillStyle = '#000';
+      ctx.beginPath();
+      ctx.ellipse(x, y + 10, 6, 3, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+
+      // shard body
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(s.ang * 1.6);
+
+      const g = ctx.createLinearGradient(-6,-10,6,10);
+      g.addColorStop(0,'#ffffff');
+      g.addColorStop(0.3,'#e9fbff');
+      g.addColorStop(1,'#7fcfff');
+
+      ctx.fillStyle = g;
+      ctx.strokeStyle = '#9fe3ff';
+      ctx.lineWidth = 2;
+
+      ctx.beginPath();
+      ctx.moveTo(0, -10);
+      ctx.lineTo(6, -2);
+      ctx.lineTo(2, 10);
+      ctx.lineTo(-6, 4);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.restore();
+    }
+
     // === WISPS (floating spirits) ===
     for (const w of ents.wisps){
       const x = w.x - cam.x - cam.sx;
