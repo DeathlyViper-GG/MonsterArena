@@ -4051,8 +4051,12 @@ if (btnHomeCustomize){
 
         // collision with enemies
         for (const en of ents.enemies) {
-          const rr = (en.r + 6);
-          if ((e.x - en.x) * (e.x - en.x) + (e.y - en.y) * (e.y - en.y) < rr * rr) {
+          const rr = (en.r ?? 16) + 8;
+          const dx = e.x - en.x;
+          const dy = e.y - en.y;
+
+          if (dx * dx + dy * dy <= rr * rr) {
+
             const DMG = 10;
             const mult = onHitGlyph(en, DMG, 'iceShard');
             en.hp -= DMG * mult;
@@ -7581,6 +7585,45 @@ window.addEventListener('net:snapshot', (ev) => {
 
         ctx.restore();
       }
+      else if (e.type === 'iceShard') {
+        const x = e.x - cam.x - cam.sx;
+        const y = e.y - cam.y - cam.sy;
+
+        ctx.save();
+
+        // shadow
+        ctx.globalAlpha = 0.25;
+        ctx.fillStyle = '#000';
+        ctx.beginPath();
+        ctx.ellipse(x, y + 8, 6, 3, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // shard body
+        ctx.translate(x, y);
+        ctx.rotate((e.rot ?? 0) + (e.t * (e.vr ?? 0)));
+
+        const g = ctx.createLinearGradient(-6, -10, 6, 10);
+        g.addColorStop(0, '#ffffff');
+        g.addColorStop(0.3, '#e9fbff');
+        g.addColorStop(1, '#7fcfff');
+
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = g;
+        ctx.strokeStyle = '#9fe3ff';
+        ctx.lineWidth = 2;
+
+        ctx.beginPath();
+        ctx.moveTo(0, -10);
+        ctx.lineTo(6, -2);
+        ctx.lineTo(2, 10);
+        ctx.lineTo(-6, 4);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.restore();
+      }
+
 
       else if (e.type === 'shade'){
         const x = e.x - cam.x;
@@ -7633,6 +7676,7 @@ window.addEventListener('net:snapshot', (ev) => {
         ctx.restore();
       }
     }
+    
     // ❄️ Ice shard entities (3D glint + shadow)
     for (const s of ents.iceShards) {
       const x = s.x - cam.x - cam.sx;
