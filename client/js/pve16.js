@@ -1684,9 +1684,21 @@
     ctx.save();
 
     for (let i = 0; i < count; i++) {
-      const a = player._iceOrbitT * 2.0 + i * (Math.PI * 2 / 6);
-      const x = cx + Math.cos(a) * r;
-      const y = cy + Math.sin(a) * r * 0.8;
+      const idx = player._iceShards; // shard being fired
+      const a = player._iceOrbitT * 2.0 + idx * (Math.PI * 2 / 6);
+
+      const sx = player.x + Math.cos(a) * (player.r + 18);
+      const sy = player.y + Math.sin(a) * (player.r + 18) * 0.8;
+
+      ents.effects.push({
+        type: 'iceShard',
+        x: sx,
+        y: sy,
+        vx: (best.x - sx) / d * 520,
+        vy: (best.y - sy) / d * 520,
+        life: 0.45,
+        t: 0
+      });
 
       // shadow
       ctx.globalAlpha = 0.25;
@@ -7293,8 +7305,8 @@ window.addEventListener('net:snapshot', (ev) => {
 
       drawIceShardsOrbit(
         ctx,
-        player.x - cam.x,
-        player.y - cam.y,
+        px,
+        py,
         t
       );
 
