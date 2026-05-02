@@ -1677,7 +1677,7 @@
   }
   function drawIceShardsOrbit(ctx, cx, cy, t) {
     const count = player._iceShards | 0;
-    const r = player.r + 18;
+    const r = player.r * 0.55 + 18;
 
     player._iceOrbitT += 1 / 60;
 
@@ -5738,6 +5738,54 @@ window.addEventListener('net:snapshot', (ev) => {
     // AFTER dx / dy are computed and normalized
     moveWithCollide(player, dx * speed * dt, dy * speed * dt);
     tickWisps(dt); // ✅ WISPS UPDATE (ANCHOR TO PLAYER)
+    // ❄️ Ice Shards — auto‑fire at nearby enemies (OFFLINE ONLY)
+    if (
+      !isNetActive() &&
+      isPath('water') &&
+      hasG('water','iceShards') &&
+      player._iceShards > 0
+    ) {
+      player._iceShardFireCD = (player._iceShardFireCD ?? 0) - dt;
+
+      if (player._iceShardFireCD <= 0) {
+        let best = null;
+        let bestD2 = 180 * 180;
+
+        for (const e of ents.enemies) {
+          const d2 = (e.x - player.x) ** 2 + (e.y - player.y) ** 2;
+          if (d2 < bestD2) {
+            bestD2 = d2;
+            best = e;
+          }
+        }
+
+        if (best) {
+          // fire exactly ONE shard
+          player._iceShardFireCD = 0.35;
+          player._iceShards--;
+
+          const idx = player._iceShards;
+          const a = player._iceOrbitT * 2.0 + idx * (Math.PI * 2 / 6);
+
+          const sx = player.x + Math.cos(a) * (player.r * 0.55 + 18);
+          const sy = player.y + Math.sin(a) * (player.r * 0.55 + 18) * 0.8;
+
+          const dx = best.x - sx;
+          const dy = best.y - sy;
+          const d = Math.hypot(dx, dy) || 1;
+
+          ents.effects.push({
+            type: 'iceShard',
+            x: sx,
+            y: sy,
+            vx: dx / d * 520,
+            vy: dy / d * 520,
+            life: 0.45,
+            t: 0
+          });
+        }
+      }
+    }
 
     if (online) {
       Net.sendInput(dx, dy, player.angle, player.x, player.y, player.weapon);
