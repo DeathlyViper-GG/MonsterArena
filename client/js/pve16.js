@@ -5718,6 +5718,10 @@ window.addEventListener('net:snapshot', (ev) => {
     // AFTER dx / dy are computed and normalized
     moveWithCollide(player, dx * speed * dt, dy * speed * dt);
     tickWisps(dt); // ✅ WISPS UPDATE (ANCHOR TO PLAYER)
+    // ✅ OFFLINE projectile + effect movement (iceShard, bullets, etc.)
+    if (!isNetActive()) {
+      stepProjectiles(dt);
+    }
 
   
 
