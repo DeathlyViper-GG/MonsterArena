@@ -4014,101 +4014,108 @@ if (btnHomeCustomize){
   }
   function lineWallHit(px,py,vx,vy, dt, r){ const nx=px+vx*dt, ny=py+vy*dt; for(const o of world.walls){ const cx=clamp(nx,o.x,o.x+o.w), cy=clamp(ny,o.y,o.y+o.h); const dx=nx-cx, dy=ny-cy; if(dx*dx+dy*dy < r*r) return true; } return false; }
   function stepProjectiles(dt){
-    // ❄️ Ice shard auto‑fire (short range)
-    // ❄️ Ice shard auto‑fire (fixed interval)
-    
-    
-    
-    // player bullets 
+
+    // =========================
+    // PLAYER BULLETS
+    // =========================
     for (let i = ents.bullets.length - 1; i >= 0; i--){ 
-    const b = ents.bullets[i]; 
-    // ✅ store previous position for swept test
-    const x0 = b.x;
-    const y0 = b.y;
+      const b = ents.bullets[i]; 
 
-    const kill = lineWallHit(b.x, b.y, b.vx, b.vy, dt, b.r);
+      // store previous position (sweep)
+      const x0 = b.x;
+      const y0 = b.y;
 
-    b.x += b.vx * dt;
-    b.y += b.vy * dt;
-    b.life -= dt;
-        if (kill || b.life <= 0){ 
-        ents.bullets.splice(i,1); 
+      const kill = lineWallHit(b.x, b.y, b.vx, b.vy, dt, b.r);
+
+      b.x += b.vx * dt;
+      b.y += b.vy * dt;
+      b.life -= dt;
+
+      if (kill || b.life <= 0){ 
+        ents.bullets.splice(i, 1); 
         continue; 
-    } 
-    // hit enemies 
-    // hit enemies — SWEPT test (bullet path vs enemy circle)
-    // ✅ VISUAL hit test — ALWAYS remove bullet if its PATH touches an enemy
-    let hit = false;
-    let hitX = b.x;
-    let hitY = b.y;
+      } 
 
-    for (let j = 0; j < ents.enemies.length; j++) {
-      const e = ents.enemies[j];
-      const rr = (e.r ?? 16) + (b.r ?? 4);
+      // swept bullet → enemy hit
+      let hit = false;
+      let hitX = b.x;
+      let hitY = b.y;
 
-      const dx = b.x - x0;
-      const dy = b.y - y0;
+      for (let j = 0; j < ents.enemies.length; j++) {
+        const e = ents.enemies[j];
+        const rr = (e.r ?? 16) + (b.r ?? 4);
 
-      const steps = Math.max(1, Math.ceil(Math.hypot(dx, dy) / 6));
-      for (let s = 1; s <= steps; s++) {
-        const t = s / steps;
-        const sx = x0 + dx * t;
-        const sy = y0 + dy * t;
-
-        if (dist2(sx, sy, e.x, e.y) <= rr * rr) {
-          hit = true;
-          hitX = sx;
-          hitY = sy;
-          break;
-        }
-      }
-      if (hit) break;
-    }
-
-    if (hit) {
-      // ✅ visual feedback only
-      addEffect(hitX, hitY, 'hit', 0.15, '#fff');
-      cam.shake = Math.max(cam.shake, 1.5);
-
-      // ✅ bullet ALWAYS disappears, no matter what server does
-      ents.bullets.splice(i, 1);
-      continue;
-    }
-    } 
-
-    // effects timer so muzzle flashes don’t stick 
-    for (let i = ents.effects.length - 1; i >= 0; i--){ 
-      const e = ents.effects[i]; 
-      e.t = (e.t || 0) + dt; 
-      if (e.t >= e.life) ents.effects.splice(i,1);   
-      else if (e.type === 'iceShard') {
-
-        const x0 = e.x;
-        const y0 = e.y;
-
-        e.x += e.vx * dt;
-        e.y += e.vy * dt;
-
-        // expiry → splinter
-        if (e.t >= e.life) {
-          shatterIceShard(e.x, e.y);
-          ents.effects.splice(i, 1);
-          continue;
-        }
-
-        // swept collision (bullet‑grade)
-        const dx = e.x - x0;
-        const dy = e.y - y0;
-        const dist = Math.hypot(dx, dy);
-        const steps = Math.max(1, Math.ceil(dist / 3));
+        const dx = b.x - x0;
+        const dy = b.y - y0;
+        const steps = Math.max(1, Math.ceil(Math.hypot(dx, dy) / 6));
 
         for (let s = 1; s <= steps; s++) {
           const t = s / steps;
           const sx = x0 + dx * t;
           const sy = y0 + dy * t;
 
+          if (dist2(sx, sy, e.x, e.y) <= rr * rr) {
+            hit = true;
+            hitX = sx;
+            hitY = sy;
+            break;
+          }
+        }
+        if (hit) break;
+      }
+
+      if (hit) {
+        addEffect(hitX, hitY, 'hit', 0.15, '#fff');
+        cam.shake = Math.max(cam.shake, 1.5);
+        ents.bullets.splice(i, 1);
+        continue;
+      }
+    }
+
+    // =========================
+    // EFFECTS (includes ICE SHARD)
+    // =========================
+    for (let i = ents.effects.length - 1; i >= 0; i--){ 
+      const e = ents.effects[i]; 
+      e.t = (e.t || 0) + dt; 
+
+      if (e.t >= e.life){
+        ents.effects.splice(i, 1);
+        continue;
+      }
+
+      // =========================
+      // ICE SHARD (bullet‑style)
+      // =========================
+      if (e.type === 'iceShard') {
+
+        const x0 = e.x;
+        const y0 = e.y;
+
+        // move
+        e.x += e.vx * dt;
+        e.y += e.vy * dt;
+
+        // spin
+        e.rot = (e.rot || 0) + 10 * dt;
+
+        // swept collision
+        const dx = e.x - x0;
+        const dy = e.y - y0;
+        const dist = Math.hypot(dx, dy);
+        const steps = Math.max(1, Math.ceil(dist / 3));
+
+        let hit = false;
+        let hx = e.x;
+        let hy = e.y;
+
+        for (let s = 1; s <= steps && !hit; s++) {
+          const t = s / steps;
+          const sx = x0 + dx * t;
+          const sy = y0 + dy * t;
+
           for (const en of ents.enemies) {
-            const rr = (en.r ?? 16) + e.r;
+            const rr = (en.r ?? 16) + (e.r ?? 6);
             if ((sx - en.x) ** 2 + (sy - en.y) ** 2 <= rr * rr) {
 
               const DMG = 14;
@@ -4116,18 +4123,33 @@ if (btnHomeCustomize){
               en.hp -= DMG * mult;
               en.lastHitBy = 'local';
 
-              shatterIceShard(sx, sy);
-              addEffect(sx, sy, 'hit', 0.15, '#e9fbff');
-              cam.shake = Math.max(cam.shake, 1.2);
-
-              ents.effects.splice(i, 1);
-              return;
+              hx = sx;
+              hy = sy;
+              hit = true;
+              break;
             }
           }
         }
+
+        if (hit) {
+          shatterIceShard(hx, hy);
+          addEffect(hx, hy, 'hit', 0.15, '#e9fbff');
+          cam.shake = Math.max(cam.shake, 1.2);
+          ents.effects.splice(i, 1);
+          continue;
+        }
+
+        continue; // keep shard alive if no hit
       }
-    } 
-  } 
+
+      // =========================
+      // OTHER EFFECT TYPES (unchanged)
+      // =========================
+      if (e.type === 'muzzle') {
+        // handled in draw
+      }
+    }
+  }
   // Touch controls ------------------------------------------------------------
   const touch = { idL:null, init(){ const rel=(el,e)=>{ const r=el.getBoundingClientRect(); return {x:e.clientX-r.left, y:e.clientY-r.top}; }; stickL.addEventListener('touchstart', e=>{ e.preventDefault(); for(const t of e.changedTouches){ if(!this.idL){ const p=rel(stickL,t); if(p.x>=0&&p.y>=0&&p.x<=stickL.clientWidth&&p.y<=stickL.clientHeight){ this.idL=t.identifier; } } } }, {passive:false}); stickL.addEventListener('touchmove', e=>{ e.preventDefault(); for(const t of e.changedTouches){ if(t.identifier===this.idL){ const r=stickL.getBoundingClientRect(); const x=t.clientX-(r.left+r.width/2), y=t.clientY-(r.top+r.height/2), m=Math.hypot(x,y), lim=44; const nx=(m>lim? x/m*lim:x), ny=(m>lim? y/m*lim:y); nubL.style.transform=`translate(${nx}px,${ny}px)`; input.touch.stick.dx=nx/lim; input.touch.stick.dy=ny/lim; input.touch.stick.active=true; } } }, {passive:false}); stickL.addEventListener('touchend', e=>{ e.preventDefault(); for(const t of e.changedTouches){ if(t.identifier===this.idL){ this.idL=null; input.touch.stick={dx:0,dy:0,active:false}; nubL.style.transform='translate(0px,0px)'; } } }, {passive:false}); btnSwap.addEventListener('touchstart', e=>{ e.preventDefault(); swapWeapon(1); }, {passive:false}); } };
   touch.init();
