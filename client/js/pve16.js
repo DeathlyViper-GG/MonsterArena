@@ -264,6 +264,57 @@
 
     _sentGunsOnce = true;
   }
+  function stepIceShards(dt) {
+    for (let i = ents.effects.length - 1; i >= 0; i--) {
+      const e = ents.effects[i];
+      if (e.type !== 'iceShard') continue;
+
+      const x0 = e.x;
+      const y0 = e.y;
+
+      // move
+      e.x += e.vx * dt;
+      e.y += e.vy * dt;
+      e.rot = (e.rot || 0) + 10 * dt;
+
+      // swept collision
+      const dx = e.x - x0;
+      const dy = e.y - y0;
+      const dist = Math.hypot(dx, dy);
+      const steps = Math.max(1, Math.ceil(dist / 3));
+
+      for (let s = 1; s <= steps; s++) {
+        const t = s / steps;
+        const sx = x0 + dx * t;
+        const sy = y0 + dy * t;
+
+        for (const en of ents.enemies) {
+          const rr = (en.r ?? 16) + 6;
+          if ((sx - en.x) ** 2 + (sy - en.y) ** 2 <= rr * rr) {
+
+            const DMG = 14;
+            const mult = onHitGlyph(en, DMG, 'iceShard');
+            en.hp -= DMG * mult;
+            en.lastHitBy = 'local';
+
+            shatterIceShard(sx, sy);
+            addEffect(sx, sy, 'hit', 0.15, '#e9fbff');
+            cam.shake = Math.max(cam.shake, 1.2);
+
+            ents.effects.splice(i, 1);
+            return;
+          }
+        }
+      }
+
+      // lifetime
+      e.t += dt;
+      if (e.t >= e.life) {
+        shatterIceShard(e.x, e.y);
+        ents.effects.splice(i, 1);
+      }
+    }
+  }
   function hasFreshSnapshot(maxAgeMs = 1200) {
     const s = (window.Net && Net.state && Net.state.snapshot) ? Net.state.snapshot : null;
     if (!s || !s.t) return false;
@@ -5718,14 +5769,10 @@ window.addEventListener('net:snapshot', (ev) => {
     // AFTER dx / dy are computed and normalized
     moveWithCollide(player, dx * speed * dt, dy * speed * dt);
     tickWisps(dt); // ✅ WISPS UPDATE (ANCHOR TO PLAYER)
-    // ✅ OFFLINE projectile + effect movement (iceShard, bullets, etc.)
+    // ❄️ Offline ice shard movement ONLY (do not touch bullets)
     if (!isNetActive()) {
-      stepProjectiles(dt);
-    }
-
-  
-
-    
+      stepIceShards(dt);
+    }  
     // Always allow local fire; when online, also broadcast a 'shot' event for VFX
     if (state.phase !== 'glyph' && (input.mouse.down || input.touch.fire)) {
       const ammoBefore = player.ammo;
