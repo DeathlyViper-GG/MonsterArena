@@ -491,6 +491,19 @@
       ctx.restore();
     }
   }
+  function shatterIceShard(x, y) {
+    for (let k = 0; k < 16; k++) {
+      const a = Math.random() * Math.PI * 2;
+      ents.effects.push({
+        type: 'iceShardBit',
+        x, y,
+        vx: Math.cos(a) * 240,
+        vy: Math.sin(a) * 240,
+        life: 0.35,
+        t: 0
+      });
+    }
+  }
   function drawWaterVFX(ctx, e, x, y, t){
     if ((e.drenchT ?? 0) <= 0) return;
 
@@ -4024,63 +4037,62 @@ if (btnHomeCustomize){
     for (let i = ents.effects.length - 1; i >= 0; i--){ 
       const e = ents.effects[i]; 
       e.t = (e.t || 0) + dt; 
-      if (e.t >= e.life) ents.effects.splice(i,1); 
+      if (e.t >= e.life) ents.effects.splice(i,1);   
       else if (e.type === 'iceShard') {
+      // ✅ BULLET‑STYLE ICE SHARD (single update source)
 
-        e.x += e.vx * dt;
-        e.y += e.vy * dt;
+      const x0 = e.x;
+      const y0 = e.y;
 
-        // short range lifetime cutoff
-        if (e.t >= e.life) {
-          // shatter on expiry
-          for (let k = 0; k < 16; k++) {
-            const a = Math.random() * Math.PI * 2;
-            ents.effects.push({
-              type: 'iceShardBit',
-              x: e.x,
-              y: e.y,
-              vx: Math.cos(a) * 240,
-              vy: Math.sin(a) * 240,
-              life: 0.35,
-              t: 0
-            });
-          }
-          ents.effects.splice(i, 1);
-          continue;
-        }
+      // move like a bullet
+      e.x += e.vx * dt;
+      e.y += e.vy * dt;
 
-        // collision with enemies
+      // lifetime
+      if (e.t >= e.life) {
+        shatterIceShard(e.x, e.y);
+        ents.effects.splice(i, 1);
+        continue;
+      }
+
+      // ✅ SWEPT collision vs enemies (same as bullets)
+      const dx = e.x - x0;
+      const dy = e.y - y0;
+      const dist = Math.hypot(dx, dy);
+      const steps = Math.max(1, Math.ceil(dist / 4));
+
+      let hit = false;
+      let hx = e.x, hy = e.y;
+
+      for (let s = 1; s <= steps && !hit; s++) {
+        const t = s / steps;
+        const sx = x0 + dx * t;
+        const sy = y0 + dy * t;
+
         for (const en of ents.enemies) {
           const rr = (en.r ?? 16) + 8;
-          const dx = e.x - en.x;
-          const dy = e.y - en.y;
-
-          if (dx * dx + dy * dy <= rr * rr) {
-
+          if (dist2(sx, sy, en.x, en.y) <= rr * rr) {
             const DMG = 10;
             const mult = onHitGlyph(en, DMG, 'iceShard');
             en.hp -= DMG * mult;
             en.lastHitBy = 'local';
 
-            // shatter on hit
-            for (let k = 0; k < 16; k++) {
-              const a = Math.random() * Math.PI * 2;
-              ents.effects.push({
-                type: 'iceShardBit',
-                x: e.x,
-                y: e.y,
-                vx: Math.cos(a) * 240,
-                vy: Math.sin(a) * 240,
-                life: 0.35,
-                t: 0
-              });
-            }
-
-            ents.effects.splice(i, 1);
+            hx = sx;
+            hy = sy;
+            hit = true;
             break;
           }
         }
-      }  
+      }
+
+      if (hit) {
+        shatterIceShard(hx, hy);
+        addEffect(hx, hy, 'hit', 0.15, '#e9fbff');
+        cam.shake = Math.max(cam.shake, 1.2);
+        ents.effects.splice(i, 1);
+        continue;
+      }
+    }
     } 
   } 
   // Touch controls ------------------------------------------------------------
@@ -6277,9 +6289,15 @@ window.addEventListener('net:snapshot', (ev) => {
         }
       }
     }
-    for (let i = ents.effects.length - 1; i >= 0; i--){
+    
+  for (let i = ents.effects.length - 1; i >= 0; i--) {
     const e = ents.effects[i];
+
+    // ❌ iceShard updates ONLY happen in stepProjectiles
+    if (e.type === 'iceShard') continue;
+
     e.t += dt;
+
 
     // Per-effect updates
     if (e.type === 'triBurst'){
