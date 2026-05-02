@@ -298,9 +298,14 @@
             en.lastHitBy = 'local';
 
             shatterIceShard(sx, sy);
+
+            // ❄️ PERMAFROST
+            if (isPath('water') && hasG('water', 'permafrost')) {
+              spawnPermafrostField(sx, sy);
+            }
+
             addEffect(sx, sy, 'hit', 0.15, '#e9fbff');
             cam.shake = Math.max(cam.shake, 1.2);
-
             ents.effects.splice(i, 1);
             return;
           }
@@ -554,6 +559,17 @@
         t: 0
       });
     }
+  }
+  function spawnPermafrostField(x, y) {
+    ents.effects.push({
+      type: 'permafrostField',
+      x,
+      y,
+      r: 120,
+      life: 4.0,
+      t: 0,
+      tick: 0
+    });
   }
   function drawWaterVFX(ctx, e, x, y, t){
     if ((e.drenchT ?? 0) <= 0) return;
@@ -6424,9 +6440,31 @@ window.addEventListener('net:snapshot', (ev) => {
     else if (e.type === 'tidalWave'){
       // static effect; no per-frame movement
     }
-    
+    else if (e.type === 'permafrostField') {
 
+      // chip damage once per second
+      e.tick += dt;
+      if (e.tick >= 1) {
+        e.tick = 0;
+        for (const en of ents.enemies) {
+          const dx = en.x - e.x;
+          const dy = en.y - e.y;
+          if (dx*dx + dy*dy <= e.r * e.r) {
+            en.hp -= 3;
+            en.lastHitBy = 'local';
+          }
+        }
+      }
 
+      // very strong slow while inside
+      for (const en of ents.enemies) {
+        const dx = en.x - e.x;
+        const dy = en.y - e.y;
+        if (dx*dx + dy*dy <= e.r * e.r) {
+          en.spdMul *= 0.45;
+        }
+      }
+    }   
     else if (e.type === 'shade'){
       // simple allied shade: chases nearest enemy and hits
       let best=null, bestD2=520*520;
