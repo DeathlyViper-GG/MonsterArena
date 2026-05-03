@@ -2083,7 +2083,6 @@
 
       if (v.type === 'stonePillar') drawStonePillar3D(ctx, sx, sy, v);
       else if (v.type === 'quake') drawQuakeRing3D(ctx, sx, sy, v);
-      else if (v.type === 'sanctuary') drawSanctuary3D(ctx, sx, sy, v);
       else if (v.type === 'napalm') drawNapalmPatch3D(ctx, sx, sy, v);
       else if (v.type === 'maelstrom') drawMaelstrom3D(ctx, sx, sy, v);
       else if (v.type === 'sanctuary') {
