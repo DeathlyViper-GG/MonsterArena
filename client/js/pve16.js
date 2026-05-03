@@ -6099,7 +6099,6 @@ window.addEventListener('net:snapshot', (ev) => {
             isPath('water') &&
             hasG('water','permafrost')
           ) {
-            spawnPermafrostField(e.x, e.y);
           }
           const typeKey = (e.type === 'chaser' || e.type === 'swarm')
             ? 'ravener'
