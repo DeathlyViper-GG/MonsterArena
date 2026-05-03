@@ -42,11 +42,6 @@ const TEST_FORCE_BOSS3 = false; // ✅ set false to restore normal behaviour
 // ✅ Long-poll waiters per lobby
 const POLL_TIMEOUT_MS = 25_000;
 const WAITERS = new Map(); // lobbyId -> Set({ res, worldKey })
-// ============================
-// GLYPH PHASE (MULTIPLAYER)
-// ============================
-let gamePhase = 'combat';   // 'combat' | 'glyph'
-let glyphTimer = 0;         // seconds remaining
 
 function addWaiter(lobbyId, res, worldKey = '') {
   if (!WAITERS.has(lobbyId)) WAITERS.set(lobbyId, new Set());
@@ -910,6 +905,8 @@ function createLobby(mode, startTimeOverride = null) {
     : (created + LOBBY_INTERVAL);
 
   return {
+    gamePhase: 'combat',
+    glyphTimer: 0,
     id: makeId(),
     mode,
     created,
@@ -947,8 +944,8 @@ function createLobby(mode, startTimeOverride = null) {
       enemies: [],
       bullets: [],
       pickups: [],
-      phase: gamePhase,
-      glyphTime: glyphTimer,
+      phase: lobby.gamePhase,
+      glyphTime: lobby.glyphTimer,
       meta: {
         mode,
         joinDeadline: startTime,
@@ -2133,23 +2130,25 @@ setInterval(() => {
     const dt = TICK_MS / 1000;
     lobby.lastTick = t;
     // ============================
-    // GLYPH PHASE TIMER (FREEZE)
+    // GLYPH PHASE TIMER (PER LOBBY)
     // ============================
-    if (gamePhase === 'glyph') {
-      glyphTimer -= dt;
+    if (lobby.gamePhase === 'glyph') {
+      lobby.glyphTimer -= dt;
 
-      if (glyphTimer <= 0) {
-        gamePhase = 'combat';
+      if (lobby.glyphTimer <= 0) {
+        lobby.gamePhase = 'combat';
+
         startWave(lobby, (lobby.wave || 1) + 1);
 
         broadcast({
           kind: 'phase',
+          lobbyId: lobby.id,
           phase: 'combat'
         });
       }
 
-      lobby.lastTick = nowMs;
-      return;
+      // freeze combat for THIS lobby only
+      continue;
     }
 
     // ✅ clear last tick's telegraphs (they are rebuilt every tick)
@@ -2414,14 +2413,15 @@ setInterval(() => {
 
       removeDeadPlayers(lobby);
       if (lobby.spawnQueue.length === 0 && lobby.enemies.length === 0) {
-        if (gamePhase === 'combat') {
-          gamePhase = 'glyph';
-          glyphTimer = 15;
+        if (lobby.gamePhase === 'combat') {
+          lobby.gamePhase = 'glyph';
+          lobby.glyphTimer = 15;
 
           broadcast({
             kind: 'phase',
+            lobbyId: lobby.id,
             phase: 'glyph',
-            time: glyphTimer
+            time: lobby.glyphTimer
           });
         }
       }
