@@ -2885,6 +2885,44 @@ const SPRITE_OFFSET = {
       case 13: drawWing('fire', t); break;
       case 14: drawWing('insect', t); break;
     }
+    // 🪨 EARTH — STONE SKIN CRYSTAL SHELL (VISUAL)
+    if (isPath('earth') && hasG('earth','stoneSkin')) {
+
+      const pulse = 1 + Math.sin(t * 3.2) * 0.04;
+
+      ctx.save();
+      ctx.globalCompositeOperation = 'screen';
+
+      // translucent crystal glow
+      const g = ctx.createRadialGradient(
+        0, 0, r * 0.45,
+        0, 0, r * 1.6
+      );
+
+      g.addColorStop(0.00, 'rgba(180,255,210,0.04)');
+      g.addColorStop(0.35, 'rgba(140,255,180,0.14)');
+      g.addColorStop(0.65, 'rgba(90,220,140,0.20)');
+      g.addColorStop(1.00, 'rgba(0,0,0,0)');
+
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(0, 0, r * 1.45 * pulse, 0, Math.PI * 2);
+      ctx.fill();
+
+      // crystal facet lines (subtle)
+      ctx.strokeStyle = 'rgba(160,255,200,0.32)';
+      ctx.lineWidth = 2;
+
+      for (let i = 0; i < 6; i++) {
+        const a = i * (Math.PI * 2 / 6) + t * 0.6;
+        ctx.beginPath();
+        ctx.moveTo(Math.cos(a) * r * 0.7, Math.sin(a) * r * 0.7);
+        ctx.lineTo(Math.cos(a) * r * 1.35, Math.sin(a) * r * 1.35);
+        ctx.stroke();
+      }
+
+      ctx.restore();
+    }
   }
 
   // CUSTOMIZE UI --------------------------------------------------------------
@@ -5192,8 +5230,14 @@ function onGlyphEnchant(){
   }
 
   // PENTAGON MODE: enchant core
+  // PENTAGON MODE: enchant core
   if (!_glyphSelected) return;
   if (state.essence < _glyphCost) return;
+
+  // ✅ mark previous path as completed BEFORE switching
+  if (player.glyphPath && player.glyphPath !== _glyphSelected){
+    player.completedGlyphs[player.glyphPath] = true;
+  }
 
   state.essence -= _glyphCost;
   if (glyphEssenceEl) glyphEssenceEl.textContent = String(state.essence);
