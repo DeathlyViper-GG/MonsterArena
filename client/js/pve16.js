@@ -3797,9 +3797,12 @@ if (btnHomeCustomize){
 
     state.wave = n;
     // ✅ ensure glyph overlay/phase is cleared on wave start
-    state.phase = 'combat';
-    state.phaseEndsAt = 0;
-    if (ovGlyphs) ovGlyphs.style.display = 'none';
+    // ✅ ensure glyph overlay/phase is cleared on wave start
+    if (state.phase !== 'glyph') {
+      state.phase = 'combat';
+      state.phaseEndsAt = 0;
+      if (ovGlyphs) ovGlyphs.style.display = 'none';
+    }
     
     // reset per-wave glyph triggers
     player._rebirthUsed = false;
