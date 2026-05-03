@@ -264,6 +264,17 @@
 
     _sentGunsOnce = true;
   }
+  function spawnPermafrostWorld(x, y) {
+    addWorldVfx({
+      type: 'permafrost',
+      x,
+      y,
+      r: 120,
+      life: 4.0,
+      t: 0,
+      tick: 0
+    });
+  }
   function stepIceShards(dt) {
     for (let i = ents.effects.length - 1; i >= 0; i--) {
       const e = ents.effects[i];
@@ -560,17 +571,6 @@
         t: 0
       });
     }
-  }
-  function spawnPermafrostField(x, y) {
-    ents.effects.push({
-      type: 'permafrostField',
-      x,
-      y,
-      r: 120,
-      life: 4.0,
-      t: 0,
-      tick: 0
-    });
   }
   function drawWaterVFX(ctx, e, x, y, t){
     if ((e.drenchT ?? 0) <= 0) return;
@@ -1732,6 +1732,31 @@
             }
           }
         }
+        else if (v.type === 'permafrost') {
+
+          // damage tick once per second
+          v.tick += dt;
+          if (v.tick >= 1) {
+            v.tick = 0;
+            for (const en of ents.enemies) {
+              const dx = en.x - v.x;
+              const dy = en.y - v.y;
+              if (dx*dx + dy*dy <= v.r * v.r) {
+                en.hp -= 3;
+                en.lastHitBy = 'local';
+              }
+            }
+          }
+
+          // heavy slow while inside
+          for (const en of ents.enemies) {
+            const dx = en.x - v.x;
+            const dy = en.y - v.y;
+            if (dx*dx + dy*dy <= v.r * v.r) {
+              en.spdMul *= 0.45;
+            }
+          }
+}
       }
 
       if (v.life <= 0) worldVfx.splice(i,1);
@@ -2032,6 +2057,51 @@
       else if (v.type === 'sanctuary') drawSanctuary3D(ctx, sx, sy, v);
       else if (v.type === 'napalm') drawNapalmPatch3D(ctx, sx, sy, v);
       else if (v.type === 'maelstrom') drawMaelstrom3D(ctx, sx, sy, v);
+      else if (v.type === 'permafrost') {
+        const x = v.x - cam.x;
+        const y = v.y - cam.y;
+        const p = v.t / v.life;
+        const fade = 1 - p;
+
+        ctx.save();
+
+        // cold ground shadow
+        ctx.globalCompositeOperation = 'multiply';
+        const gShadow = ctx.createRadialGradient(x, y, 10, x, y, v.r);
+        gShadow.addColorStop(0, `rgba(40,60,90,${0.55 * fade})`);
+        gShadow.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = gShadow;
+        ctx.beginPath();
+        ctx.arc(x, y, v.r, 0, Math.PI * 2);
+        ctx.fill();
+
+        // frosty glow
+        ctx.globalCompositeOperation = 'screen';
+        const g = ctx.createRadialGradient(x, y, 0, x, y, v.r);
+        g.addColorStop(0, `rgba(180,240,255,${0.45 * fade})`);
+        g.addColorStop(0.6, `rgba(110,190,255,${0.25 * fade})`);
+        g.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.arc(x, y, v.r, 0, Math.PI * 2);
+        ctx.fill();
+
+        // ice spikes
+        ctx.strokeStyle = `rgba(200,250,255,${0.4 * fade})`;
+        ctx.lineWidth = 2;
+        for (let i = 0; i < 12; i++) {
+          const a = (Math.PI * 2 / 12) * i + v.t * 0.6;
+          ctx.beginPath();
+          ctx.moveTo(x, y);
+          ctx.lineTo(
+            x + Math.cos(a) * v.r * 0.9,
+            y + Math.sin(a) * v.r * 0.9
+          );
+          ctx.stroke();
+        }
+
+        ctx.restore();
+      }
     }
   }
 
@@ -4189,7 +4259,7 @@ if (btnHomeCustomize){
               const DMG = 14;
               const mult = onHitGlyph(en, DMG, 'iceShard');
               en.hp -= DMG * mult;
-              en.lastHitBy = 'local';
+              en.lastHitBy = 'iceShard';
 
               hx = sx;
               hy = sy;
@@ -6109,24 +6179,14 @@ window.addEventListener('net:snapshot', (ev) => {
               life: 4.0 // ✅ EXACTLY 4 SECONDS
             });
           }
-
           // ❄️ WATER — PERMAFROST (ICE SHARD KILL ONLY)
           if (
             !isNetActive() &&
             isPath('water') &&
             hasG('water', 'permafrost') &&
-            e._iceShardTouched === true &&
             e.lastHitBy === 'iceShard'
           ) {
-            ents.effects.push({
-              type: 'permafrostField',
-              x: e.x,
-              y: e.y,
-              r: 120,
-              life: 4.0,
-              t: 0,
-              tick: 0
-            });
+            spawnPermafrostWorld(e.x, e.y);
           }
           e._iceShardTouched = false;
           ents.enemies.splice(i, 1);
@@ -6467,31 +6527,6 @@ window.addEventListener('net:snapshot', (ev) => {
     }
     else if (e.type === 'tidalWave'){
       // static effect; no per-frame movement
-    }
-    else if (e.type === 'permafrostField') {
-
-      // chip damage once per second
-      e.tick += dt;
-      if (e.tick >= 1) {
-        e.tick = 0;
-        for (const en of ents.enemies) {
-          const dx = en.x - e.x;
-          const dy = en.y - e.y;
-          if (dx*dx + dy*dy <= e.r * e.r) {
-            en.hp -= 3;
-            en.lastHitBy = 'local';
-          }
-        }
-      }
-
-      // very strong slow while inside
-      for (const en of ents.enemies) {
-        const dx = en.x - e.x;
-        const dy = en.y - e.y;
-        if (dx*dx + dy*dy <= e.r * e.r) {
-          en.spdMul *= 0.45;
-        }
-      }
     }   
     else if (e.type === 'shade'){
       // simple allied shade: chases nearest enemy and hits
