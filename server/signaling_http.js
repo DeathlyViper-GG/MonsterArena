@@ -944,8 +944,8 @@ function createLobby(mode, startTimeOverride = null) {
       enemies: [],
       bullets: [],
       pickups: [],
-      phase: lobby.gamePhase,
-      glyphTime: lobby.glyphTimer,
+      phase: 'combat',
+      glyphTime: 0,
       meta: {
         mode,
         joinDeadline: startTime,
