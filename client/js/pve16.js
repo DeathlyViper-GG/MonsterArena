@@ -1696,11 +1696,46 @@
         }
 
         // Sanctuary: heal player inside
-        if (v.type === 'sanctuary'){
-          const R = (v.r ?? 70);
-          if (dist2(player.x,player.y,v.x,v.y) <= R*R){
-            player.hp = Math.min(player.hpMax, player.hp + 10*dt);
+        // 💧 SANCTUARY — collision & blocking
+        if (v.type === 'sanctuary') {
+
+          const wallR = v.wallR ?? (v.r + 20);
+          const wallR2 = wallR * wallR;
+
+          /* ⛔ BLOCK ENEMIES (hard wall) */
+          for (const en of ents.enemies) {
+            const dx = en.x - v.x;
+            const dy = en.y - v.y;
+            const d2 = dx*dx + dy*dy;
+
+            if (d2 < wallR2) {
+              const d = Math.sqrt(d2) || 1;
+              en.x = v.x + (dx / d) * wallR;
+              en.y = v.y + (dy / d) * wallR;
+            }
           }
+
+          /* ⛔ STOP PLAYER BULLETS */
+          for (let j = ents.bullets.length - 1; j >= 0; j--) {
+            const b = ents.bullets[j];
+            const dx = b.x - v.x;
+            const dy = b.y - v.y;
+            if (dx*dx + dy*dy < wallR2) {
+              ents.bullets.splice(j, 1);
+            }
+          }
+
+          /* ⛔ STOP ENEMY BULLETS */
+          for (let j = ents.ebullets.length - 1; j >= 0; j--) {
+            const b = ents.ebullets[j];
+            const dx = b.x - v.x;
+            const dy = b.y - v.y;
+            if (dx*dx + dy*dy < wallR2) {
+              ents.ebullets.splice(j, 1);
+            }
+          }
+
+          // ✅ player is allowed — no code needed
         }
 
         // Maelstrom: pull + damage
@@ -2051,6 +2086,71 @@
       else if (v.type === 'sanctuary') drawSanctuary3D(ctx, sx, sy, v);
       else if (v.type === 'napalm') drawNapalmPatch3D(ctx, sx, sy, v);
       else if (v.type === 'maelstrom') drawMaelstrom3D(ctx, sx, sy, v);
+      else if (v.type === 'sanctuary') {
+
+        const x = v.x - cam.x;
+        const y = v.y - cam.y;
+        const t = v.t;
+        const spin = t * 0.25;
+        const pulse = 1 + Math.sin(t * 2) * 0.05;
+
+        ctx.save();
+        ctx.translate(x, y);
+
+        /* 🌌 ABYSS CORE (DEPTH + ROTATION) */
+        ctx.rotate(spin * 0.2);
+
+        const abyss = ctx.createRadialGradient(0, 0, 8, 0, 0, v.r);
+        abyss.addColorStop(0, 'rgba(10,20,40,0.95)');
+        abyss.addColorStop(0.4, 'rgba(6,12,30,0.9)');
+        abyss.addColorStop(0.75, 'rgba(3,6,18,0.95)');
+        abyss.addColorStop(1, 'rgba(0,0,0,1)');
+
+        ctx.fillStyle = abyss;
+        ctx.beginPath();
+        ctx.arc(0, 0, v.r * pulse, 0, Math.PI * 2);
+        ctx.fill();
+
+        /* 🌑 SHADOW LIP */
+        ctx.globalCompositeOperation = 'multiply';
+        ctx.strokeStyle = 'rgba(0,0,0,0.6)';
+        ctx.lineWidth = 12;
+        ctx.beginPath();
+        ctx.arc(0, 0, v.r * 1.02, 0, Math.PI * 2);
+        ctx.stroke();
+
+        /* 🌊 ETHEREAL ROTATING WALLS */
+        ctx.globalCompositeOperation = 'screen';
+        ctx.lineWidth = 6;
+
+        for (let i = 0; i < 8; i++) {
+          const a = spin + i * (Math.PI * 2 / 8);
+          ctx.strokeStyle = `rgba(120,220,255,0.35)`;
+          ctx.beginPath();
+          ctx.arc(
+            0, 0,
+            v.wallR + Math.sin(t * 2 + i) * 8,
+            a,
+            a + Math.PI / 3
+          );
+          ctx.stroke();
+        }
+
+        /* ✨ DEPTH GLINTS */
+        for (let i = 0; i < 12; i++) {
+          const a = Math.random() * Math.PI * 2;
+          const r = Math.random() * v.r;
+          ctx.fillStyle = 'rgba(180,240,255,0.35)';
+          ctx.fillRect(
+            Math.cos(a) * r,
+            Math.sin(a) * r,
+            2,
+            2
+          );
+        }
+
+        ctx.restore();
+      }
       else if (v.type === 'permafrost') {
         const x = v.x - cam.x;
         const y = v.y - cam.y;
