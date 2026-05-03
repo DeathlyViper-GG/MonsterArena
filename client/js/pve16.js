@@ -295,6 +295,7 @@
             const DMG = 14;
             const mult = onHitGlyph(en, DMG, 'iceShard');
             en.hp -= DMG * mult;
+            en._iceShardTouched = true;
             en.lastHitBy = 'iceShard';
 
             shatterIceShard(sx, sy);
@@ -6109,6 +6110,25 @@ window.addEventListener('net:snapshot', (ev) => {
             });
           }
 
+          // ❄️ WATER — PERMAFROST (ICE SHARD KILL ONLY)
+          if (
+            !isNetActive() &&
+            isPath('water') &&
+            hasG('water', 'permafrost') &&
+            e._iceShardTouched === true &&
+            e.lastHitBy === 'iceShard'
+          ) {
+            ents.effects.push({
+              type: 'permafrostField',
+              x: e.x,
+              y: e.y,
+              r: 120,
+              life: 4.0,
+              t: 0,
+              tick: 0
+            });
+          }
+          e._iceShardTouched = false;
           ents.enemies.splice(i, 1);
           audio.hit();
           continue; // <-- legal here
