@@ -85,6 +85,7 @@
   let STATIC_WORLD_CTX = null;
   let STATIC_WORLD_KEY = '';
   let _lastHUDUpdate = 0;
+  let sanctuaryRespawnT = 0;
   const HUD_INTERVAL = 100; // ms (10 times per second)
   async function leaveMultiplayerAndReturnHome() {
     // Stop gameplay
@@ -1681,6 +1682,12 @@
       const v = worldVfx[i];
       v.t += dt;
       v.life -= dt;
+      // 💧 SANCTUARY — expire → start respawn timer
+      if (v.type === 'sanctuary' && v.t >= v.life) {
+        worldVfx.splice(i, 1);
+        sanctuaryRespawnT = 15; // ⏳ wait 15 seconds before respawn
+        continue;
+      }
 
       // ===== Gameplay tick (offline only) =====
       if (!isNetActive()){
@@ -1785,10 +1792,49 @@
               en.spdMul *= 0.45;
             }
           }
-}
+        }
       }
 
       if (v.life <= 0) worldVfx.splice(i,1);
+    }
+    // 💧 SANCTUARY — respawn after timer at random valid location
+    if (
+      !isNetActive() &&
+      isPath('water') &&
+      hasG('water','sanctuary')
+    ) {
+      if (sanctuaryRespawnT > 0) {
+        sanctuaryRespawnT -= dt;
+      } else {
+        const exists = worldVfx.some(v => v.type === 'sanctuary');
+        if (!exists) {
+
+          const margin = 160;
+          let placed = false;
+
+          for (let i = 0; i < 40 && !placed; i++) {
+            const x = rand(margin, world.w - margin);
+            const y = rand(margin, world.h - margin);
+
+            if (world.isBlocked(x, y, 28)) continue;
+            if (world.collideHazard(x, y, 28)) continue;
+            if (!nav.isReachable(x, y)) continue;
+
+            spawnSanctuary(x, y);
+            placed = true;
+          }
+
+          // safe fallback
+          if (!placed) {
+            spawnSanctuary(
+              clamp(player.x + 360, margin, world.w - margin),
+              clamp(player.y, margin, world.h - margin)
+            );
+          }
+
+          sanctuaryRespawnT = -1; // disable until next expiry
+        }
+      }
     }
   }
 
@@ -2110,13 +2156,26 @@
         ctx.arc(0, 0, v.r * pulse, 0, Math.PI * 2);
         ctx.fill();
 
-        /* 🌑 SHADOW LIP */
-        ctx.globalCompositeOperation = 'multiply';
-        ctx.strokeStyle = 'rgba(0,0,0,0.6)';
-        ctx.lineWidth = 12;
+        /* 🔵 RADIANT BLUE RIM — ENERGY BARRIER */
+        ctx.globalCompositeOperation = 'screen';
+
+        const rimPulse = 1 + Math.sin(t * 3) * 0.06;
+
+        const rim = ctx.createRadialGradient(
+          0, 0, v.r * 0.85,
+          0, 0, v.r * 1.15
+        );
+
+        rim.addColorStop(0.00, 'rgba(120,220,255,0.00)');
+        rim.addColorStop(0.25, 'rgba(120,220,255,0.35)');
+        rim.addColorStop(0.45, 'rgba(160,240,255,0.85)');
+        rim.addColorStop(0.65, 'rgba(120,200,255,0.55)');
+        rim.addColorStop(1.00, 'rgba(0,0,0,0.0)');
+
+        ctx.fillStyle = rim;
         ctx.beginPath();
-        ctx.arc(0, 0, v.r * 1.02, 0, Math.PI * 2);
-        ctx.stroke();
+        ctx.arc(0, 0, v.r * rimPulse, 0, Math.PI * 2);
+        ctx.fill();
 
         /* 🌊 ETHEREAL ROTATING WALLS */
         ctx.globalCompositeOperation = 'screen';
