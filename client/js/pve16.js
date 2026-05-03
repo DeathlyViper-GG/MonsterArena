@@ -276,6 +276,17 @@
       tick: 0
     });
   }
+  function spawnSanctuary(x, y) {
+    addWorldVfx({
+      type: 'sanctuary',
+      x,
+      y,
+      r: 120,        // abyss radius
+      wallR: 140,    // collision wall radius
+      life: 12.0,    // how long it stays before disappearing
+      t: 0
+    });
+}
   function stepIceShards(dt) {
     for (let i = ents.effects.length - 1; i >= 0; i--) {
       const e = ents.effects[i];
