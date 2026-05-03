@@ -310,12 +310,6 @@
             en.lastHitBy = 'iceShard';
 
             shatterIceShard(sx, sy);
-
-            // ❄️ PERMAFROST
-            if (isPath('water') && hasG('water', 'permafrost')) {
-              spawnPermafrostField(sx, sy);
-            }
-
             addEffect(sx, sy, 'hit', 0.15, '#e9fbff');
             cam.shake = Math.max(cam.shake, 1.2);
             ents.effects.splice(i, 1);
