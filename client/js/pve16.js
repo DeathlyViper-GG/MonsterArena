@@ -2886,7 +2886,8 @@ const SPRITE_OFFSET = {
       case 14: drawWing('insect', t); break;
     }
     // 🪨 EARTH — STONE SKIN CRYSTAL SHELL (VISUAL)
-    if (isPath('earth') && hasG('earth','stoneSkin')) {
+    // 🪨 EARTH — STONE SKIN CRYSTAL SHELL (PLAYER ONLY)
+    if (designId === selectedDesign && isPath('earth') && hasG('earth','stoneSkin')) {
 
       const pulse = 1 + Math.sin(t * 3.2) * 0.04;
 
@@ -8397,6 +8398,13 @@ window.__ASSETS__.loadMelee = () => Melee.loadAll();
 // 📱 Mobile Dash & Melee Buttons
 // ✅ MUST RUN AFTER DOM IS READY
 // ================================
+// ❌ Disable H key opening Help / Controls overlays
+window.addEventListener('keydown', (e) => {
+  if (e.key === 'h' || e.key === 'H') {
+    e.preventDefault();
+    e.stopImmediatePropagation();
+  }
+}, true); // capture phase
 window.addEventListener('DOMContentLoaded', () => {
 
   if (!IS_MOBILE) return;
