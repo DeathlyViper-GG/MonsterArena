@@ -270,7 +270,7 @@
       x,
       y,
       r: 120,
-      life: 4.0,
+      life: 8.0,
       t: 0,
       tick: 0
     });
@@ -4390,7 +4390,7 @@ const GLYPH_TREE = {
   spirit: [
     [
       { name:"Wisp Orbit",       desc:"Gain 1 wisp that orbits you and shoots weak projectiles." },
-      { name:"Wisp Swarm",       desc:"More wisps; each hit applies Haunt (small DoT)." },
+      { name:"Wisp Swarm",       desc:"More wisps." },
       { name:"Guardian Spirits", desc:"Wisps can intercept one projectile every few seconds." }
     ],
     [
@@ -4400,7 +4400,7 @@ const GLYPH_TREE = {
     ],
     [
       { name:"Revenant",   desc:"Chance on kill to spawn a temporary allied shade (melee chaser)." },
-      { name:"Possession", desc:"Shade duration longer and gains ranged attack." },
+      { name:"Possession", desc:"Shade duration longer." },
       { name:"Wraith King",desc:"Boss kills always spawn a powerful shade for one wave." }
     ],
   ],
@@ -4408,18 +4408,18 @@ const GLYPH_TREE = {
   water: [
     [
       { name:"Chill",      desc:"Drenched enemies slow more; at stacks freeze briefly." },
-      { name:"Ice Shards", desc:"Your shots occasionally fire a shard that pierces." },
-      { name:"Permafrost", desc:"Freeze causes a shatter AoE." }
+      { name:"Ice Shards", desc:"You occasionally fire a shard that drenches the enemy." },
+      { name:"Permafrost", desc:"If the last shot is an ice shard, it causes a region of frost that takes chip damage from enemies." }
     ],
     [
       { name:"Mending Mist", desc:"Collecting XP orbs also restores a tiny amount of HP." },
-      { name:"Tidal Renewal",desc:"Every N hits create a small healing pulse around you." },
+      { name:"Tidal Renewal",desc:"Every 6 hits create a small healing pulse around you." },
       { name:"Sanctuary",    desc:"Drop a water circle at wave-end that persists into next wave as a safe zone." }
     ],
     [
       { name:"Ripple Shot", desc:"Bullets push enemies slightly back." },
-      { name:"Tidal Wave",  desc:"Every X seconds, emit a cone wave knockback." },
-      { name:"Maelstrom",   desc:"A rotating water vortex that pulls enemies." }
+      { name:"Tidal Wave",  desc:"Every 6.5 seconds, emit a cone wave knockback and activated drench." },
+      { name:"Maelstrom",   desc:"When you kill an enemy, a rotating water vortex pulls enemies." }
     ],
   ],
 
