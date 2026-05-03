@@ -2273,6 +2273,11 @@
     else if (amHost()) el.classList.add('host');
     else el.classList.add('peer');
   }
+  // ============================
+  // MULTIPLAYER GLYPH PHASE
+  // ============================
+  let netPhase = 'combat';
+  let netGlyphTime = 0;
 
   // Game state ----------------------------------------------------------------
   const state={
@@ -3889,6 +3894,7 @@ if (btnHomeCustomize){
 
   // Shooting / collisions -----------------------------------------------------
   function playerShoot(){ 
+    if (isNetActive() && netPhase === 'glyph') return;
     
     if (equip === 'melee') {
 
@@ -5439,6 +5445,20 @@ window.addEventListener('net:snapshot', (ev) => {
     // ✅ Online: spawn death VFX when enemies disappear from snapshot
     if (online && hasFreshSnapshot()){
       const snap = Net.state?.snapshot;
+      if (snap?.phase && snap.phase !== netPhase) {
+        netPhase = snap.phase;
+        netGlyphTime = snap.glyphTime ?? 0;
+
+        if (netPhase === 'glyph') {
+          openGlyphOverlay(15);
+          state.running = false;
+        }
+
+        if (netPhase === 'combat') {
+          closeGlyphOverlay();
+          state.running = true;
+        }
+      }
       if (snap && Array.isArray(snap.enemies)){
         const nowE = new Map();
         for (const e of snap.enemies){

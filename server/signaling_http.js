@@ -42,6 +42,11 @@ const TEST_FORCE_BOSS3 = false; // ✅ set false to restore normal behaviour
 // ✅ Long-poll waiters per lobby
 const POLL_TIMEOUT_MS = 25_000;
 const WAITERS = new Map(); // lobbyId -> Set({ res, worldKey })
+// ============================
+// GLYPH PHASE (MULTIPLAYER)
+// ============================
+let gamePhase = 'combat';   // 'combat' | 'glyph'
+let glyphTimer = 0;         // seconds remaining
 
 function addWaiter(lobbyId, res, worldKey = '') {
   if (!WAITERS.has(lobbyId)) WAITERS.set(lobbyId, new Set());
@@ -942,6 +947,8 @@ function createLobby(mode, startTimeOverride = null) {
       enemies: [],
       bullets: [],
       pickups: [],
+      phase: gamePhase,
+      glyphTime: glyphTimer,
       meta: {
         mode,
         joinDeadline: startTime,
@@ -2125,6 +2132,25 @@ setInterval(() => {
     // ✅ Fixed dt (prevents integration drift under load)
     const dt = TICK_MS / 1000;
     lobby.lastTick = t;
+    // ============================
+    // GLYPH PHASE TIMER (FREEZE)
+    // ============================
+    if (gamePhase === 'glyph') {
+      glyphTimer -= dt;
+
+      if (glyphTimer <= 0) {
+        gamePhase = 'combat';
+        startWave(lobby, (lobby.wave || 1) + 1);
+
+        broadcast({
+          kind: 'phase',
+          phase: 'combat'
+        });
+      }
+
+      lobby.lastTick = nowMs;
+      return;
+    }
 
     // ✅ clear last tick's telegraphs (they are rebuilt every tick)
     lobby.pickups = (lobby.pickups || []).filter(
@@ -2387,12 +2413,16 @@ setInterval(() => {
       }
 
       removeDeadPlayers(lobby);
-
-      // ✅ Wave progression ONLY in PvE
       if (lobby.spawnQueue.length === 0 && lobby.enemies.length === 0) {
-        lobby.nextWaveT = (lobby.nextWaveT ?? 2.0) - dt;
-        if (lobby.nextWaveT <= 0) {
-          startWave(lobby, (lobby.wave || 1) + 1);
+        if (gamePhase === 'combat') {
+          gamePhase = 'glyph';
+          glyphTimer = 15;
+
+          broadcast({
+            kind: 'phase',
+            phase: 'glyph',
+            time: glyphTimer
+          });
         }
       }
     }
