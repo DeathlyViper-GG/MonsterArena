@@ -42,6 +42,9 @@ const TEST_FORCE_BOSS3 = false; // ✅ set false to restore normal behaviour
 // ✅ Long-poll waiters per lobby
 const POLL_TIMEOUT_MS = 25_000;
 const WAITERS = new Map(); // lobbyId -> Set({ res, worldKey })
+// structuredClone is not available on some Node runtimes (Render)
+// Use a safe JSON clone for snapshots (snapshots contain only plain data)
+const deepClone = (obj) => JSON.parse(JSON.stringify(obj));
 
 function addWaiter(lobbyId, res, worldKey = '') {
   if (!WAITERS.has(lobbyId)) WAITERS.set(lobbyId, new Set());
@@ -63,7 +66,7 @@ function flushWaiters(lobby) {
 
   for (const { res, worldKey } of set) {
     try {
-      const snap = structuredClone(lobby.snapshot);
+      const snap = deepClone(lobby.snapshot);
 
       snap.meta = snap.meta ?? {};
       snap.meta.worldKey = String(lobby.worldKey ?? '');
@@ -1990,7 +1993,7 @@ app.get('/poll', (req, res) => {
 
   // ✅ IMMEDIATE RESPONSE if we have a newer snapshot than client
   if (curT > since) {
-    const snap = structuredClone(lobby.snapshot);
+    const snap = deepClone(lobby.snapshot);
 
     // ✅ Ensure meta carries worldKey/chestVer so client can echo worldKey back
     snap.meta = snap.meta ?? {};
@@ -2140,11 +2143,11 @@ setInterval(() => {
 
         startWave(lobby, (lobby.wave || 1) + 1);
 
-        broadcast({
-          kind: 'phase',
-          lobbyId: lobby.id,
-          phase: 'combat'
-        });
+        // push phase into snapshot (authoritative) + wake long-poll clients
+        lobby.snapshot.t = now();
+        lobby.snapshot.phase = lobby.gamePhase;
+        lobby.snapshot.glyphTime = lobby.glyphTimer;
+        flushWaiters(lobby);
       }
 
       // freeze combat for THIS lobby only
@@ -2417,12 +2420,11 @@ setInterval(() => {
           lobby.gamePhase = 'glyph';
           lobby.glyphTimer = 15;
 
-          broadcast({
-            kind: 'phase',
-            lobbyId: lobby.id,
-            phase: 'glyph',
-            time: lobby.glyphTimer
-          });
+          // push phase into snapshot (authoritative) + wake long-poll clients
+          lobby.snapshot.t = now();
+          lobby.snapshot.phase = lobby.gamePhase;
+          lobby.snapshot.glyphTime = lobby.glyphTimer;
+          flushWaiters(lobby);
         }
       }
     }
