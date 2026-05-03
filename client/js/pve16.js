@@ -283,10 +283,11 @@
       y,
       r: 120,        // abyss radius
       wallR: 140,    // collision wall radius
-      life: 12.0,    // how long it stays before disappearing
-      t: 0
+      life: 12.0,    // total lifetime (after lock expires)
+      t: 0,
+      lockT: 10.0    // 🔒 stay in place for 10 seconds after teleport
     });
-}
+  }
   function stepIceShards(dt) {
     for (let i = ents.effects.length - 1; i >= 0; i--) {
       const e = ents.effects[i];
@@ -1693,10 +1694,19 @@
       const v = worldVfx[i];
       v.t += dt;
       v.life -= dt;
+      // 💧 SANCTUARY — locked after teleport
+      if (v.type === 'sanctuary' && v.lockT > 0) {
+        v.lockT -= dt;
+        continue; // ⛔ do NOT allow expiry or movement while locked
+      }
       // 💧 SANCTUARY — expire → start respawn timer
-      if (v.type === 'sanctuary' && v.t >= v.life) {
+      if (
+        v.type === 'sanctuary' &&
+        v.lockT <= 0 &&        // ✅ only expire AFTER the 10s lock
+        v.t >= v.life
+      ) {
         worldVfx.splice(i, 1);
-        sanctuaryRespawnT = 15; // ⏳ wait 15 seconds before respawn
+        sanctuaryRespawnT = 15; // ⏳ wait 15 seconds before next teleport
         continue;
       }
 
