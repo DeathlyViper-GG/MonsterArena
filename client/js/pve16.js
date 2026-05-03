@@ -85,7 +85,6 @@
   let STATIC_WORLD_CTX = null;
   let STATIC_WORLD_KEY = '';
   let _lastHUDUpdate = 0;
-  let sanctuaryRespawnT = 0;
   const HUD_INTERVAL = 100; // ms (10 times per second)
   async function leaveMultiplayerAndReturnHome() {
     // Stop gameplay
@@ -264,80 +263,6 @@
     });
 
     _sentGunsOnce = true;
-  }
-  function spawnPermafrostWorld(x, y) {
-    addWorldVfx({
-      type: 'permafrost',
-      x,
-      y,
-      r: 120,
-      life: 8.0,
-      t: 0,
-      tick: 0
-    });
-  }
-  function spawnSanctuary(x, y) {
-    addWorldVfx({
-      type: 'sanctuary',
-      x,
-      y,
-      r: 120,        // abyss radius
-      wallR: 140,    // collision wall radius
-      life: 12.0,    // total lifetime (after lock expires)
-      t: 0,
-      lockT: 10.0    // 🔒 stay in place for 10 seconds after teleport
-    });
-  }
-  function stepIceShards(dt) {
-    for (let i = ents.effects.length - 1; i >= 0; i--) {
-      const e = ents.effects[i];
-      if (e.type !== 'iceShard') continue;
-
-      const x0 = e.x;
-      const y0 = e.y;
-
-      // move
-      e.x += e.vx * dt;
-      e.y += e.vy * dt;
-      e.rot = (e.rot || 0) + 10 * dt;
-
-      // swept collision
-      const dx = e.x - x0;
-      const dy = e.y - y0;
-      const dist = Math.hypot(dx, dy);
-      const steps = Math.max(1, Math.ceil(dist / 3));
-
-      for (let s = 1; s <= steps; s++) {
-        const t = s / steps;
-        const sx = x0 + dx * t;
-        const sy = y0 + dy * t;
-
-        for (const en of ents.enemies) {
-          const rr = (en.r ?? 16) + 6;
-          if ((sx - en.x) ** 2 + (sy - en.y) ** 2 <= rr * rr) {
-
-            const DMG = 14;
-            const mult = onHitGlyph(en, DMG, 'iceShard');
-            en.hp -= DMG * mult;
-            en._iceShardTouched = true;
-            en.lastHitBy = 'iceShard';
-
-            shatterIceShard(sx, sy);
-            addEffect(sx, sy, 'hit', 0.15, '#e9fbff');
-            cam.shake = Math.max(cam.shake, 1.2);
-            ents.effects.splice(i, 1);
-            return;
-          }
-        }
-      }
-
-      // lifetime
-      e.t += dt;
-      if (e.t >= e.life) {
-        shatterIceShard(e.x, e.y);
-        ents.effects.splice(i, 1);
-      }
-    }
   }
   function hasFreshSnapshot(maxAgeMs = 1200) {
     const s = (window.Net && Net.state && Net.state.snapshot) ? Net.state.snapshot : null;
@@ -564,19 +489,6 @@
       ctx.lineTo(player._linkB.x - cam.x, player._linkB.y - cam.y);
       ctx.stroke();
       ctx.restore();
-    }
-  }
-  function shatterIceShard(x, y) {
-    for (let k = 0; k < 16; k++) {
-      const a = Math.random() * Math.PI * 2;
-      ents.effects.push({
-        type: 'iceShardBit',
-        x, y,
-        vx: Math.cos(a) * 240,
-        vy: Math.sin(a) * 240,
-        life: 0.35,
-        t: 0
-      });
     }
   }
   function drawWaterVFX(ctx, e, x, y, t){
@@ -1694,21 +1606,6 @@
       const v = worldVfx[i];
       v.t += dt;
       v.life -= dt;
-      // 💧 SANCTUARY — locked after teleport
-      if (v.type === 'sanctuary' && v.lockT > 0) {
-        v.lockT -= dt;
-        continue; // ⛔ do NOT allow expiry or movement while locked
-      }
-      // 💧 SANCTUARY — expire → start respawn timer
-      if (
-        v.type === 'sanctuary' &&
-        v.lockT <= 0 &&        // ✅ only expire AFTER the 10s lock
-        v.t >= v.life
-      ) {
-        worldVfx.splice(i, 1);
-        sanctuaryRespawnT = 15; // ⏳ wait 15 seconds before next teleport
-        continue;
-      }
 
       // ===== Gameplay tick (offline only) =====
       if (!isNetActive()){
@@ -1724,46 +1621,11 @@
         }
 
         // Sanctuary: heal player inside
-        // 💧 SANCTUARY — collision & blocking
-        if (v.type === 'sanctuary') {
-
-          const wallR = v.wallR ?? (v.r + 20);
-          const wallR2 = wallR * wallR;
-
-          /* ⛔ BLOCK ENEMIES (hard wall) */
-          for (const en of ents.enemies) {
-            const dx = en.x - v.x;
-            const dy = en.y - v.y;
-            const d2 = dx*dx + dy*dy;
-
-            if (d2 < wallR2) {
-              const d = Math.sqrt(d2) || 1;
-              en.x = v.x + (dx / d) * wallR;
-              en.y = v.y + (dy / d) * wallR;
-            }
+        if (v.type === 'sanctuary'){
+          const R = (v.r ?? 70);
+          if (dist2(player.x,player.y,v.x,v.y) <= R*R){
+            player.hp = Math.min(player.hpMax, player.hp + 10*dt);
           }
-
-          /* ⛔ STOP PLAYER BULLETS */
-          for (let j = ents.bullets.length - 1; j >= 0; j--) {
-            const b = ents.bullets[j];
-            const dx = b.x - v.x;
-            const dy = b.y - v.y;
-            if (dx*dx + dy*dy < wallR2) {
-              ents.bullets.splice(j, 1);
-            }
-          }
-
-          /* ⛔ STOP ENEMY BULLETS */
-          for (let j = ents.ebullets.length - 1; j >= 0; j--) {
-            const b = ents.ebullets[j];
-            const dx = b.x - v.x;
-            const dy = b.y - v.y;
-            if (dx*dx + dy*dy < wallR2) {
-              ents.ebullets.splice(j, 1);
-            }
-          }
-
-          // ✅ player is allowed — no code needed
         }
 
         // Maelstrom: pull + damage
@@ -1789,73 +1651,9 @@
             }
           }
         }
-        else if (v.type === 'permafrost') {
-
-          // damage tick once per second
-          v.tick += dt;
-          if (v.tick >= 1) {
-            v.tick = 0;
-            for (const en of ents.enemies) {
-              const dx = en.x - v.x;
-              const dy = en.y - v.y;
-              if (dx*dx + dy*dy <= v.r * v.r) {
-                en.hp -= 3;
-                en.lastHitBy = 'local';
-              }
-            }
-          }
-
-          // heavy slow while inside
-          for (const en of ents.enemies) {
-            const dx = en.x - v.x;
-            const dy = en.y - v.y;
-            if (dx*dx + dy*dy <= v.r * v.r) {
-              en.spdMul *= 0.45;
-            }
-          }
-        }
       }
 
       if (v.life <= 0) worldVfx.splice(i,1);
-    }
-    // 💧 SANCTUARY — respawn after timer at random valid location
-    if (
-      !isNetActive() &&
-      isPath('water') &&
-      hasG('water','sanctuary')
-    ) {
-      if (sanctuaryRespawnT > 0) {
-        sanctuaryRespawnT -= dt;
-      } else {
-        const exists = worldVfx.some(v => v.type === 'sanctuary');
-        if (!exists) {
-
-          const margin = 160;
-          let placed = false;
-
-          for (let i = 0; i < 40 && !placed; i++) {
-            const x = rand(margin, world.w - margin);
-            const y = rand(margin, world.h - margin);
-
-            if (world.isBlocked(x, y, 28)) continue;
-            if (world.collideHazard(x, y, 28)) continue;
-            if (!nav.isReachable(x, y)) continue;
-
-            spawnSanctuary(x, y);
-            placed = true;
-          }
-
-          // safe fallback
-          if (!placed) {
-            spawnSanctuary(
-              clamp(player.x + 360, margin, world.w - margin),
-              clamp(player.y, margin, world.h - margin)
-            );
-          }
-
-          sanctuaryRespawnT = -1; // disable until next expiry
-        }
-      }
     }
   }
 
@@ -2150,131 +1948,9 @@
 
       if (v.type === 'stonePillar') drawStonePillar3D(ctx, sx, sy, v);
       else if (v.type === 'quake') drawQuakeRing3D(ctx, sx, sy, v);
+      else if (v.type === 'sanctuary') drawSanctuary3D(ctx, sx, sy, v);
       else if (v.type === 'napalm') drawNapalmPatch3D(ctx, sx, sy, v);
       else if (v.type === 'maelstrom') drawMaelstrom3D(ctx, sx, sy, v);
-      else if (v.type === 'sanctuary') {
-
-        const x = v.x - cam.x;
-        const y = v.y - cam.y;
-        const t = v.t;
-        const spin = t * 0.25;
-        const pulse = 1 + Math.sin(t * 2) * 0.05;
-
-        ctx.save();
-        ctx.translate(x, y);
-
-        /* 🌌 ABYSS CORE (DEPTH + ROTATION) */
-        ctx.rotate(spin * 0.2);
-
-        const abyss = ctx.createRadialGradient(0, 0, 8, 0, 0, v.r);
-        abyss.addColorStop(0, 'rgba(10,20,40,0.95)');
-        abyss.addColorStop(0.4, 'rgba(6,12,30,0.9)');
-        abyss.addColorStop(0.75, 'rgba(3,6,18,0.95)');
-        abyss.addColorStop(1, 'rgba(0,0,0,1)');
-
-        ctx.fillStyle = abyss;
-        ctx.beginPath();
-        ctx.arc(0, 0, v.r * pulse, 0, Math.PI * 2);
-        ctx.fill();
-
-        /* 🔵 RADIANT BLUE RIM — ENERGY BARRIER */
-        ctx.globalCompositeOperation = 'screen';
-
-        const rimPulse = 1 + Math.sin(t * 3) * 0.06;
-
-        const rim = ctx.createRadialGradient(
-          0, 0, v.r * 0.85,
-          0, 0, v.r * 1.15
-        );
-
-        rim.addColorStop(0.00, 'rgba(120,220,255,0.00)');
-        rim.addColorStop(0.25, 'rgba(120,220,255,0.35)');
-        rim.addColorStop(0.45, 'rgba(160,240,255,0.85)');
-        rim.addColorStop(0.65, 'rgba(120,200,255,0.55)');
-        rim.addColorStop(1.00, 'rgba(0,0,0,0.0)');
-
-        ctx.fillStyle = rim;
-        ctx.beginPath();
-        ctx.arc(0, 0, v.r * rimPulse, 0, Math.PI * 2);
-        ctx.fill();
-
-        /* 🌊 ETHEREAL ROTATING WALLS */
-        ctx.globalCompositeOperation = 'screen';
-        ctx.lineWidth = 6;
-
-        for (let i = 0; i < 8; i++) {
-          const a = spin + i * (Math.PI * 2 / 8);
-          ctx.strokeStyle = `rgba(120,220,255,0.35)`;
-          ctx.beginPath();
-          ctx.arc(
-            0, 0,
-            v.wallR + Math.sin(t * 2 + i) * 8,
-            a,
-            a + Math.PI / 3
-          );
-          ctx.stroke();
-        }
-
-        /* ✨ DEPTH GLINTS */
-        for (let i = 0; i < 12; i++) {
-          const a = Math.random() * Math.PI * 2;
-          const r = Math.random() * v.r;
-          ctx.fillStyle = 'rgba(180,240,255,0.35)';
-          ctx.fillRect(
-            Math.cos(a) * r,
-            Math.sin(a) * r,
-            2,
-            2
-          );
-        }
-
-        ctx.restore();
-      }
-      else if (v.type === 'permafrost') {
-        const x = v.x - cam.x;
-        const y = v.y - cam.y;
-        const p = v.t / v.life;
-        const fade = 1 - p;
-
-        ctx.save();
-
-        // cold ground shadow
-        ctx.globalCompositeOperation = 'multiply';
-        const gShadow = ctx.createRadialGradient(x, y, 10, x, y, v.r);
-        gShadow.addColorStop(0, `rgba(40,60,90,${0.55 * fade})`);
-        gShadow.addColorStop(1, 'rgba(0,0,0,0)');
-        ctx.fillStyle = gShadow;
-        ctx.beginPath();
-        ctx.arc(x, y, v.r, 0, Math.PI * 2);
-        ctx.fill();
-
-        // frosty glow
-        ctx.globalCompositeOperation = 'screen';
-        const g = ctx.createRadialGradient(x, y, 0, x, y, v.r);
-        g.addColorStop(0, `rgba(180,240,255,${0.45 * fade})`);
-        g.addColorStop(0.6, `rgba(110,190,255,${0.25 * fade})`);
-        g.addColorStop(1, 'rgba(0,0,0,0)');
-        ctx.fillStyle = g;
-        ctx.beginPath();
-        ctx.arc(x, y, v.r, 0, Math.PI * 2);
-        ctx.fill();
-
-        // ice spikes
-        ctx.strokeStyle = `rgba(200,250,255,${0.4 * fade})`;
-        ctx.lineWidth = 2;
-        for (let i = 0; i < 12; i++) {
-          const a = (Math.PI * 2 / 12) * i + v.t * 0.6;
-          ctx.beginPath();
-          ctx.moveTo(x, y);
-          ctx.lineTo(
-            x + Math.cos(a) * v.r * 0.9,
-            y + Math.sin(a) * v.r * 0.9
-          );
-          ctx.stroke();
-        }
-
-        ctx.restore();
-      }
     }
   }
 
@@ -2347,11 +2023,6 @@
     _wisps:0,            // number of wisps
     _wispCD:0,           // wisp fire timer
     _linkA:null, _linkB:null, _linkT:0, // soul bind
-    // ❄️ ICE SHARDS (WATER → ICE SHARDS)
-    _iceShards: 6,
-    _iceShardCD: 0,        // respawn timer
-    _iceOrbitT: 0       ,   // rotation timer
-    _iceFireCD: 0
   };
   // 🔍 DEBUG: detect illegal writes to player (lockstep / render bugs)
   Object.seal(player);
@@ -2884,45 +2555,6 @@ const SPRITE_OFFSET = {
       case 12: drawWing('void', t); break;
       case 13: drawWing('fire', t); break;
       case 14: drawWing('insect', t); break;
-    }
-    // 🪨 EARTH — STONE SKIN CRYSTAL SHELL (VISUAL)
-    // 🪨 EARTH — STONE SKIN CRYSTAL SHELL (PLAYER ONLY)
-    if (designId === selectedDesign && isPath('earth') && hasG('earth','stoneSkin')) {
-
-      const pulse = 1 + Math.sin(t * 3.2) * 0.04;
-
-      ctx.save();
-      ctx.globalCompositeOperation = 'screen';
-
-      // translucent crystal glow
-      const g = ctx.createRadialGradient(
-        0, 0, r * 0.45,
-        0, 0, r * 1.6
-      );
-
-      g.addColorStop(0.00, 'rgba(180,255,210,0.04)');
-      g.addColorStop(0.35, 'rgba(140,255,180,0.14)');
-      g.addColorStop(0.65, 'rgba(90,220,140,0.20)');
-      g.addColorStop(1.00, 'rgba(0,0,0,0)');
-
-      ctx.fillStyle = g;
-      ctx.beginPath();
-      ctx.arc(0, 0, r * 1.45 * pulse, 0, Math.PI * 2);
-      ctx.fill();
-
-      // crystal facet lines (subtle)
-      ctx.strokeStyle = 'rgba(160,255,200,0.32)';
-      ctx.lineWidth = 2;
-
-      for (let i = 0; i < 6; i++) {
-        const a = i * (Math.PI * 2 / 6) + t * 0.6;
-        ctx.beginPath();
-        ctx.moveTo(Math.cos(a) * r * 0.7, Math.sin(a) * r * 0.7);
-        ctx.lineTo(Math.cos(a) * r * 1.35, Math.sin(a) * r * 1.35);
-        ctx.stroke();
-      }
-
-      ctx.restore();
     }
   }
 
@@ -4098,53 +3730,9 @@ if (btnHomeCustomize){
 
   // Bullets / effects / pickups / chests -------------------------------------
   function spawnBullet(x,y,a, speed,dmg,pierce=0){ ents.bullets.push({x,y,vx:Math.cos(a)*speed, vy:Math.sin(a)*speed, r:4, dmg, life:1.2, pierce}); }
-  function fireIceShard() {
-    if (!ents.enemies.length) return;
-
-    let best = null;
-    let bestD2 = Infinity;
-
-    for (const e of ents.enemies) {
-      const d2 = (e.x - player.x) ** 2 + (e.y - player.y) ** 2;
-      if (d2 < bestD2) {
-        bestD2 = d2;
-        best = e;
-      }
-    }
-
-    if (!best) return;
-
-    const dx = best.x - player.x;
-    const dy = best.y - player.y;
-    const d = Math.hypot(dx, dy) || 1;
-
-    ents.effects.push({
-      type: 'iceShard',
-      x: player.x + (dx / d) * player.r,
-      y: player.y + (dy / d) * player.r,
-      vx: (dx / d) * 520,
-      vy: (dy / d) * 520,
-      r: 6,
-      life: 0.45,
-      t: 0
-    });
-  }
   function spawnEBullet(x,y,a, speed,dmg){ ents.ebullets.push({x,y,vx:Math.cos(a)*speed, vy:Math.sin(a)*speed, r:4, dmg, life:2.5}); }
   function spawnBomb(x,y,a, speed,dmg, splashR=110, fuse=0.75){ ents.ebullets.push({ x,y, vx:Math.cos(a)*speed, vy:Math.sin(a)*speed, r:6, dmg, life:fuse, kind:'bomb', splashR }); }
   function addEffect(x,y,type,life=0.4,color='#9cf'){ ents.effects.push({x,y,type,life,color,t:0,r:6}); }
-  function shatterIceShard(x, y) {
-    for (let k = 0; k < 14; k++) {
-      const a = Math.random() * Math.PI * 2;
-      ents.effects.push({
-        type: 'iceShardBit',
-        x, y,
-        vx: Math.cos(a) * 240,
-        vy: Math.sin(a) * 240,
-        life: 0.35,
-        t: 0
-      });
-    }
-  }
   function dropPickup(x,y, forcedType=null){
     const opts=['health','speed','shield','ammo'];
     const type = forcedType || opts[rint(0,opts.length-1)];
@@ -4364,142 +3952,70 @@ if (btnHomeCustomize){
   }
   function lineWallHit(px,py,vx,vy, dt, r){ const nx=px+vx*dt, ny=py+vy*dt; for(const o of world.walls){ const cx=clamp(nx,o.x,o.x+o.w), cy=clamp(ny,o.y,o.y+o.h); const dx=nx-cx, dy=ny-cy; if(dx*dx+dy*dy < r*r) return true; } return false; }
   function stepProjectiles(dt){
-
-    // =========================
-    // PLAYER BULLETS
-    // =========================
+    // player bullets 
     for (let i = ents.bullets.length - 1; i >= 0; i--){ 
-      const b = ents.bullets[i]; 
+    const b = ents.bullets[i]; 
+    // ✅ store previous position for swept test
+    const x0 = b.x;
+    const y0 = b.y;
 
-      // store previous position (sweep)
-      const x0 = b.x;
-      const y0 = b.y;
+    const kill = lineWallHit(b.x, b.y, b.vx, b.vy, dt, b.r);
 
-      const kill = lineWallHit(b.x, b.y, b.vx, b.vy, dt, b.r);
-
-      b.x += b.vx * dt;
-      b.y += b.vy * dt;
-      b.life -= dt;
-
-      if (kill || b.life <= 0){ 
-        ents.bullets.splice(i, 1); 
+    b.x += b.vx * dt;
+    b.y += b.vy * dt;
+    b.life -= dt;
+        if (kill || b.life <= 0){ 
+        ents.bullets.splice(i,1); 
         continue; 
-      } 
+    } 
+    // hit enemies 
+    // hit enemies — SWEPT test (bullet path vs enemy circle)
+    // ✅ VISUAL hit test — ALWAYS remove bullet if its PATH touches an enemy
+    let hit = false;
+    let hitX = b.x;
+    let hitY = b.y;
 
-      // swept bullet → enemy hit
-      let hit = false;
-      let hitX = b.x;
-      let hitY = b.y;
+    for (let j = 0; j < ents.enemies.length; j++) {
+      const e = ents.enemies[j];
+      const rr = (e.r ?? 16) + (b.r ?? 4);
 
-      for (let j = 0; j < ents.enemies.length; j++) {
-        const e = ents.enemies[j];
-        const rr = (e.r ?? 16) + (b.r ?? 4);
+      const dx = b.x - x0;
+      const dy = b.y - y0;
 
-        const dx = b.x - x0;
-        const dy = b.y - y0;
-        const steps = Math.max(1, Math.ceil(Math.hypot(dx, dy) / 6));
+      const steps = Math.max(1, Math.ceil(Math.hypot(dx, dy) / 6));
+      for (let s = 1; s <= steps; s++) {
+        const t = s / steps;
+        const sx = x0 + dx * t;
+        const sy = y0 + dy * t;
 
-        for (let s = 1; s <= steps; s++) {
-          const t = s / steps;
-          const sx = x0 + dx * t;
-          const sy = y0 + dy * t;
-
-          if (dist2(sx, sy, e.x, e.y) <= rr * rr) {
-            hit = true;
-            hitX = sx;
-            hitY = sy;
-            break;
-          }
+        if (dist2(sx, sy, e.x, e.y) <= rr * rr) {
+          hit = true;
+          hitX = sx;
+          hitY = sy;
+          break;
         }
-        if (hit) break;
       }
-
-      if (hit) {
-        addEffect(hitX, hitY, 'hit', 0.15, '#fff');
-        cam.shake = Math.max(cam.shake, 1.5);
-        ents.bullets.splice(i, 1);
-        continue;
-      }
+      if (hit) break;
     }
 
-    // =========================
-    // EFFECTS (includes ICE SHARD)
-    // =========================
+    if (hit) {
+      // ✅ visual feedback only
+      addEffect(hitX, hitY, 'hit', 0.15, '#fff');
+      cam.shake = Math.max(cam.shake, 1.5);
+
+      // ✅ bullet ALWAYS disappears, no matter what server does
+      ents.bullets.splice(i, 1);
+      continue;
+    }
+    } 
+
+    // effects timer so muzzle flashes don’t stick 
     for (let i = ents.effects.length - 1; i >= 0; i--){ 
-      const e = ents.effects[i]; 
-      e.t = (e.t || 0) + dt; 
-
-      if (e.t >= e.life){
-        ents.effects.splice(i, 1);
-        continue;
-      }
-
-      // =========================
-      // ICE SHARD (bullet‑style)
-      // =========================
-      if (e.type === 'iceShard') {
-
-        const x0 = e.x;
-        const y0 = e.y;
-
-        // move
-        e.x += e.vx * dt;
-        e.y += e.vy * dt;
-
-        // spin
-        e.rot = (e.rot || 0) + 10 * dt;
-
-        // swept collision
-        const dx = e.x - x0;
-        const dy = e.y - y0;
-        const dist = Math.hypot(dx, dy);
-        const steps = Math.max(1, Math.ceil(dist / 3));
-
-        let hit = false;
-        let hx = e.x;
-        let hy = e.y;
-
-        for (let s = 1; s <= steps && !hit; s++) {
-          const t = s / steps;
-          const sx = x0 + dx * t;
-          const sy = y0 + dy * t;
-
-          for (const en of ents.enemies) {
-            const rr = (en.r ?? 16) + (e.r ?? 6);
-            if ((sx - en.x) ** 2 + (sy - en.y) ** 2 <= rr * rr) {
-
-              const DMG = 14;
-              const mult = onHitGlyph(en, DMG, 'iceShard');
-              en.hp -= DMG * mult;
-              en.lastHitBy = 'iceShard';
-
-              hx = sx;
-              hy = sy;
-              hit = true;
-              break;
-            }
-          }
-        }
-
-        if (hit) {
-          shatterIceShard(hx, hy);
-          addEffect(hx, hy, 'hit', 0.15, '#e9fbff');
-          cam.shake = Math.max(cam.shake, 1.2);
-          ents.effects.splice(i, 1);
-          continue;
-        }
-
-        continue; // keep shard alive if no hit
-      }
-
-      // =========================
-      // OTHER EFFECT TYPES (unchanged)
-      // =========================
-      if (e.type === 'muzzle') {
-        // handled in draw
-      }
-    }
-  }
+    const e = ents.effects[i]; 
+    e.t = (e.t || 0) + dt; 
+    if (e.t >= e.life) ents.effects.splice(i,1); 
+    } 
+    } 
   // Touch controls ------------------------------------------------------------
   const touch = { idL:null, init(){ const rel=(el,e)=>{ const r=el.getBoundingClientRect(); return {x:e.clientX-r.left, y:e.clientY-r.top}; }; stickL.addEventListener('touchstart', e=>{ e.preventDefault(); for(const t of e.changedTouches){ if(!this.idL){ const p=rel(stickL,t); if(p.x>=0&&p.y>=0&&p.x<=stickL.clientWidth&&p.y<=stickL.clientHeight){ this.idL=t.identifier; } } } }, {passive:false}); stickL.addEventListener('touchmove', e=>{ e.preventDefault(); for(const t of e.changedTouches){ if(t.identifier===this.idL){ const r=stickL.getBoundingClientRect(); const x=t.clientX-(r.left+r.width/2), y=t.clientY-(r.top+r.height/2), m=Math.hypot(x,y), lim=44; const nx=(m>lim? x/m*lim:x), ny=(m>lim? y/m*lim:y); nubL.style.transform=`translate(${nx}px,${ny}px)`; input.touch.stick.dx=nx/lim; input.touch.stick.dy=ny/lim; input.touch.stick.active=true; } } }, {passive:false}); stickL.addEventListener('touchend', e=>{ e.preventDefault(); for(const t of e.changedTouches){ if(t.identifier===this.idL){ this.idL=null; input.touch.stick={dx:0,dy:0,active:false}; nubL.style.transform='translate(0px,0px)'; } } }, {passive:false}); btnSwap.addEventListener('touchstart', e=>{ e.preventDefault(); swapWeapon(1); }, {passive:false}); } };
   touch.init();
@@ -4608,7 +4124,7 @@ const GLYPH_TREE = {
   spirit: [
     [
       { name:"Wisp Orbit",       desc:"Gain 1 wisp that orbits you and shoots weak projectiles." },
-      { name:"Wisp Swarm",       desc:"More wisps." },
+      { name:"Wisp Swarm",       desc:"More wisps; each hit applies Haunt (small DoT)." },
       { name:"Guardian Spirits", desc:"Wisps can intercept one projectile every few seconds." }
     ],
     [
@@ -4618,7 +4134,7 @@ const GLYPH_TREE = {
     ],
     [
       { name:"Revenant",   desc:"Chance on kill to spawn a temporary allied shade (melee chaser)." },
-      { name:"Possession", desc:"Shade duration longer." },
+      { name:"Possession", desc:"Shade duration longer and gains ranged attack." },
       { name:"Wraith King",desc:"Boss kills always spawn a powerful shade for one wave." }
     ],
   ],
@@ -4626,18 +4142,18 @@ const GLYPH_TREE = {
   water: [
     [
       { name:"Chill",      desc:"Drenched enemies slow more; at stacks freeze briefly." },
-      { name:"Ice Shards", desc:"You occasionally fire a shard that drenches the enemy." },
-      { name:"Permafrost", desc:"If the last shot is an ice shard, it causes a region of frost that takes chip damage from enemies." }
+      { name:"Ice Shards", desc:"Your shots occasionally fire a shard that pierces." },
+      { name:"Permafrost", desc:"Freeze causes a shatter AoE." }
     ],
     [
       { name:"Mending Mist", desc:"Collecting XP orbs also restores a tiny amount of HP." },
-      { name:"Tidal Renewal",desc:"Every 6 hits create a small healing pulse around you." },
+      { name:"Tidal Renewal",desc:"Every N hits create a small healing pulse around you." },
       { name:"Sanctuary",    desc:"Drop a water circle at wave-end that persists into next wave as a safe zone." }
     ],
     [
       { name:"Ripple Shot", desc:"Bullets push enemies slightly back." },
-      { name:"Tidal Wave",  desc:"Every 6.5 seconds, emit a cone wave knockback and activated drench." },
-      { name:"Maelstrom",   desc:"When you kill an enemy, a rotating water vortex pulls enemies." }
+      { name:"Tidal Wave",  desc:"Every X seconds, emit a cone wave knockback." },
+      { name:"Maelstrom",   desc:"A rotating water vortex that pulls enemies." }
     ],
   ],
 
@@ -5231,14 +4747,8 @@ function onGlyphEnchant(){
   }
 
   // PENTAGON MODE: enchant core
-  // PENTAGON MODE: enchant core
   if (!_glyphSelected) return;
   if (state.essence < _glyphCost) return;
-
-  // ✅ mark previous path as completed BEFORE switching
-  if (player.glyphPath && player.glyphPath !== _glyphSelected){
-    player.completedGlyphs[player.glyphPath] = true;
-  }
 
   state.essence -= _glyphCost;
   if (glyphEssenceEl) glyphEssenceEl.textContent = String(state.essence);
@@ -5926,8 +5436,6 @@ window.addEventListener('net:snapshot', (ev) => {
         player.hp = me.hp;
       }
     }
-    // ❄️ Ice shard recharge
-
     // ✅ Online: spawn death VFX when enemies disappear from snapshot
     if (online && hasFreshSnapshot()){
       const snap = Net.state?.snapshot;
@@ -6074,10 +5582,13 @@ window.addEventListener('net:snapshot', (ev) => {
     // AFTER dx / dy are computed and normalized
     moveWithCollide(player, dx * speed * dt, dy * speed * dt);
     tickWisps(dt); // ✅ WISPS UPDATE (ANCHOR TO PLAYER)
-    // ❄️ Offline ice shard movement ONLY (do not touch bullets)
-    if (!isNetActive()) {
-      stepIceShards(dt);
-    }  
+
+    if (online) {
+      Net.sendInput(dx, dy, player.angle, player.x, player.y, player.weapon);
+    }
+  
+
+    
     // Always allow local fire; when online, also broadcast a 'shot' event for VFX
     if (state.phase !== 'glyph' && (input.mouse.down || input.touch.fire)) {
       const ammoBefore = player.ammo;
@@ -6317,13 +5828,6 @@ window.addEventListener('net:snapshot', (ev) => {
         tickEnemyStatuses(e, dt);
         // Death & loot
         if (e.hp <= 0) {
-          // ❄️ PERMAFROST — ice shard kill
-          if (
-            e.lastHitBy === 'iceShard' &&
-            isPath('water') &&
-            hasG('water','permafrost')
-          ) {
-          }
           const typeKey = (e.type === 'chaser' || e.type === 'swarm')
             ? 'ravener'
             : e.type;
@@ -6386,7 +5890,7 @@ window.addEventListener('net:snapshot', (ev) => {
             !isNetActive() &&
             isPath('water') &&
             hasG('water', 'maelstrom') &&
-            Math.random() < 0.30
+            Math.random() < 0.75
           ) {
             addWorldVfx({
               type: 'maelstrom',
@@ -6396,16 +5900,7 @@ window.addEventListener('net:snapshot', (ev) => {
               life: 4.0 // ✅ EXACTLY 4 SECONDS
             });
           }
-          // ❄️ WATER — PERMAFROST (ICE SHARD KILL ONLY)
-          if (
-            !isNetActive() &&
-            isPath('water') &&
-            hasG('water', 'permafrost') &&
-            e.lastHitBy === 'iceShard'
-          ) {
-            spawnPermafrostWorld(e.x, e.y);
-          }
-          e._iceShardTouched = false;
+
           ents.enemies.splice(i, 1);
           audio.hit();
           continue; // <-- legal here
@@ -6575,14 +6070,9 @@ window.addEventListener('net:snapshot', (ev) => {
         }
       }
     }
-    
-  for (let i = ents.effects.length - 1; i >= 0; i--) {
+    for (let i = ents.effects.length - 1; i >= 0; i--){
     const e = ents.effects[i];
-
-    if (e.type === 'iceShard') continue;
-
     e.t += dt;
-
 
     // Per-effect updates
     if (e.type === 'triBurst'){
@@ -6726,25 +6216,12 @@ window.addEventListener('net:snapshot', (ev) => {
 
       ctx.restore();
     }
-    else if (e.type === 'iceShardBit') {
-      e.t += dt;
-      e.x += e.vx * dt;
-      e.y += e.vy * dt;
-
-      const x = e.x - cam.x;
-      const y = e.y - cam.y;
-
-      ctx.save();
-      ctx.translate(x,y);
-      ctx.rotate(e.t * 10);
-      ctx.globalAlpha = 1 - (e.t / e.life);
-      ctx.fillStyle = '#dff4ff';
-      ctx.fillRect(-2,-2,4,4);
-      ctx.restore();
-    }
     else if (e.type === 'tidalWave'){
       // static effect; no per-frame movement
-    }   
+    }
+    
+
+
     else if (e.type === 'shade'){
       // simple allied shade: chases nearest enemy and hits
       let best=null, bestD2=520*520;
@@ -6866,19 +6343,6 @@ window.addEventListener('net:snapshot', (ev) => {
           life: 0.9,
           t: 0
         });
-      }
-    }
-    // ❄️ ICE SHARD — fires every 5 seconds (OFFLINE)
-    if (
-      !isNetActive() &&
-      isPath('water') &&
-      hasG('water','iceShards')
-    ) {
-      player._iceShardCD = (player._iceShardCD ?? 5) - dt;
-
-      if (player._iceShardCD <= 0) {
-        player._iceShardCD = 5;
-        fireIceShard();
       }
     }
     // 🪨 Earth: Quake periodic stomp
@@ -7430,7 +6894,6 @@ window.addEventListener('net:snapshot', (ev) => {
       }
       ctx.restore();
       drawGlyphVisuals(ctx, e, cx, cy, t);
-      // ❄️ Ice shards — anchored exactly like wisps
 
       // HP rings + alerted ring
       ctx.strokeStyle = currentTheme.accent + '55';
@@ -7644,14 +7107,7 @@ window.addEventListener('net:snapshot', (ev) => {
         t,
         player.r
       );
-
-      // ❄️ Ice shards — PLAYER ONLY, not enemies
-
-      // ✅ Draw glyphs WITHOUT inheriting gun rotation
-      ctx.save();
-      ctx.setTransform(1, 0, 0, 1, 0, 0);
       drawGlyphVisuals(ctx, player, px, py, t);
-      ctx.restore();
 
       const w = weapons[player.weapon];
       const showMelee = (equip === 'melee') || (melee && melee.state === 'using');
@@ -7898,45 +7354,6 @@ window.addEventListener('net:snapshot', (ev) => {
 
         ctx.restore();
       }
-      else if (e.type === 'iceShard') {
-        const x = e.x - cam.x - cam.sx;
-        const y = e.y - cam.y - cam.sy;
-
-        ctx.save();
-
-        // shadow
-        ctx.globalAlpha = 0.25;
-        ctx.fillStyle = '#000';
-        ctx.beginPath();
-        ctx.ellipse(x, y + 8, 6, 3, 0, 0, Math.PI * 2);
-        ctx.fill();
-
-        // shard body
-        ctx.translate(x, y);
-        ctx.rotate((e.rot ?? 0) + (e.t * (e.vr ?? 0)));
-
-        const g = ctx.createLinearGradient(-6, -10, 6, 10);
-        g.addColorStop(0, '#ffffff');
-        g.addColorStop(0.3, '#e9fbff');
-        g.addColorStop(1, '#7fcfff');
-
-        ctx.globalAlpha = 1;
-        ctx.fillStyle = g;
-        ctx.strokeStyle = '#9fe3ff';
-        ctx.lineWidth = 2;
-
-        ctx.beginPath();
-        ctx.moveTo(0, -10);
-        ctx.lineTo(6, -2);
-        ctx.lineTo(2, 10);
-        ctx.lineTo(-6, 4);
-        ctx.closePath();
-        ctx.fill();
-        ctx.stroke();
-
-        ctx.restore();
-      }
-
 
       else if (e.type === 'shade'){
         const x = e.x - cam.x;
@@ -7989,9 +7406,6 @@ window.addEventListener('net:snapshot', (ev) => {
         ctx.restore();
       }
     }
-    
-    // ❄️ Ice shard entities (3D glint + shadow)
-
     // === WISPS (floating spirits) ===
     for (const w of ents.wisps){
       const x = w.x - cam.x - cam.sx;
@@ -8398,13 +7812,6 @@ window.__ASSETS__.loadMelee = () => Melee.loadAll();
 // 📱 Mobile Dash & Melee Buttons
 // ✅ MUST RUN AFTER DOM IS READY
 // ================================
-// ❌ Disable H key opening Help / Controls overlays
-window.addEventListener('keydown', (e) => {
-  if (e.key === 'h' || e.key === 'H') {
-    e.preventDefault();
-    e.stopImmediatePropagation();
-  }
-}, true); // capture phase
 window.addEventListener('DOMContentLoaded', () => {
 
   if (!IS_MOBILE) return;
