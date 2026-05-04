@@ -5475,17 +5475,35 @@ window.addEventListener('net:snapshot', (ev) => {
       applyServerWorldFromSnapshot();
     }
     // ✅ Online: authoritative death handling
-    if (online && hasFreshSnapshot()){
+    if (online && hasFreshSnapshot()) {
       const me = mySnapshotPlayer();
 
-      // ✅ If server no longer includes me → I am DEAD
       if (!me) {
         handleAuthoritativeDeath();
-        return; // 🚨 stop updateFixed immediately
+        return;
       }
 
-      if (typeof me.hp === 'number'){
+      // ✅ Health
+      if (typeof me.hp === 'number') {
         player.hp = me.hp;
+      }
+
+      // ✅ Ammo
+      if (typeof me.ammo === 'number') {
+        player.ammo = me.ammo;
+      }
+      if (typeof me.reserve === 'number') {
+        player.reserve = me.reserve;
+      }
+
+      // ✅ Shield
+      if (typeof me.shield === 'number') {
+        player.shield = me.shield;
+      }
+
+      // ✅ Speed boost
+      if (typeof me.speedBoostT === 'number') {
+        player.speedBoostT = me.speedBoostT;
       }
     }
     // ✅ Online: spawn death VFX when enemies disappear from snapshot
