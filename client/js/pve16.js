@@ -2113,6 +2113,12 @@
   function updateHUD(){
     const online = isNetActive();
     const snap = online ? Net.state?.snapshot : null;
+    console.log('[HUD]', {
+      online,
+      snapPhase: snap?.phase,
+      netPhase,
+      ovGlyphsDisplay: ovGlyphs?.style?.display
+    });
     
     if (online && snap && snap.phase === 'glyph' && netPhase !== 'glyph') {
         netPhase = 'glyph';
