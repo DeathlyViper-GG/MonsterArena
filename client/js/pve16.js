@@ -5489,24 +5489,39 @@ window.addEventListener('net:snapshot', (ev) => {
       }
     }
     // ✅ Online: spawn death VFX when enemies disappear from snapshot
-    if (online && hasFreshSnapshot()){
+    
+    if (online && hasFreshSnapshot()) {
       const snap = Net.state?.snapshot;
+
       // ============================
       // GLYPH TIMER — SERVER AUTHORITATIVE (EVERY TICK)
       // ============================
-      
+      if (snap && typeof snap.glyphTime === 'number' && state.phase === 'glyph') {
+        if (glyphTimerEl) {
+          glyphTimerEl.textContent = String(
+            Math.max(0, Math.ceil(snap.glyphTime))
+          );
+        }
+      }
+
+      // ============================
+      // GLYPH PHASE OPEN/CLOSE (SERVER-AUTHORITATIVE)
+      // ============================
       if (snap?.phase && snap.phase !== netPhase) {
         netPhase = snap.phase;
         netGlyphTime = snap.glyphTime ?? 0;
 
-        /* ---- CLIENT GLYPH LOCK ---- */
         if (netPhase === 'glyph' && state.phase !== 'glyph') {
           state.phase = 'glyph';
-          state.phaseEndsAt = performance.now() + 15000;
           openGlyphOverlay(15);
         }
 
+        if (netPhase !== 'glyph' && state.phase === 'glyph') {
+          state.phase = 'combat';
+          closeGlyphOverlay();
+        }
       }
+
       if (snap && Array.isArray(snap.enemies)){
         const nowE = new Map();
         for (const e of snap.enemies){
@@ -6436,6 +6451,7 @@ window.addEventListener('net:snapshot', (ev) => {
     const online = isNetActive();
     const snap = online ? getInterpolatedSnapshot() : null;
     const snapRaw = online ? Net.state?.snapshot : null;
+    
 
     // ✅ DEFINE BULLETS ONCE (used in multiple sections below)
     const allBullets =
