@@ -5492,18 +5492,17 @@ window.addEventListener('net:snapshot', (ev) => {
         }
 
         /* Ignore server phase changes while glyph UI is active */
+        /* Ignore server phase changes while glyph UI is active */
         if (state.phase === 'glyph') {
-          const remaining = state.phaseEndsAt - performance.now();
-          if (remaining > 0) {
-            if (glyphTimerEl) {
-              glyphTimerEl.textContent = String(Math.ceil(remaining / 1000));
-            }
-            return;
+          const snap = Net.state?.snapshot;
+
+          if (glyphTimerEl && typeof snap?.glyphTime === 'number') {
+            glyphTimerEl.textContent = String(
+              Math.max(0, Math.ceil(snap.glyphTime))
+            );
           }
 
-          /* Glyph phase finished */
-          closeGlyphOverlay();
-          state.phase = 'combat';
+          // IMPORTANT: do NOT return — let updateFixed continue
         }
       }
       if (snap && Array.isArray(snap.enemies)){
@@ -6049,36 +6048,6 @@ window.addEventListener('net:snapshot', (ev) => {
       cam.shake = Math.max(cam.shake,1.5); if (b.pierce > 0) b.pierce--; else ents.bullets.splice(i,1); e.alerted = true; e.alertT = Math.max(e.alertT, 3); broadcastAlertFrom(e.x,e.y); } }
 
     for (let i = ents.ebullets.length - 1; i >= 0; i--){ const b = ents.ebullets[i]; b.x += b.vx * dt; b.y += b.vy * dt; b.life -= dt; if (b.kind === 'bomb'){ const hitWall = lineWallHit(b.x, b.y, b.vx, b.vy, 0, b.r); const timeUp=(b.life<=0); if (hitWall || timeUp){ const R=(b.splashR||110)+player.r; if(dist2(b.x,b.y,player.x,player.y) < R*R){ hurtPlayer(b.dmg); addEffect(b.x,b.y,'hit',0.12,'#ffd7d7'); } addEffect(b.x,b.y,'pop',0.55,'#ffb38a'); cam.shake=Math.max(cam.shake,5); ents.ebullets.splice(i, 1); continue; } continue; } if (lineWallHit(b.x,b.y,b.vy,b.vx,0,b.r) || b.life <= 0){ ents.ebullets.splice(i,1); continue; } const r = player.r + b.r; if (dist2(b.x,b.y,player.x,player.y) < r*r){ if (currentTheme.id === 3) player.slowT = Math.max(player.slowT, 1.6); hurtPlayer(b.dmg); addEffect(b.x,b.y,'hit',0.1,'#ffd7d7'); ents.ebullets.splice(i,1); } }
-
-      
-    
-    for (const p of ents.pickups) {
-      if (p.type !== 'xp') continue;
-
-      // world → screen
-      const x = p.x - cam.x;
-      const y = p.y - cam.y;
-
-      const pulse = 0.6 + 0.4 * Math.sin((p.t || 0) * 6);
-
-      ctx.save();
-      ctx.globalCompositeOperation = 'screen';
-
-      const g = ctx.createRadialGradient(
-        x, y, 0,
-        x, y, p.r * 3.2
-      );
-      g.addColorStop(0, `rgba(255,255,255,${0.85 * pulse})`);
-      g.addColorStop(0.6, 'rgba(255,255,255,0.35)');
-      g.addColorStop(1, 'rgba(0,0,0,0)');
-
-      ctx.fillStyle = g;
-      ctx.beginPath();
-      ctx.arc(x, y, p.r * 3.2, 0, Math.PI * 2);
-      ctx.fill();
-
-      ctx.restore();
-    }
 
     for (let i = ents.pickups.length - 1; i >= 0; i--){
       const p = ents.pickups[i];
