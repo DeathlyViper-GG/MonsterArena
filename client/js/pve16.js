@@ -3797,12 +3797,9 @@ if (btnHomeCustomize){
 
     state.wave = n;
     // ✅ ensure glyph overlay/phase is cleared on wave start
-    // ✅ ensure glyph overlay/phase is cleared on wave start
-    if (state.phase !== 'glyph') {
-      state.phase = 'combat';
-      state.phaseEndsAt = 0;
-      if (ovGlyphs) ovGlyphs.style.display = 'none';
-    }
+    state.phase = 'combat';
+    state.phaseEndsAt = 0;
+    if (ovGlyphs) ovGlyphs.style.display = 'none';
     
     // reset per-wave glyph triggers
     player._rebirthUsed = false;
@@ -5452,14 +5449,26 @@ window.addEventListener('net:snapshot', (ev) => {
         netPhase = snap.phase;
         netGlyphTime = snap.glyphTime ?? 0;
 
-        if (netPhase === 'glyph') {
+        /* ---- CLIENT GLYPH LOCK ---- */
+        if (netPhase === 'glyph' && state.phase !== 'glyph') {
+          state.phase = 'glyph';
+          state.phaseEndsAt = performance.now() + 15000;
           openGlyphOverlay(15);
-          state.running = false;
         }
 
-        if (netPhase === 'combat') {
+        /* Ignore server phase changes while glyph UI is active */
+        if (state.phase === 'glyph') {
+          const remaining = state.phaseEndsAt - performance.now();
+          if (remaining > 0) {
+            if (glyphTimerEl) {
+              glyphTimerEl.textContent = String(Math.ceil(remaining / 1000));
+            }
+            return;
+          }
+
+          /* Glyph phase finished */
           closeGlyphOverlay();
-          state.running = true;
+          state.phase = 'combat';
         }
       }
       if (snap && Array.isArray(snap.enemies)){
