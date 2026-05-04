@@ -5480,6 +5480,19 @@ window.addEventListener('net:snapshot', (ev) => {
     // ✅ Online: spawn death VFX when enemies disappear from snapshot
     if (online && hasFreshSnapshot()){
       const snap = Net.state?.snapshot;
+      // ============================
+      // GLYPH TIMER — SERVER AUTHORITATIVE (EVERY TICK)
+      // ============================
+      if (state.phase === 'glyph' && snap) {
+        if (typeof snap.glyphTime === 'number') {
+          if (glyphTimerEl) {
+            glyphTimerEl.textContent = String(
+              Math.max(0, Math.ceil(snap.glyphTime))
+            );
+          }
+        }
+      }
+      
       if (snap?.phase && snap.phase !== netPhase) {
         netPhase = snap.phase;
         netGlyphTime = snap.glyphTime ?? 0;
@@ -5491,19 +5504,6 @@ window.addEventListener('net:snapshot', (ev) => {
           openGlyphOverlay(15);
         }
 
-        /* Ignore server phase changes while glyph UI is active */
-        /* Ignore server phase changes while glyph UI is active */
-        if (state.phase === 'glyph') {
-          const snap = Net.state?.snapshot;
-
-          if (glyphTimerEl && typeof snap?.glyphTime === 'number') {
-            glyphTimerEl.textContent = String(
-              Math.max(0, Math.ceil(snap.glyphTime))
-            );
-          }
-
-          // IMPORTANT: do NOT return — let updateFixed continue
-        }
       }
       if (snap && Array.isArray(snap.enemies)){
         const nowE = new Map();
@@ -6464,10 +6464,14 @@ window.addEventListener('net:snapshot', (ev) => {
    // ---------------------------
     // Pickups + telegraphs (online uses snapshot pickups)
     // ---------------------------
+    // ---------------------------
+    // Pickups (XP / loot / telegraphs)
+    // IMPORTANT: pickups are NEVER interpolated
+    // ---------------------------
     const drawPickups =
-      (online && snap && Array.isArray(snap.pickups))
-        ? snap.pickups
-        : ents.pickups;
+      (online && snapRaw && Array.isArray(snapRaw.pickups))
+        ? snapRaw.pickups    // ✅ authoritative server pickups
+        : ents.pickups;      // ✅ offline or fallback if no snap
 
     for (const p of drawPickups) {
 
