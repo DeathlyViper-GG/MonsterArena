@@ -169,6 +169,24 @@ function spawnEnemyLoot(lobby, x, y, count) {
 
   lobby.pickupVer++;
 }
+// ============================
+// XP ORBS (WHITE ORBS)
+// ============================
+function spawnXpOrbs(lobby, x, y, count = 1) {
+  for (let i = 0; i < count; i++) {
+    const a = Math.random() * Math.PI * 2;
+    const d = 14 + Math.random() * 20;
+
+    lobby.pickups.push({
+      x: x + Math.cos(a) * d,
+      y: y + Math.sin(a) * d,
+      r: 8,
+      type: 'xp'
+    });
+  }
+
+  lobby.pickupVer++;
+}
 function lootCountByEnemy(type) {
   switch (type) {
     case 'chaser':
@@ -1960,6 +1978,14 @@ app.post('/hit', (req, res) => {
 
       if (en.hp <= 0) {
         awardPvEPoint(lobby, b.owner, en.type);
+
+        spawnXpOrbs(
+          lobby,
+          en.x,
+          en.y,
+          Math.max(1, pvePointsForType(en.type))
+        );
+
         lobby.enemies.splice(hitIndex, 1);
       }
     }
@@ -2273,6 +2299,12 @@ setInterval(() => {
               if (pk.type === 'shield') {
                 p.shield = Math.min(100, (p.shield ?? 0) + 40);
               }
+              if (pk.type === 'xp') {
+                lobby.scores.set(
+                  pid,
+                  (lobby.scores.get(pid) || 0) + 1
+                );
+              }
 
               // ✅ REMOVE PICKUP
               lobby.pickups.splice(i, 1);
@@ -2377,6 +2409,14 @@ setInterval(() => {
 
         const killedByHazard = applyEnemyHazards(lobby, e, dt);
         if (killedByHazard || e.hp <= 0) {
+
+          spawnXpOrbs(
+            lobby,
+            e.x,
+            e.y,
+            Math.max(1, pvePointsForType(e.type))
+          );
+
           lobby.enemies.splice(i, 1);
         }
 
