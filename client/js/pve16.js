@@ -5460,6 +5460,17 @@ window.addEventListener('net:snapshot', (ev) => {
     if (isNetActive()) syncGunsOnce();
     let dx = 0, dy = 0;
     const online = isNetActive();
+    // ============================
+    // GLYPH TIMER (READ EVERY FRAME)
+    // ============================
+    if (online && state.phase === 'glyph') {
+      const snap = Net.state?.snapshot;
+      if (snap && typeof snap.glyphTime === 'number' && glyphTimerEl) {
+        glyphTimerEl.textContent = String(
+          Math.max(0, Math.ceil(snap.glyphTime))
+        );
+      }
+    }
     if (online && hasFreshSnapshot()) {
       applyServerWorldFromSnapshot();
     }
@@ -5483,15 +5494,6 @@ window.addEventListener('net:snapshot', (ev) => {
       // ============================
       // GLYPH TIMER — SERVER AUTHORITATIVE (EVERY TICK)
       // ============================
-      if (state.phase === 'glyph' && snap) {
-        if (typeof snap.glyphTime === 'number') {
-          if (glyphTimerEl) {
-            glyphTimerEl.textContent = String(
-              Math.max(0, Math.ceil(snap.glyphTime))
-            );
-          }
-        }
-      }
       
       if (snap?.phase && snap.phase !== netPhase) {
         netPhase = snap.phase;
@@ -6048,59 +6050,59 @@ window.addEventListener('net:snapshot', (ev) => {
       cam.shake = Math.max(cam.shake,1.5); if (b.pierce > 0) b.pierce--; else ents.bullets.splice(i,1); e.alerted = true; e.alertT = Math.max(e.alertT, 3); broadcastAlertFrom(e.x,e.y); } }
 
     for (let i = ents.ebullets.length - 1; i >= 0; i--){ const b = ents.ebullets[i]; b.x += b.vx * dt; b.y += b.vy * dt; b.life -= dt; if (b.kind === 'bomb'){ const hitWall = lineWallHit(b.x, b.y, b.vx, b.vy, 0, b.r); const timeUp=(b.life<=0); if (hitWall || timeUp){ const R=(b.splashR||110)+player.r; if(dist2(b.x,b.y,player.x,player.y) < R*R){ hurtPlayer(b.dmg); addEffect(b.x,b.y,'hit',0.12,'#ffd7d7'); } addEffect(b.x,b.y,'pop',0.55,'#ffb38a'); cam.shake=Math.max(cam.shake,5); ents.ebullets.splice(i, 1); continue; } continue; } if (lineWallHit(b.x,b.y,b.vy,b.vx,0,b.r) || b.life <= 0){ ents.ebullets.splice(i,1); continue; } const r = player.r + b.r; if (dist2(b.x,b.y,player.x,player.y) < r*r){ if (currentTheme.id === 3) player.slowT = Math.max(player.slowT, 1.6); hurtPlayer(b.dmg); addEffect(b.x,b.y,'hit',0.1,'#ffd7d7'); ents.ebullets.splice(i,1); } }
+    if (!online) {
+      for (let i = ents.pickups.length - 1; i >= 0; i--){
+        const p = ents.pickups[i];
+        p.t += dt;
 
-    for (let i = ents.pickups.length - 1; i >= 0; i--){
-      const p = ents.pickups[i];
-      p.t += dt;
-
-      // ===== XP orb magnet =====
-      if (p.type === 'xp') {
-        const MAGNET_R = 260;
-        const dx = player.x - p.x;
-        const dy = player.y - p.y;
-        const d = Math.hypot(dx, dy) || 1;
-        if (d < MAGNET_R) {
-          const pull = (1 - d / MAGNET_R);
-          const sp = 520 + pull * 680; // px/s
-          p.x += (dx / d) * sp * dt;
-          p.y += (dy / d) * sp * dt;
+        // ===== XP orb magnet =====
+        if (p.type === 'xp') {
+          const MAGNET_R = 260;
+          const dx = player.x - p.x;
+          const dy = player.y - p.y;
+          const d = Math.hypot(dx, dy) || 1;
+          if (d < MAGNET_R) {
+            const pull = (1 - d / MAGNET_R);
+            const sp = 520 + pull * 680; // px/s
+            p.x += (dx / d) * sp * dt;
+            p.y += (dy / d) * sp * dt;
+          }
         }
-      }
 
-      // collect check
-      const r = player.r + p.r;
-      if (dist2(p.x,p.y,player.x,player.y) < r*r){
-        switch(p.type){
-          case 'health': player.hp = Math.min(player.hpMax, player.hp + 35); break;
-          case 'speed':  player.spdMul = clamp(player.spdMul + 0.15, 1, 1.7); break;
-          case 'shield': player.shield = clamp(player.shield + 35, 0, 120); break;
-          case 'ammo':   player.reserve += 24; break;
+        // collect check
+        const r = player.r + p.r;
+        if (dist2(p.x,p.y,player.x,player.y) < r*r){
+          switch(p.type){
+            case 'health': player.hp = Math.min(player.hpMax, player.hp + 35); break;
+            case 'speed':  player.spdMul = clamp(player.spdMul + 0.15, 1, 1.7); break;
+            case 'shield': player.shield = clamp(player.shield + 35, 0, 120); break;
+            case 'ammo':   player.reserve += 24; break;
 
-          case 'xp':
-            state.essence += (p.v ?? 1);
+            case 'xp':
+              state.essence += (p.v ?? 1);
 
-            // 💧 Mending Mist: heal on XP pickup (OFFLINE ONLY)
-            if (!online && isPath('water') && hasG('water','mendingMist')){
-              player.hp = Math.min(player.hpMax, player.hp + 5);
+              // 💧 Mending Mist: heal on XP pickup (OFFLINE ONLY)
+              if (!online && isPath('water') && hasG('water','mendingMist')){
+                player.hp = Math.min(player.hpMax, player.hp + 5);
 
-              ents.effects.push({
-                type: 'mendingMist',
-                x: player.x,
-                y: player.y,
-                r: 70,
-                life: 0.9,
-                t: 0
-              });
-            }
-            break;
+                ents.effects.push({
+                  type: 'mendingMist',
+                  x: player.x,
+                  y: player.y,
+                  r: 70,
+                  life: 0.9,
+                  t: 0
+                });
+              }
+              break;
 
+          }
+          addEffect(p.x,p.y,'pop',0.4,'#aef');
+          audio.pickup();
+          ents.pickups.splice(i,1);
         }
-        addEffect(p.x,p.y,'pop',0.4,'#aef');
-        audio.pickup();
-        ents.pickups.splice(i,1);
       }
     }
-
     for (const ch of world.chests){
       if (!ch || ch.opened) continue;
 
