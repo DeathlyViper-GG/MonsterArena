@@ -1,0 +1,1 @@
+Monster Arena is a 2D shooter game where people can either play singleplayer or multiplayer with friends. You can upgrade glyphsto get powerups and help you defeat the different types of monsters up to a boss.
