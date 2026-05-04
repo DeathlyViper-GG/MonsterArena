@@ -2113,6 +2113,17 @@
   function updateHUD(){
     const online = isNetActive();
     const snap = online ? Net.state?.snapshot : null;
+    
+    if (online && snap && snap.phase === 'glyph' && netPhase !== 'glyph') {
+        netPhase = 'glyph';
+        openGlyphOverlay(15);
+      }
+
+      if (online && snap && snap.phase === 'combat' && netPhase === 'glyph') {
+        netPhase = 'combat';
+        closeGlyphOverlay();
+      }
+
 
     // =========================
     // ✅ WAVE (SERVER FIRST)
