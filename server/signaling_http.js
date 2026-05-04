@@ -175,13 +175,15 @@ function spawnEnemyLoot(lobby, x, y, count) {
 function spawnXpOrbs(lobby, x, y, count = 1) {
   for (let i = 0; i < count; i++) {
     const a = Math.random() * Math.PI * 2;
-    const d = 14 + Math.random() * 20;
+    const d = 18 + Math.random() * 24;
 
     lobby.pickups.push({
       x: x + Math.cos(a) * d,
       y: y + Math.sin(a) * d,
-      r: 8,
-      type: 'xp'
+      r: 10,
+      type: 'xp',
+      v: 1,                // ✅ XP value
+      bornAt: now()        // ✅ grace period so it exists visually
     });
   }
 
@@ -1981,9 +1983,9 @@ app.post('/hit', (req, res) => {
 
         spawnXpOrbs(
           lobby,
-          en.x,
-          en.y,
-          Math.max(1, pvePointsForType(en.type))
+          e.x,
+          e.y,
+          Math.max(1, pvePointsForType(e.type))
         );
 
         lobby.enemies.splice(hitIndex, 1);
@@ -2177,7 +2179,6 @@ setInterval(() => {
       }
 
       // freeze combat for THIS lobby only
-      continue;
     }
 
     // ✅ clear last tick's telegraphs (they are rebuilt every tick)
@@ -2300,10 +2301,7 @@ setInterval(() => {
                 p.shield = Math.min(100, (p.shield ?? 0) + 40);
               }
               if (pk.type === 'xp') {
-                lobby.scores.set(
-                  pid,
-                  (lobby.scores.get(pid) || 0) + 1
-                );
+                p.essence = (p.essence || 0) + (pk.v || 1);
               }
 
               // ✅ REMOVE PICKUP
