@@ -2598,6 +2598,10 @@ setInterval(() => {
       t: now(),
       mode: lobby.mode,
       wave: lobby.wave,
+      
+      phase: lobby.gamePhase,
+      glyphTime: lobby.gamePhase === 'glyph' ? lobby.glyphTimer : 0,
+
       players: [...lobby.players.values()],
       enemies: lobby.mode === 'pve' ? lobby.enemies : [],
       bullets: lobby.bullets,
