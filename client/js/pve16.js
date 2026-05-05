@@ -38,7 +38,7 @@
       mobileAim.x = cam.x + (t.clientX - rect.left);
       mobileAim.y = cam.y + (t.clientY - rect.top);
 
-      input.mouse.down = true; // âœ… fire immediately on tap
+      input.mouse.down = true; // ✅ fire immediately on tap
     }, { passive:true });
 
     window.addEventListener('touchmove', (e) => {
@@ -57,7 +57,7 @@
     });
   }
   // ================================
-  // ðŸ“± Mobile Dash & Melee Buttons
+  // 📱 Mobile Dash & Melee Buttons
   // ================================
 
 
@@ -90,7 +90,7 @@
     // Stop gameplay
     try { state.running = false; } catch {}
 
-    // âœ… HARD STOP NETWORK (prevents /poll spam)
+    // ✅ HARD STOP NETWORK (prevents /poll spam)
     try {
       if (window.Net && Net.state) {
         Net.state.stopped = true;
@@ -148,7 +148,7 @@
       // Hide customise
       showOverlay(ovCustomize, false);
 
-      // âœ… Route back to the correct menu
+      // ✅ Route back to the correct menu
       document.querySelectorAll('.overlay').forEach(o => {
         o.style.display = 'none';
       });
@@ -165,7 +165,7 @@
         return;
       }
 
-      // âœ… Default: intro (single / multiplayer choice)
+      // ✅ Default: intro (single / multiplayer choice)
       const intro = document.getElementById('overlayIntro');
       if (intro) intro.style.display = 'grid';
     };
@@ -206,7 +206,7 @@
     // Do not upload world from clients.
     return;
   }
-  // âœ… Viewport in CSS pixels (matches ctx.setTransform(dpr,...))
+  // ✅ Viewport in CSS pixels (matches ctx.setTransform(dpr,...))
   const VIEW = { w: 0, h: 0, dpr: 1 };
   function isNetActive() {
     return !!(window.Net && Net.state && Net.state.peerId);
@@ -388,16 +388,16 @@
     const r = (e.r ?? 14) + 14 + stacks*4;
     const pulse = 0.6 + 0.4*Math.sin(t*6 + e.x*0.02);
 
-    // ðŸ”¥ Core molten aura
+    // 🔥 Core molten aura
     drawGlowOrb(ctx, x, y, r, '#ff7a2a', pulse);
 
-    // ðŸ”¥ Vertical flame volume (3D illusion)
+    // 🔥 Vertical flame volume (3D illusion)
     drawVerticalEnergyPillar(ctx, x, y, r, '#ff6a00');
 
-    // ðŸ”¥ Flame spikes (replaces simple dots)
+    // 🔥 Flame spikes (replaces simple dots)
     drawEnergySpikes(ctx, x, y, r*1.1, 6+stacks, '#ffae66', t);
 
-    // ðŸ’¥ Detonate ring â†’ now erupting corona
+    // 💥 Detonate ring → now erupting corona
     if (hasG('fire','detonate') && stacks === 3){
       ctx.save();
       ctx.globalCompositeOperation = 'screen';
@@ -409,7 +409,7 @@
       ctx.restore();
     }
 
-    // ðŸŒ‹ Volcanic Core â€” MASSIVE pulse
+    // 🌋 Volcanic Core — MASSIVE pulse
     if (hasG('fire','volcanicCore') && player._volcFlash > 0){
       drawGlowOrb(ctx, x, y, r*3.5, '#ff3a00', 1);
     }
@@ -420,10 +420,10 @@
     const r = (e.r ?? 14) + 18;
     const flick = 0.7 + 0.3*Math.sin(t*10);
 
-    // âš¡ Charged dome
+    // ⚡ Charged dome
     drawGlowOrb(ctx, x, y, r, '#9fe3ff', flick);
 
-    // âš¡ Lightning spokes
+    // ⚡ Lightning spokes
     ctx.save();
     ctx.strokeStyle = '#e8f7ff';
     ctx.lineWidth = 2;
@@ -439,7 +439,7 @@
     }
     ctx.restore();
 
-    // ðŸŒ© Thunderclap â€” shockwave cylinder
+    // 🌩 Thunderclap — shockwave cylinder
     if (hasG('lightning','thunderclap')){
       drawVerticalEnergyPillar(ctx, x, y, r*1.2, '#cfffff');
     }
@@ -457,7 +457,7 @@
       dmg,
       life: 1.1,
       pierce: 0,
-      noGlyph: true // ðŸš« prevents onHitGlyph
+      noGlyph: true // 🚫 prevents onHitGlyph
     });
   }
   function drawSpiritVFX(ctx, e, x, y, t){
@@ -466,10 +466,10 @@
     const r = (e.r ?? 14) + 20;
     const pulse = 0.6 + 0.4*Math.sin(t*3);
 
-    // ðŸ‘» Ethereal body haze
+    // 👻 Ethereal body haze
     drawGlowOrb(ctx, x, y, r, '#c066ff', pulse);
 
-    // ðŸ‘» Orbiting wisps (now volumetric)
+    // 👻 Orbiting wisps (now volumetric)
     const count = hasG('spirit','wispSwarm') ? 3 : 1;
     for(let i=0;i<count;i++){
       const a = t*1.5 + i*2.4;
@@ -478,7 +478,7 @@
       drawGlowOrb(ctx, wx, wy, 10, '#e7c7ff', 1);
     }
 
-    // ðŸ”— Soul Bind tether (NEW â€” fixes invisibility)
+    // 🔗 Soul Bind tether (NEW — fixes invisibility)
     if (hasG('spirit','soulBind') && player._linkA && player._linkB){
       ctx.save();
       ctx.strokeStyle = 'rgba(200,120,255,0.6)';
@@ -496,10 +496,10 @@
 
     const r = (e.r ?? 14) + 18;
 
-    // ðŸ’§ Liquid body bloom
+    // 💧 Liquid body bloom
     drawGlowOrb(ctx, x, y, r, '#4fd3ff', 0.7);
 
-    // ðŸ’§ Flow rings (animated vertical depth)
+    // 💧 Flow rings (animated vertical depth)
     ctx.save();
     ctx.strokeStyle = 'rgba(180,240,255,0.6)';
     ctx.lineWidth = 2;
@@ -508,7 +508,7 @@
     ctx.stroke();
     ctx.restore();
 
-    // â„ï¸ Freeze cross becomes ice pillar shards
+    // ❄️ Freeze cross becomes ice pillar shards
     if ((e.freezeT ?? 0) > 0){
       drawEnergySpikes(ctx, x, y, r*1.1, 4, '#cfefff', t);
     }
@@ -518,7 +518,7 @@
 
     const r = (e.r ?? 14) + 10;
 
-    // ðŸª¨ Crystalline shell
+    // 🪨 Crystalline shell
     ctx.save();
     ctx.strokeStyle = 'rgba(125,255,163,0.7)';
     ctx.lineWidth = 4;
@@ -527,10 +527,10 @@
     ctx.stroke();
     ctx.restore();
 
-    // ðŸª¨ Growing facets (armor feel)
+    // 🪨 Growing facets (armor feel)
     drawEnergySpikes(ctx, x, y, r*1.2, 5, '#d9ffe6', t*0.5);
 
-    // ðŸŒŽ Quake pulse
+    // 🌎 Quake pulse
     if (hasG('earth','quake') && player._quakeFlash > 0){
       drawGlowOrb(ctx, x, y, r*3, '#7dffa3', 1);
     }
@@ -587,7 +587,7 @@
     // Prevent double-trigger
     if (!state.running) return;
 
-    console.warn("â˜ ï¸ Authoritative death detected");
+    console.warn("☠️ Authoritative death detected");
 
     // Stop simulation immediately
     state.running = false;
@@ -688,7 +688,7 @@
 
   
   function amPeer() {
-    return isNetActive(); // âœ… THIS CLIENT IS A PEER
+    return isNetActive(); // ✅ THIS CLIENT IS A PEER
   }
 
 
@@ -724,10 +724,10 @@
       hazards:{kind:'void', count:16},
       desc:'Void tiles. Enemies phase-dash at times.' },
   ];
-  // âœ… PvE leaderboard scoring per enemy type
+  // ✅ PvE leaderboard scoring per enemy type
 
   let currentTheme = LEVELS[0];
-  // âœ… PvE leaderboard scoring per enemy type
+  // ✅ PvE leaderboard scoring per enemy type
   const PVE_POINTS = {
     ravener: 1,
     tank: 3,
@@ -738,7 +738,7 @@
     boss: 15
   };
 
-  // âœ… Local fallback (offline) leaderboard
+  // ✅ Local fallback (offline) leaderboard
   const pveLeaderboard = Object.create(null);
   let SIM_TICK = 0;
   const FIXED_DT = 1 / 30; // 30Hz lockstep
@@ -849,13 +849,13 @@
     {id:13, name:'Fire Wings',          unlock:9,  wing:true,  wingType:'fire'},
     {id:14, name:'Insect Wings',        unlock:5,  wing:true,  wingType:'insect'}
   ];
-  // âœ… PER-TAB appearance (prevents mirror bug)
-  // âœ… PER-TAB DEFAULT APPEARANCE (prevents mirror bug)
+  // ✅ PER-TAB appearance (prevents mirror bug)
+  // ✅ PER-TAB DEFAULT APPEARANCE (prevents mirror bug)
   function getTabDesign() {
     const v = sessionStorage.getItem('design');
     if (v !== null) return parseInt(v, 10);
 
-    // âœ… FIXED DEFAULT (Basic Core)
+    // ✅ FIXED DEFAULT (Basic Core)
     const DEFAULT_DESIGN = 0;
     sessionStorage.setItem('design', DEFAULT_DESIGN);
     return DEFAULT_DESIGN;
@@ -865,7 +865,7 @@
     const v = sessionStorage.getItem('color');
     if (v !== null) return parseInt(v, 10);
 
-    // âœ… FIXED DEFAULT (first colour)
+    // ✅ FIXED DEFAULT (first colour)
     const DEFAULT_COLOR = 0;
     sessionStorage.setItem('color', DEFAULT_COLOR);
     return DEFAULT_COLOR;
@@ -889,7 +889,7 @@
   if(kind==='rifle'){ rifleIndex=(rifleIndex+dir+5)%5; store.write('rifleIndex', rifleIndex); }
   if(kind==='shotgun'){ shotgunIndex=(shotgunIndex+dir+5)%5; store.write('shotgunIndex', shotgunIndex); }
 
-  // âœ… sync
+  // ✅ sync
   if (isNetActive()) {
     Net.setGuns({ pistol: pistolIndex, rifle: rifleIndex, shotgun: shotgunIndex });
   }
@@ -1070,7 +1070,7 @@
       return null;
     },
     drawFloor(){
-      // âœ… Use CSS pixel size (VIEW.w/VIEW.h), because ctx is already scaled by DPR
+      // ✅ Use CSS pixel size (VIEW.w/VIEW.h), because ctx is already scaled by DPR
       const W = VIEW.w;
       const H = VIEW.h;
 
@@ -1110,7 +1110,7 @@
           const cx = x + hz.w / 2;
           const cy = y + hz.h / 2;
 
-          // ðŸ”” WARNING PHASE â€” glow ring, no damage
+          // 🔔 WARNING PHASE — glow ring, no damage
           if (hz.phase === 'warn') {
             const pulse = (Math.sin(performance.now() * 0.004) * 0.5 + 0.5);
 
@@ -1127,7 +1127,7 @@
             ctx.restore();
           }
 
-          // ðŸŒ‹ ERUPTION â€” instantâ€‘kill blast
+          // 🌋 ERUPTION — instant‑kill blast
           else if (hz.phase === 'eruption') {
             const g = ctx.createLinearGradient(cx, cy - hz.h, cx, cy);
             g.addColorStop(0, '#ffffff');
@@ -1143,7 +1143,7 @@
             ctx.restore();
           }
 
-          // ðŸ”¥ BURN PHASE â€” chip damage only
+          // 🔥 BURN PHASE — chip damage only
           else if (hz.phase === 'burn') {
             ctx.fillStyle = '#3a1a0a';
             ctx.fillRect(x, y, hz.w, hz.h);
@@ -1161,7 +1161,7 @@
             }
           }
 
-          // ðŸ§± COOL PHASE
+          // 🧱 COOL PHASE
           else {
             const g = ctx.createLinearGradient(0, y, 0, y + hz.h);
             g.addColorStop(0, '#2a1a12');
@@ -1409,7 +1409,7 @@
         if(!ch || ch.opened) continue;
 
         const b = this.buildings[ch.buildingIndex];
-        if(!b || !b.inner) continue; // âœ… safety
+        if(!b || !b.inner) continue; // ✅ safety
 
         // only visible inside the building interior (your original logic)
         if(!pointInRect(player.x, player.y, b.inner)) continue;
@@ -1478,13 +1478,13 @@
       }
     }
     if(e.key.toLowerCase()==='h') showOverlay(ovHelp, ovHelp.style.display!=='grid');
-    // Q â†’ equip melee (shows melee idle pose)
+    // Q → equip melee (shows melee idle pose)
     if(e.key.toLowerCase()==='q'){
       if (equip !== 'melee'){ lastGun = player.weapon; equip = 'melee'; updateHUD(); }
       e.preventDefault();
     }
 
-    // E â†’ back to guns; if already on guns, keep cycling forward
+    // E → back to guns; if already on guns, keep cycling forward
     if(e.key.toLowerCase()==='e'){
       if (equip === 'melee'){ equip = 'gun'; setWeapon(lastGun); updateHUD(); }
       else { swapWeapon(1); }
@@ -1523,7 +1523,7 @@
     // Draw in CSS pixel coordinates
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-    // âœ… Store CSS viewport size for camera math
+    // ✅ Store CSS viewport size for camera math
     const rect = canvas.getBoundingClientRect();
     VIEW.w = rect.width;
     VIEW.h = rect.height;
@@ -1541,19 +1541,19 @@
 
     const r = mini.getBoundingClientRect();
 
-    // âœ… CSS size (VISIBLE AREA)
+    // ✅ CSS size (VISIBLE AREA)
     MINI_VIEW.w = r.width;
     MINI_VIEW.h = r.height;
 
-    // âœ… FORCE CSS SIZE (critical!)
+    // ✅ FORCE CSS SIZE (critical!)
     mini.style.width  = MINI_VIEW.w + 'px';
     mini.style.height = MINI_VIEW.h + 'px';
 
-    // âœ… Backing store (DEVICE PIXELS)
+    // ✅ Backing store (DEVICE PIXELS)
     mini.width  = Math.floor(MINI_VIEW.w * MINI_DPR);
     mini.height = Math.floor(MINI_VIEW.h * MINI_DPR);
 
-    // âœ… Draw in CSS pixel space
+    // ✅ Draw in CSS pixel space
     mctx.setTransform(MINI_DPR, 0, 0, MINI_DPR, 0, 0);
   }
 
@@ -1577,7 +1577,7 @@
       px += (meSnap.x - px) * 0.18;
       py += (meSnap.y - py) * 0.18;
     }
-    // âœ… Use CSS viewport size (NOT canvas.width/height which are device pixels)
+    // ✅ Use CSS viewport size (NOT canvas.width/height which are device pixels)
     const targetX = px - VIEW.w / 2;
     const targetY = py - VIEW.h / 2;
 
@@ -1629,7 +1629,7 @@
         }
 
         // Maelstrom: pull + damage
-        // ðŸŒŠ MAELSTROM â€” QUICKSAND BEHAVIOUR (CIRCULAR PIT)
+        // 🌊 MAELSTROM — QUICKSAND BEHAVIOUR (CIRCULAR PIT)
         if (v.type === 'maelstrom') {
           const R = v.r ?? 120;
 
@@ -1902,7 +1902,7 @@
       ctx.stroke();
     }
 
-    // ===== COUNTERâ€‘ROTATING DEPTH ARMS =====
+    // ===== COUNTER‑ROTATING DEPTH ARMS =====
     ctx.strokeStyle = 'rgba(200,245,255,0.35)';
     ctx.lineWidth = 2;
     for (let a = 0; a < 3; a++) {
@@ -2016,7 +2016,7 @@
     _killCount:0,    
     
     _tidalHits:0,        // tidal renewal
-    _tidalWaveHits:0,    // âœ… REQUIRED
+    _tidalWaveHits:0,    // ✅ REQUIRED
     _tidalWaveCD:0,       // for tidal renewal
     _quakeCD:0,          // earth quake timer
     _ballCD:0,           // ball lightning zap timer
@@ -2024,7 +2024,7 @@
     _wispCD:0,           // wisp fire timer
     _linkA:null, _linkB:null, _linkT:0, // soul bind
   };
-  // ðŸ” DEBUG: detect illegal writes to player (lockstep / render bugs)
+  // 🔍 DEBUG: detect illegal writes to player (lockstep / render bugs)
   Object.seal(player);
   console.log('[DEBUG] player object sealed');
   // --- Melee damage helper: 1/3 of current gun's per-shot damage ---
@@ -2093,7 +2093,7 @@
     const btnExit = document.getElementById('btnExit');
 
     if (!online) {
-      // âœ… Singleâ€‘player
+      // ✅ Single‑player
       btnPause && (btnPause.style.display = 'inline-block');
       btnRestart && (btnRestart.style.display = 'inline-block');
       btnHome && (btnHome.style.display = 'inline-block');
@@ -2101,7 +2101,7 @@
       btnHelp && (btnHelp.style.display = 'inline-block');
       btnExit && (btnExit.style.display = 'none');
     } else {
-      // âœ… Multiplayer
+      // ✅ Multiplayer
       btnPause && (btnPause.style.display = 'none');
       btnRestart && (btnRestart.style.display = 'none');
       btnHome && (btnHome.style.display = 'none');
@@ -2114,7 +2114,7 @@
     const online = isNetActive();
     const snap = online ? Net.state?.snapshot : null;
     // =========================
-    // âœ… GLYPH TIMER (SERVER-AUTHORITATIVE)
+    // ✅ GLYPH TIMER (SERVER-AUTHORITATIVE)
     // =========================
     if (online && snap && snap.phase === 'glyph') {
 
@@ -2124,7 +2124,7 @@
         openGlyphOverlay(Math.ceil(snap.glyphTime || 15));
       }
 
-      // âœ… snap.glyphTime is IN SECONDS
+      // ✅ snap.glyphTime is IN SECONDS
       if (glyphTimerEl && typeof snap.glyphTime === 'number') {
         glyphTimerEl.textContent = String(
           Math.max(0, Math.ceil(snap.glyphTime))
@@ -2150,7 +2150,7 @@
 
 
     // =========================
-    // âœ… WAVE (SERVER FIRST)
+    // ✅ WAVE (SERVER FIRST)
     // =========================
     const wave =
       (online && snap && typeof snap.wave === 'number')
@@ -2160,39 +2160,39 @@
     waveEl.textContent = wave;
 
     // =========================
-    // âœ… SCORE
+    // ✅ SCORE
     // =========================
     scoreEl.textContent = state.score;
 
     // =========================
-    // âœ… BEST WAVE
+    // ✅ BEST WAVE
     // =========================
     bestEl.textContent = state.best;
 
     // =========================
-    // âœ… PLAYER HP
+    // ✅ PLAYER HP
     // =========================
     const hpPct = Math.max(0, player.hp / player.hpMax) * 100;
     hpFill.style.width = `${hpPct}%`;
 
     // =========================
-    // âœ… SHIELD
+    // ✅ SHIELD
     // =========================
 
 
     // =========================
-    // âœ… SPEED MULTIPLIER
+    // ✅ SPEED MULTIPLIER
     // =========================
     const slowMul = (player.slowT > 0) ? 0.7 : 1;
 
 
     // =========================
-    // âœ… WEAPON / AMMO / MELEE
+    // ✅ WEAPON / AMMO / MELEE
     // =========================
     if (equip === 'melee'){
       ammoFill.style.width = '0%';
-      ammoText.textContent = 'â€”';
-      weaponName.textContent = `Melee: ${melee?.name ?? 'â€”'}`;
+      ammoText.textContent = '—';
+      weaponName.textContent = `Melee: ${melee?.name ?? '—'}`;
     } else {
       const w = weapons[player.weapon];
       const pct = Math.max(0, player.ammo / w.ammo) * 100;
@@ -2203,16 +2203,16 @@
     }
 
     // =========================
-    // âœ… LEVEL / THEME LABEL
+    // ✅ LEVEL / THEME LABEL
     // =========================
     if (currentTheme){
-      lvlEl.textContent = `${currentTheme.id} â€” ${currentTheme.name}`;
+      lvlEl.textContent = `${currentTheme.id} — ${currentTheme.name}`;
     } else {
-      lvlEl.textContent = 'â€”';
+      lvlEl.textContent = '—';
     }
 
     // =========================
-    // âœ… OPTIONAL DEBUG (remove later)
+    // ✅ OPTIONAL DEBUG (remove later)
     // Shows server enemies remaining
     // =========================
     /*
@@ -2224,10 +2224,10 @@
    
     // =========================
     // =========================
-    // âœ… PvE LEADERBOARD (Top 5, horizontal, ranked)
+    // ✅ PvE LEADERBOARD (Top 5, horizontal, ranked)
     // =========================
     // =========================
-    // âœ… PvE LEADERBOARD (alive & connected players ONLY)
+    // ✅ PvE LEADERBOARD (alive & connected players ONLY)
     // =========================
     const lb = document.getElementById('pveLeaderboard');
     if (lb) {
@@ -2236,7 +2236,7 @@
           ? snap.scores
           : pveLeaderboard;
 
-      // âœ… build alive & connected player set
+      // ✅ build alive & connected player set
       const alivePlayers = new Map();
 
       if (online && snap && Array.isArray(snap.players)) {
@@ -2251,7 +2251,7 @@
         alivePlayers.set('local', { name: 'You', id: 'local' });
       }
 
-      // âœ… keep ONLY scores from alive players
+      // ✅ keep ONLY scores from alive players
       const entries = Object.entries(scores)
         .filter(([id]) => alivePlayers.has(id))
         .sort((a, b) => (b[1] || 0) - (a[1] || 0))
@@ -2276,7 +2276,7 @@
       });
     }
     // =========================
-    // âœ… HUD Buff Icons (Speed / Shield)
+    // ✅ HUD Buff Icons (Speed / Shield)
     // =========================
     const buffSpeed  = document.getElementById('buffSpeed');
     const buffShield = document.getElementById('buffShield');
@@ -2285,7 +2285,7 @@
     if (player.spdMul > 1.01) {
       buffSpeed.classList.remove('hidden');
       buffSpeed.querySelector('.val').textContent =
-        player.spdMul.toFixed(2) + 'Ã—';
+        player.spdMul.toFixed(2) + '×';
     } else {
       buffSpeed.classList.add('hidden');
     }
@@ -2337,7 +2337,7 @@
     completed: { fire:false, lightning:false, spirit:false, water:false, earth:false }
   };
   
-  // âœ… PvE leaderboard (playerId â†’ points)
+  // ✅ PvE leaderboard (playerId → points)
 
 
   // Noise events --------------------------------------------------------------
@@ -2427,7 +2427,7 @@ function defaultMeleeLength(rarity, name){
   // Create a temporary instance WITHOUT an explicit length
   // so the module assigns its own default based on the kind inferred from 'name'
   const tmp = Melee.create({ rarity, name });
-  return tmp.length; // e.g., punchâ‰ˆ34, kickâ‰ˆ38, bladeâ‰ˆ64 (from the module)
+  return tmp.length; // e.g., punch≈34, kick≈38, blade≈64 (from the module)
 }
 
   // --- Melee combat numbers (tweak as needed) ---
@@ -2636,7 +2636,7 @@ function buildSkins(){
         store.write('design', selectedDesign);
         sessionStorage.setItem('design', selectedDesign);
 
-        // âœ… MULTIPLAYER: sync body design to server
+        // ✅ MULTIPLAYER: sync body design to server
         if (isNetActive()) {
 
           Net.setDesign(selectedDesign);
@@ -2661,7 +2661,7 @@ function buildSkins(){
           store.write('color', selectedColor);
           sessionStorage.setItem('color', selectedColor);
 
-          // âœ… MULTIPLAYER: sync colour
+          // ✅ MULTIPLAYER: sync colour
           if (isNetActive()) {
             Net.setColor(selectedColor);
           }
@@ -2720,10 +2720,10 @@ function updateBestWave(w) {
   const current = bestWave();
 
   if (w > current) {
-    // âœ… update runtime state (immediate unlocks)
+    // ✅ update runtime state (immediate unlocks)
     state.best = w;
 
-    // âœ… persist progression
+    // ✅ persist progression
     localStorage.setItem('arenaBest', String(w));
   }
 }
@@ -2731,13 +2731,13 @@ function updateBestWave(w) {
 function maybeUpdateBestWave(w) {
   const mode = localStorage.getItem('arenaMode');
 
-  // âœ… Single-player
+  // ✅ Single-player
   if (!isNetActive()) {
     updateBestWave(w);
     return;
   }
 
-  // âœ… Multiplayer PvE
+  // ✅ Multiplayer PvE
   if (mode === 'pve') {
     updateBestWave(w);
   }
@@ -2811,7 +2811,7 @@ function buildGunsUI(){
       } else {
         
       card.onclick = () => {
-        // âœ… Set the chosen skin index (NOT -1)
+        // ✅ Set the chosen skin index (NOT -1)
         if (kind === 'pistol')  { pistolIndex  = idx; store.write('pistolIndex',  idx); }
         if (kind === 'rifle')   { rifleIndex   = idx; store.write('rifleIndex',   idx); }
         if (kind === 'shotgun') { shotgunIndex = idx; store.write('shotgunIndex', idx); }
@@ -2819,7 +2819,7 @@ function buildGunsUI(){
         // Rebuild with the new selection highlighted
         makeGrid(gridId, kind, idx);
 
-        // âœ… Sync to server so it persists in multiplayer
+        // ✅ Sync to server so it persists in multiplayer
         if (isNetActive()) {
           Net.setGuns({
             pistol: pistolIndex,
@@ -2890,7 +2890,7 @@ function buildMeleeUI(){
         // Recreate melee with per-sprite scaling (keep anchor)
         // Recreate melee with per-sprite scaling (fresh baseline, no carry-over)
         const keepAnchor = melee?.anchorDist ?? 0.4;
-        const baseLen    = defaultMeleeLength(meleeRarity, meleeName); // â† NEW
+        const baseLen    = defaultMeleeLength(meleeRarity, meleeName); // ← NEW
         const scale      = getMeleeScaleFor(meleeName);
 
         melee = Melee.create({
@@ -2900,7 +2900,7 @@ function buildMeleeUI(){
           anchorDist: keepAnchor
         });
 
-        // If user is previewing melee, autoâ€‘equip
+        // If user is previewing melee, auto‑equip
         equip = 'melee';
         updateHUD();
 
@@ -3011,7 +3011,7 @@ if (btnHomeCustomize){
               if (px >= w.x && px <= w.x + w.w &&
                   py >= w.y && py <= w.y + w.h) {
 
-                  // Inside a wall rect â†’ LOS is blocked
+                  // Inside a wall rect → LOS is blocked
                   return true;
               }
           }
@@ -3221,7 +3221,7 @@ if (btnHomeCustomize){
     }
     ents.wisps.length = count;
 
-    const baseDmg = weapons[player.weapon].dmg / 3; // âœ… 3Ã— weaker
+    const baseDmg = weapons[player.weapon].dmg / 3; // ✅ 3× weaker
 
     for (let i = 0; i < ents.wisps.length; i++){
       const w = ents.wisps[i];
@@ -3278,7 +3278,7 @@ if (btnHomeCustomize){
     // Haunt DOT + weaken (touch damage later reads hauntT)
     if ((e.hauntT||0) > 0){
       e.hauntT -= dt;
-      // Haunt DOT â€” minimal chip damage
+      // Haunt DOT — minimal chip damage
     }
 
     // Drench slow
@@ -3318,7 +3318,7 @@ if (btnHomeCustomize){
   // ----- On-hit glyph logic (returns damage multiplier) -----
   function onHitGlyph(e, baseDmg, hitKind){ // hitKind: 'bullet'|'melee'
     let mult = 1;
-    // ðŸŒŠ Water â€” Tidal Wave (every 5 successful hits)
+    // 🌊 Water — Tidal Wave (every 5 successful hits)
     if (isPath('water') && hasG('water','tidalWave')) {
       player._tidalWaveHits = (player._tidalWaveHits ?? 0) + 1;
 
@@ -3437,7 +3437,7 @@ if (btnHomeCustomize){
         if (player._tidalHits % 10 === 0){
           player.hp = Math.min(player.hpMax, player.hp + 5);
 
-          // ðŸŒŠ replace old pop ring with proper 3D healing pulse
+          // 🌊 replace old pop ring with proper 3D healing pulse
           ents.effects.push({
             type: 'mendingPulse',
             x: player.x,
@@ -3448,7 +3448,7 @@ if (btnHomeCustomize){
           });
         }
       }
-      // ðŸŒŠ Tidal Wave â€” activates every 5 shots (OFFLINE ONLY)
+      // 🌊 Tidal Wave — activates every 5 shots (OFFLINE ONLY)
       if (!online && hasG('water','tidalWave')){
         player._tidalWaveHits = (player._tidalWaveHits ?? 0) + 1;
 
@@ -3527,10 +3527,10 @@ if (btnHomeCustomize){
           type: 'shade',
           x: e.x,
           y: e.y,
-          r: (e.type === 'boss') ? 26 : 18,   // ðŸ”º bigger for powerful wraith
+          r: (e.type === 'boss') ? 26 : 18,   // 🔺 bigger for powerful wraith
           life: hasG('spirit','possession') ? 10 : 2.0,
           t: 0,
-          isWraith: e.type === 'boss'         // ðŸ‘‘ marks powerful wraith
+          isWraith: e.type === 'boss'         // 👑 marks powerful wraith
         });
       }
     }
@@ -3550,7 +3550,7 @@ if (btnHomeCustomize){
     e.frameT += dt;
     e.phaseCD -= dt;
 
-    // âœ… FIX: target must be defined FIRST
+    // ✅ FIX: target must be defined FIRST
     const tgtP = nearestPlayerTo(e.x, e.y);
     const tx = tgtP.x;
     const ty = tgtP.y;
@@ -3702,7 +3702,7 @@ if (btnHomeCustomize){
     if(e.type==='tank') spd*=0.9; if(e.type==='swarm') spd*=1.15; if(e.type==='boss') spd*=1.05;
     e.vx = lerp(e.vx, ax*spd, 0.18); e.vy = lerp(e.vy, ay*spd, 0.18);
     moveWithCollide(e, e.vx*dt, e.vy*dt);
-    // âœ… Apply hazard effects immediately after movement
+    // ✅ Apply hazard effects immediately after movement
     const hz = world.getHazardAt(e.x, e.y, e.r * 0.9);
     if (hz) {
       if (hz.type === 'sand') {
@@ -3817,7 +3817,7 @@ if (btnHomeCustomize){
   // Waves & progressive difficulty -------------------------------------------
   let spawnQueue=[];
   function enemyCountForWave(w) {
-    // Smooth ramp: 5 â†’ 25 by wave 15 (singleâ€‘player only)
+    // Smooth ramp: 5 → 25 by wave 15 (single‑player only)
     const min = 5;
     const max = 25;
 
@@ -3827,11 +3827,11 @@ if (btnHomeCustomize){
     return Math.round(min + (max - min) * t);
   }
   function startWave(n) {
-    // âœ… SINGLEâ€‘PLAYER ONLY
+    // ✅ SINGLE‑PLAYER ONLY
     if (isNetActive()) return;
 
     state.wave = n;
-    // âœ… ensure glyph overlay/phase is cleared on wave start
+    // ✅ ensure glyph overlay/phase is cleared on wave start
     state.phase = 'combat';
     state.phaseEndsAt = 0;
     if (ovGlyphs) ovGlyphs.style.display = 'none';
@@ -3872,7 +3872,7 @@ if (btnHomeCustomize){
 
     state.nextWaveT = 2.0;
 
-    // âœ… Boss every 5 waves, same mix as previous wave
+    // ✅ Boss every 5 waves, same mix as previous wave
     if (n % 5 === 0) {
       const p = pos();
       spawnQueue.push({
@@ -3917,7 +3917,7 @@ if (btnHomeCustomize){
     return ['sniper','bomber','healer'];
   }
   function pickType() {
-    // âœ… SINGLEâ€‘PLAYER ONLY
+    // ✅ SINGLE‑PLAYER ONLY
     if (isNetActive()) {
       // Safety fallback (should never be used in MP)
       return 'chaser';
@@ -3954,12 +3954,12 @@ if (btnHomeCustomize){
 
     const base = player.angle;
 
-    // âœ… Use the same visual position as the rendered player
-    // âœ… Use the same visual position as the rendered player
+    // ✅ Use the same visual position as the rendered player
+    // ✅ Use the same visual position as the rendered player
     const px0 = player.x;
     const py0 = player.y;
 
-    // âœ… ONLINE: server authoritative bullets
+    // ✅ ONLINE: server authoritative bullets
     if (isNetActive()) {
       for (let i = 0; i < w.shots; i++){
         const a = base + rand(-w.spread, w.spread);
@@ -3976,7 +3976,7 @@ if (btnHomeCustomize){
       return;
     }
 
-    // âœ… OFFLINE: local bullets
+    // ✅ OFFLINE: local bullets
     for (let i = 0; i < w.shots; i++){
       const a = base + rand(-w.spread, w.spread);
       spawnBullet(
@@ -3996,7 +3996,7 @@ if (btnHomeCustomize){
     // player bullets 
     for (let i = ents.bullets.length - 1; i >= 0; i--){ 
     const b = ents.bullets[i]; 
-    // âœ… store previous position for swept test
+    // ✅ store previous position for swept test
     const x0 = b.x;
     const y0 = b.y;
 
@@ -4010,8 +4010,8 @@ if (btnHomeCustomize){
         continue; 
     } 
     // hit enemies 
-    // hit enemies â€” SWEPT test (bullet path vs enemy circle)
-    // âœ… VISUAL hit test â€” ALWAYS remove bullet if its PATH touches an enemy
+    // hit enemies — SWEPT test (bullet path vs enemy circle)
+    // ✅ VISUAL hit test — ALWAYS remove bullet if its PATH touches an enemy
     let hit = false;
     let hitX = b.x;
     let hitY = b.y;
@@ -4040,17 +4040,17 @@ if (btnHomeCustomize){
     }
 
     if (hit) {
-      // âœ… visual feedback only
+      // ✅ visual feedback only
       addEffect(hitX, hitY, 'hit', 0.15, '#fff');
       cam.shake = Math.max(cam.shake, 1.5);
 
-      // âœ… bullet ALWAYS disappears, no matter what server does
+      // ✅ bullet ALWAYS disappears, no matter what server does
       ents.bullets.splice(i, 1);
       continue;
     }
     } 
 
-    // effects timer so muzzle flashes donâ€™t stick 
+    // effects timer so muzzle flashes don’t stick 
     for (let i = ents.effects.length - 1; i >= 0; i--){ 
     const e = ents.effects[i]; 
     e.t = (e.t || 0) + dt; 
@@ -4084,13 +4084,13 @@ if (btnHomeCustomize){
 
       state.running = false;
 
-      // âœ… MULTIPLAYER: leave lobby immediately on death
+      // ✅ MULTIPLAYER: leave lobby immediately on death
       if (isNetActive()) {
         leaveMultiplayerAndReturnHome();
         return; // stop updateFixed immediately
       }
 
-      // âœ… SINGLEâ€‘PLAYER: normal game over flow
+      // ✅ SINGLE‑PLAYER: normal game over flow
       const prev = parseInt(localStorage.getItem('arenaBest') || '0', 10) || 0;
       const best = Math.max(prev, state.wave);
       state.best = best;
@@ -4100,7 +4100,7 @@ if (btnHomeCustomize){
       showGameOver();
     }
 
-    ovPause.querySelector('h2').textContent = 'â¸ï¸ Paused';
+    ovPause.querySelector('h2').textContent = '⏸️ Paused';
     if (on) audio.stopMusic();
     else if (audio.musicOn) audio.startMusic();
   }
@@ -4108,23 +4108,23 @@ if (btnHomeCustomize){
   
 
 // ===============================
-// Glyph overlay system (client) â€” SCROLLABLE 3D TREE + FULL DESCRIPTIONS
+// Glyph overlay system (client) — SCROLLABLE 3D TREE + FULL DESCRIPTIONS
 // ===============================
-const GLYPH_COST_CORE = 5;
-const GLYPH_COST_T1   = 10;
-const GLYPH_COST_T2   = 15;
-const GLYPH_COST_T3   = 20;
+const GLYPH_COST_CORE = 1;
+const GLYPH_COST_T1   = 1;
+const GLYPH_COST_T2   = 1;
+const GLYPH_COST_T3   = 1;
 
 // ---------- Data: full skill names + descriptions ----------
 const GLYPH_CORE = {
-  fire:      { name:"Ignite", desc:"Your bullets/melee apply Burn: small DoT for 3â€“4 seconds." },
+  fire:      { name:"Ignite", desc:"Your bullets/melee apply Burn: small DoT for 3–4 seconds." },
   lightning: { name:"Static", desc:"Your hits apply Static (a mark). On next hit, Static discharges for bonus damage." },
   spirit:    { name:"Soul Tap", desc:"Enemies drop soul fragments (XP orbs). Collecting them grants minor healing/shield." },
   water:     { name:"Drench", desc:"Hits apply Drench; drenched enemies slow slightly and enable Water effects." },
   earth:     { name:"Stone Skin", desc:"Gain armour (damage reduction)." }
 };
 
-// Branches are [A,B,C], each has Tier1â†’Tier2â†’Tier3
+// Branches are [A,B,C], each has Tier1→Tier2→Tier3
 const GLYPH_TREE = {
   fire: [
     [
@@ -4170,7 +4170,7 @@ const GLYPH_TREE = {
     ],
     [
       { name:"Haunt",      desc:"Your hits apply Haunt; haunted enemies deal reduced touch damage." },
-      { name:"Soul Bind",  desc:"Hit 2 enemies quickly to link them â€” damage to one copies % to the other." },
+      { name:"Soul Bind",  desc:"Hit 2 enemies quickly to link them — damage to one copies % to the other." },
       { name:"Dread Bloom",desc:"Haunted enemy death releases fear pulse (brief slow/weakness around)." }
     ],
     [
@@ -4216,7 +4216,7 @@ const GLYPH_TREE = {
     ],
   ],
 };
-// ===== Tree node â†’ gameplay flag mapping (3 branches Ã— 3 tiers) =====
+// ===== Tree node → gameplay flag mapping (3 branches × 3 tiers) =====
 const GLYPH_TREE_KEYS = {
   fire: [
     ['hotCoals','searingShots','ashenFinish'],
@@ -4651,10 +4651,10 @@ function openGlyphOverlay(seconds=15){
     TREE_VIEW.ox = 0; TREE_VIEW.oy = 0; TREE_VIEW.scale = 1.0;
   }
 
-  glyphTitleEl.textContent = 'â€”';
+  glyphTitleEl.textContent = '—';
   glyphDescEl.textContent = 'Select a glyph or node to view its description.';
   glyphEnchantBtn.disabled = true;
-  glyphCostEl.textContent = 'â€”';
+  glyphCostEl.textContent = '—';
 
   if (glyphTimerEl) glyphTimerEl.textContent = String(seconds);
   if (glyphEssenceEl) glyphEssenceEl.textContent = String(state.essence);
@@ -4783,7 +4783,7 @@ function onGlyphEnchant(){
     _ceremony = { type:'node', el, branch:_selBranch, tier:_selTier, from:{x:sp.x,y:sp.y}, to:{x:sp.x,y:sp.y}, t0:performance.now(), dur:650 };
 
     glyphEnchantBtn.disabled = true;
-    glyphCostEl.textContent = 'â€”';
+    glyphCostEl.textContent = '—';
     return;
   }
 
@@ -4815,7 +4815,7 @@ function onGlyphEnchant(){
   TREE_VIEW.ox = 0; TREE_VIEW.oy = 0; TREE_VIEW.scale = 1.0;
 
   glyphEnchantBtn.disabled = true;
-  glyphCostEl.textContent = 'â€”';
+  glyphCostEl.textContent = '—';
 }
 
 // ---------- Draw ----------
@@ -4858,7 +4858,7 @@ function drawGlyphOverlay(){
   }
   gctx.globalAlpha = 1;
 
-  // centre â€œancient coreâ€ (procedural â€” no sprite required)
+  // centre “ancient core” (procedural — no sprite required)
   {
     const pulse = 0.5 + 0.5*Math.sin(time*1.4);
     const r0 = 62 + pulse*6;
@@ -4908,19 +4908,19 @@ function drawGlyphOverlay(){
           glyphDescEl.textContent  = "Path filled. Next upgrade lets you pick another element.";
         } else {
           _uiMode = 'tree';
-          glyphTitleEl.textContent = `${_ceremony.el.toUpperCase()} â€” CONTINUE`;
+          glyphTitleEl.textContent = `${_ceremony.el.toUpperCase()} — CONTINUE`;
           glyphDescEl.textContent  = "Enchant the next available tier on each branch.";
         }
 
         _selBranch = -1; _selTier = 0;
         glyphEnchantBtn.disabled = true;
-        glyphCostEl.textContent = 'â€”';
+        glyphCostEl.textContent = '—';
       } else {
         _uiMode = 'tree';
-        glyphTitleEl.textContent = `${_ceremony.el.toUpperCase()} â€” CHOSEN`;
-        glyphDescEl.textContent  = "Unlock each branch (T1â†’T2â†’T3). Scroll/drag to move the tree.";
+        glyphTitleEl.textContent = `${_ceremony.el.toUpperCase()} — CHOSEN`;
+        glyphDescEl.textContent  = "Unlock each branch (T1→T2→T3). Scroll/drag to move the tree.";
         glyphEnchantBtn.disabled = true;
-        glyphCostEl.textContent = 'â€”';
+        glyphCostEl.textContent = '—';
       }
       _ceremony = null;
     }
@@ -4987,7 +4987,7 @@ function drawGlyphOverlay(){
     state.running = false;
     ovPause.style.display = 'none';
 
-    // âœ… DO NOT FALL BACK TO SINGLE WHEN ONLINE
+    // ✅ DO NOT FALL BACK TO SINGLE WHEN ONLINE
     if (isNetActive()) {
       // stay in multiplayer home
       ovHome.style.display = 'grid';
@@ -5020,11 +5020,11 @@ function drawGlyphOverlay(){
     state.wave = 1;
     state.score = 0;
     state.playerExploded = false;
-    // âœ… reset glyph phase properly (prevents instant overlay close)
+    // ✅ reset glyph phase properly (prevents instant overlay close)
     state.phase = 'combat';
     state.phaseEndsAt = 0;
     closeGlyphOverlay();
-    // âœ… reset PvE leaderboard each run
+    // ✅ reset PvE leaderboard each run
     for (const k in pveLeaderboard) delete pveLeaderboard[k];
     pveLeaderboard.local = 0;
 
@@ -5055,19 +5055,19 @@ function drawGlyphOverlay(){
     }
 
 
-    // ðŸ‘‡ IMPORTANT: actually start the simulation
+    // 👇 IMPORTANT: actually start the simulation
     ovHome.style.display = 'none';
     ovPause.style.display = 'none';
     state.running = true;  
-    // âœ… reset PvE leaderboard
+    // ✅ reset PvE leaderboard
     for (const k in pveLeaderboard) delete pveLeaderboard[k];
     pveLeaderboard['local'] = 0;
    
-    updateHudButtonsForMode();                // â† lets update() run
+    updateHudButtonsForMode();                // ← lets update() run
     if (audio.musicOn) audio.startMusic();
     canvas.focus();
   }
-  function applyTheme(theme){ currentTheme=theme; state.diff=parseFloat(selDiff.value||'1.0')||1.0; lvlEl.textContent=`${currentTheme.id} â€” ${currentTheme.name}` 
+  function applyTheme(theme){ currentTheme=theme; state.diff=parseFloat(selDiff.value||'1.0')||1.0; lvlEl.textContent=`${currentTheme.id} — ${currentTheme.name}` 
     if (!window.Net || !Net.state || !Net.state.lobbyId) {
       world.buildObstacles();
       world.buildHazards();
@@ -5077,16 +5077,16 @@ function drawGlyphOverlay(){
   function applyNetMap(meta){
     if (!meta) return;
 
-    // âœ… Theme is visual ONLY
+    // ✅ Theme is visual ONLY
     if (meta.levelId){
       const th = LEVELS.find(l => l.id === meta.levelId);
       if (th) currentTheme = th;
     }
 
-    // âŒ DO NOT build world locally in multiplayer
-    // âŒ DO NOT call buildObstacles / buildHazards / buildChests
+    // ❌ DO NOT build world locally in multiplayer
+    // ❌ DO NOT call buildObstacles / buildHazards / buildChests
 
-    // âœ… Server snapshot owns the world completely
+    // ✅ Server snapshot owns the world completely
     if (isNetActive() && hasFreshSnapshot()){
       applyServerWorldFromSnapshot();
     }
@@ -5096,7 +5096,7 @@ function drawGlyphOverlay(){
   
   function buildHome(){
     const grid = document.getElementById('levelsGrid');
-    if (!grid) return; // âœ… multiplayer / inâ€‘game safety
+    if (!grid) return; // ✅ multiplayer / in‑game safety
 
     grid.innerHTML = '';
     LEVELS.forEach(theme => { 
@@ -5123,12 +5123,12 @@ function drawGlyphOverlay(){
     card.appendChild(body)
     
     card.addEventListener('click', async () => {
-      // âœ… OFFLINE (single-player): apply theme immediately
+      // ✅ OFFLINE (single-player): apply theme immediately
       if (!isNetActive()) {
         applyTheme(theme); // sets currentTheme + rebuilds world offline
       }
 
-      // âœ… ONLINE (multiplayer): tell server which level to use
+      // ✅ ONLINE (multiplayer): tell server which level to use
       if (window.Net && Net.state && Net.state.lobbyId) {
         await Net.setLevel(theme.id);
       }
@@ -5145,14 +5145,14 @@ function drawGlyphOverlay(){
         const secs = Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
         if (text) {
           text.textContent = isNetActive()
-            ? `Joining lobbyâ€¦ starting in ${secs}s`
-            : `Starting in ${secs}sâ€¦`;
+            ? `Joining lobby… starting in ${secs}s`
+            : `Starting in ${secs}s…`;
         }
 
         if (secs <= 0) {
           if (ovLoad) ovLoad.style.display = 'none';
 
-          // âœ… hide either menu (single or multi)
+          // ✅ hide either menu (single or multi)
           const oh = document.getElementById('overlayHome');
           if (oh) oh.style.display = 'none';
           const os = document.getElementById('overlaySingle');
@@ -5262,7 +5262,7 @@ window.addEventListener('net:snapshot', (ev) => {
   if (!snap || !Array.isArray(snap.players)) return;
 
   storeSnapshot(snap);
-  storeMeFromSnapshot(snap); // âœ… ADD THIS
+  storeMeFromSnapshot(snap); // ✅ ADD THIS
   renderLobbyPlayers();
 
   if (localStorage.getItem('arenaMode') === 'pve' && typeof snap.wave === 'number') {
@@ -5289,7 +5289,7 @@ window.addEventListener('net:snapshot', (ev) => {
     // PvE lobby limit (max 5)
     if (ids.length > 5) ids.length = 5; 
 
-    // âœ… IMPORTANT: do NOT become "ready" unless roster exists AND includes me
+    // ✅ IMPORTANT: do NOT become "ready" unless roster exists AND includes me
     if (!ids.length || !ids.includes(Net.state.peerId)) { 
     LS.players.clear(); 
     LS.ready = false; 
@@ -5305,7 +5305,7 @@ window.addEventListener('net:snapshot', (ev) => {
     LS.players.set(id, { x: cx + Math.cos(a)*R, y: cy + Math.sin(a)*R, ang: 0, hp: 100 }); 
     } 
     // bind local player object to my lockstep state 
-    // âœ… DO NOT overwrite the local player object
+    // ✅ DO NOT overwrite the local player object
     // Lockstep state is authoritative ONLY for prediction,
     // render from snapshot / player separately
 
@@ -5377,9 +5377,9 @@ window.addEventListener('net:snapshot', (ev) => {
     }
     } 
 
-    // âœ… move bullets/effects in lockstep (fixes "white dot")
+    // ✅ move bullets/effects in lockstep (fixes "white dot")
     stepProjectiles(dt); 
-    // âœ… handle deaths in lockstep (was missing)
+    // ✅ handle deaths in lockstep (was missing)
     for (let i = ents.enemies.length - 1; i >= 0; i--) {
       const e = ents.enemies[i];
       if (e.hp <= 0) {
@@ -5432,7 +5432,7 @@ window.addEventListener('net:snapshot', (ev) => {
       const peerCount = online && Net.lockstep?.peers ? Net.lockstep.peers().length : 0;
       const meshSize = window.Net?._mesh?.size ?? 0;
 
-      // âœ… Only use lockstep if:
+      // ✅ Only use lockstep if:
       // - solo (1 peer), OR
       // - at least one WebRTC connection is open
       const canLockstep =
@@ -5488,11 +5488,13 @@ window.addEventListener('net:snapshot', (ev) => {
         player.hp = me.hp;
       }
     }
-    //  Online: spawn death VFX when enemies disappear from snapshot
-    
-    if (online && hasFreshSnapshot()) {
+    // ✅ Online: spawn death VFX when enemies disappear from snapshot
+    if (online && hasFreshSnapshot()){
       const snap = Net.state?.snapshot;
-
+      // ============================
+      // GLYPH TIMER — SERVER AUTHORITATIVE (EVERY TICK)
+      // ============================
+      
       if (snap?.phase && snap.phase !== netPhase) {
         netPhase = snap.phase;
         netGlyphTime = snap.glyphTime ?? 0;
@@ -5504,23 +5506,7 @@ window.addEventListener('net:snapshot', (ev) => {
           openGlyphOverlay(15);
         }
 
-        /* Ignore server phase changes while glyph UI is active */
-        if (state.phase === 'glyph') {
-          const remaining = state.phaseEndsAt - performance.now();
-          if (remaining > 0) {
-            if (glyphTimerEl) {
-              glyphTimerEl.textContent = String(Math.ceil(remaining / 1000));
-            }
-            return;
-          }
-
-          /* Glyph phase finished */
-          closeGlyphOverlay();
-          state.phase = 'combat';
-        }
       }
-
-
       if (snap && Array.isArray(snap.enemies)){
         const nowE = new Map();
         for (const e of snap.enemies){
@@ -5534,7 +5520,7 @@ window.addEventListener('net:snapshot', (ev) => {
             spawnGhostSilhouette(prev.x, prev.y, (prev.r ?? 16) + 10, currentTheme.accent);
             audio.hit();
             
-            // âœ… PvE leaderboard (online)
+            // ✅ PvE leaderboard (online)
               const typeKey =
                 (prev.type === 'chaser' || prev.type === 'swarm')
                   ? 'ravener'
@@ -5550,8 +5536,8 @@ window.addEventListener('net:snapshot', (ev) => {
         }
 
         _prevSnapEnemies = nowE;
-        // âœ… Online: spawn chest drops when a chest becomes opened (snapshot diff)
-        // âœ… Online: spawn chest drops on transition unopened -> opened (supports respawn)
+        // ✅ Online: spawn chest drops when a chest becomes opened (snapshot diff)
+        // ✅ Online: spawn chest drops on transition unopened -> opened (supports respawn)
         if (online && hasFreshSnapshot()) {
           const snap = Net.state?.snapshot;
           const chests = snap?.world?.chests;
@@ -5584,7 +5570,7 @@ window.addEventListener('net:snapshot', (ev) => {
         }
       }
     }
-    // âœ… Online authoritative: bullets come from snapshot
+    // ✅ Online authoritative: bullets come from snapshot
     if (online && hasFreshSnapshot()) {
       ents.bullets.length = 0;
       ents.ebullets.length = 0;
@@ -5607,7 +5593,7 @@ window.addEventListener('net:snapshot', (ev) => {
     for (let i = noiseEvents.length - 1; i >= 0; i--){ noiseEvents[i].t -= dt; if (noiseEvents[i].t <= 0) noiseEvents.splice(i, 1); }
     const k = input.keys 
     if (k.has('w') || k.has('arrowup'))    dy -= 1; if (k.has('s') || k.has('arrowdown'))  dy += 1; if (k.has('a') || k.has('arrowleft'))  dx -= 1; if (k.has('d') || k.has('arrowright')) dx += 1; dx += input.touch.stick.dx * 1.2; dy += input.touch.stick.dy * 1.2; const mag = Math.hypot(dx, dy) || 1; dx /= mag; dy /= mag;
-    // âœ… GLYPH PHASE: hard-disable player control
+    // ✅ GLYPH PHASE: hard-disable player control
     if (!online && state.phase === 'glyph') {
       dx = 0; dy = 0;
       input.mouse.down = false;
@@ -5618,7 +5604,7 @@ window.addEventListener('net:snapshot', (ev) => {
     const sens = parseFloat(rngSens.value || '1');
     const mx_css = input.mouse.x, my_css = input.mouse.y;
 
-    // Mouse screen â†’ world (same space your world is drawn in)
+    // Mouse screen → world (same space your world is drawn in)
     let aimX, aimY;
 
     if (IS_MOBILE && mobileAim.active) {
@@ -5629,7 +5615,7 @@ window.addEventListener('net:snapshot', (ev) => {
       aimY = cam.y + cam.sy + my_css;
     }
 
-    // âœ… Compute angle from the SAME position you render the player at
+    // ✅ Compute angle from the SAME position you render the player at
     const { x: ax, y: ay } = getVisualPlayerPos();
 
     player.angle = lerpAngle(
@@ -5637,7 +5623,7 @@ window.addEventListener('net:snapshot', (ev) => {
       angleTo(ax, ay, aimX, aimY),
       0.28 * sens
     );
-    // ðŸ“± Mobile tap-to-aim override (fires towards tap crosshair)
+    // 📱 Mobile tap-to-aim override (fires towards tap crosshair)
     if (IS_MOBILE && mobileAim.active) {
       player.angle = lerpAngle(
         player.angle,
@@ -5663,7 +5649,7 @@ window.addEventListener('net:snapshot', (ev) => {
     // (Optional legacy: you can remove sendInput; mesh uses state/event instead)
     // AFTER dx / dy are computed and normalized
     moveWithCollide(player, dx * speed * dt, dy * speed * dt);
-    tickWisps(dt); // âœ… WISPS UPDATE (ANCHOR TO PLAYER)
+    tickWisps(dt); // ✅ WISPS UPDATE (ANCHOR TO PLAYER)
 
     if (online) {
       Net.sendInput(dx, dy, player.angle, player.x, player.y, player.weapon);
@@ -5728,7 +5714,7 @@ window.addEventListener('net:snapshot', (ev) => {
           cam.shake = Math.max(cam.shake, 2);
 
           if (isNetActive()) {
-            // âœ… server authoritative melee damage
+            // ✅ server authoritative melee damage
             Net.sendHit('enemy', e.x, e.y, DMG, 'melee');
           } else {
             // offline damage
@@ -5744,7 +5730,7 @@ window.addEventListener('net:snapshot', (ev) => {
             }
 
 
-            // âœ… track melee kill owner
+            // ✅ track melee kill owner
             e.lastHitBy = 'local';
 
             if (e.hp <= 0) ents.enemies.splice(i, 1);
@@ -5754,7 +5740,7 @@ window.addEventListener('net:snapshot', (ev) => {
         }
       }
     }
-    // --- Singleâ€‘player spawning only ---
+    // --- Single‑player spawning only ---
     if (!online) {
       state.spawnT += dt;
 
@@ -5798,7 +5784,7 @@ window.addEventListener('net:snapshot', (ev) => {
           state.phase = 'combat';
           state.phaseEndsAt = 0;
 
-          // ðŸ’§ Sanctuary persists into next wave
+          // 💧 Sanctuary persists into next wave
           if (isPath('water') && hasG('water','sanctuary')){
             addWorldVfx({ type:'sanctuary', x: player.x, y: player.y, r: 80, life: 20 });
           }
@@ -5812,11 +5798,11 @@ window.addEventListener('net:snapshot', (ev) => {
     }
     
     if (melee) Melee.update(melee, dt);
-    // --- Singleâ€‘player enemy updates only ---
+    // --- Single‑player enemy updates only ---
     if (!online) {
       for (let i = ents.enemies.length - 1; i >= 0; i--) {
         const e = ents.enemies[i];
-        // ðŸ‘» Check Dread Bloom aura
+        // 👻 Check Dread Bloom aura
         e._dread = false;
         for (const fx of ents.effects){
           if (fx.type === 'dreadBloom'){
@@ -5830,7 +5816,7 @@ window.addEventListener('net:snapshot', (ev) => {
         }
 
         // AI tick
-        // ðŸ’§ Drench slow (OFFLINE ONLY)
+        // 💧 Drench slow (OFFLINE ONLY)
         if (!online && e.drenchT > 0){
           e.spdMul = 0.75;
         } else {
@@ -5854,11 +5840,11 @@ window.addEventListener('net:snapshot', (ev) => {
           : e.type==='bomber'?8
           : 12 ) * state.diff;
 
-        // ðŸ‘» Haunt: enemies deal half damage
+        // 👻 Haunt: enemies deal half damage
         if (e.hauntT > 0){
           dmg *= 0.5;
         }
-        // ðŸ‘» Dread Bloom: reduce damage by 1/3
+        // 👻 Dread Bloom: reduce damage by 1/3
         if (e._dread){
           dmg *= 0.66;
         }
@@ -5939,7 +5925,7 @@ window.addEventListener('net:snapshot', (ev) => {
           spawnTriangleBurst(e.x, e.y, baseCol, { big:6, small:22 });
           spawnGhostSilhouette(e.x, e.y, e.r + 10, currentTheme.accent);
 
-          // ðŸ‘» SPIRIT SHADE SPAWN (OFFLINE)
+          // 👻 SPIRIT SHADE SPAWN (OFFLINE)
           if (
             isPath('spirit') &&
             (
@@ -5956,7 +5942,7 @@ window.addEventListener('net:snapshot', (ev) => {
               t: 0
             });
           }
-          // ðŸ‘» Dread Bloom aura on death
+          // 👻 Dread Bloom aura on death
           if (isPath('spirit') && hasG('spirit','dreadBloom')){
             ents.effects.push({
               type: 'dreadBloom',
@@ -5967,7 +5953,7 @@ window.addEventListener('net:snapshot', (ev) => {
               t: 0
             });
           }
-          // ðŸŒŠ WATER â€” MAELSTROM (SINGLEâ€‘PLAYER, 75% ON KILL)
+          // 🌊 WATER — MAELSTROM (SINGLE‑PLAYER, 75% ON KILL)
           if (
             !isNetActive() &&
             isPath('water') &&
@@ -5979,7 +5965,7 @@ window.addEventListener('net:snapshot', (ev) => {
               x: e.x,
               y: e.y,
               r: 120,
-              life: 4.0 // âœ… EXACTLY 4 SECONDS
+              life: 4.0 // ✅ EXACTLY 4 SECONDS
             });
           }
 
@@ -5995,19 +5981,19 @@ window.addEventListener('net:snapshot', (ev) => {
       const base = b.dmg * (1 + state.wave * 0.02);
       let dmg = b.dmg;
 
-      // ðŸš« Skip glyph logic for plain bullets (wisps)
+      // 🚫 Skip glyph logic for plain bullets (wisps)
       if (!b.noGlyph){
         const mult = onHitGlyph(e, dmg, 'bullet');
         dmg *= mult;
       }
 
       e.hp -= dmg;
-      // ðŸ”¥ Napalm Trail: drop burning ground on bullet impact
+      // 🔥 Napalm Trail: drop burning ground on bullet impact
       if (isPath('fire') && hasG('fire','napalmTrail')){
         addWorldVfx({ type:'napalm', x: b.x, y: b.y, r: 60, life: 1.2 });
       }
 
-      // ðŸ‘» Soul Bind â€” split damage, conserve total
+      // 👻 Soul Bind — split damage, conserve total
       if (
         isPath('spirit') &&
         hasG('spirit','soulBind') &&
@@ -6035,10 +6021,10 @@ window.addEventListener('net:snapshot', (ev) => {
       }
 
 
-      // âœ… track last hitter for PvE leaderboard
+      // ✅ track last hitter for PvE leaderboard
       e.lastHitBy = 'local';
       addEffect(b.x,b.y,'hit',0.15,'#fff') 
-      // ðŸ’§ Mending Mist hit counter (OFFLINE ONLY)
+      // 💧 Mending Mist hit counter (OFFLINE ONLY)
       if (!online && isPath('water') && hasG('water','mendingMist')){
         player._mistHits = (player._mistHits ?? 0) + 1;
 
@@ -6052,19 +6038,19 @@ window.addEventListener('net:snapshot', (ev) => {
             type: 'mendingPulse',
             x: player.x,
             y: player.y,
-            r: player.r * 3,   // âœ… 3Ã— player width
+            r: player.r * 3,   // ✅ 3× player width
             life: 1.2,
             t: 0
           });
         }
       }
-     // ðŸŒŠ Tidal Wave hit counter
-     // ðŸŒŠ Tidal Wave hit counter (OFFLINE)
+     // 🌊 Tidal Wave hit counter
+     // 🌊 Tidal Wave hit counter (OFFLINE)
     
       cam.shake = Math.max(cam.shake,1.5); if (b.pierce > 0) b.pierce--; else ents.bullets.splice(i,1); e.alerted = true; e.alertT = Math.max(e.alertT, 3); broadcastAlertFrom(e.x,e.y); } }
 
     for (let i = ents.ebullets.length - 1; i >= 0; i--){ const b = ents.ebullets[i]; b.x += b.vx * dt; b.y += b.vy * dt; b.life -= dt; if (b.kind === 'bomb'){ const hitWall = lineWallHit(b.x, b.y, b.vx, b.vy, 0, b.r); const timeUp=(b.life<=0); if (hitWall || timeUp){ const R=(b.splashR||110)+player.r; if(dist2(b.x,b.y,player.x,player.y) < R*R){ hurtPlayer(b.dmg); addEffect(b.x,b.y,'hit',0.12,'#ffd7d7'); } addEffect(b.x,b.y,'pop',0.55,'#ffb38a'); cam.shake=Math.max(cam.shake,5); ents.ebullets.splice(i, 1); continue; } continue; } if (lineWallHit(b.x,b.y,b.vy,b.vx,0,b.r) || b.life <= 0){ ents.ebullets.splice(i,1); continue; } const r = player.r + b.r; if (dist2(b.x,b.y,player.x,player.y) < r*r){ if (currentTheme.id === 3) player.slowT = Math.max(player.slowT, 1.6); hurtPlayer(b.dmg); addEffect(b.x,b.y,'hit',0.1,'#ffd7d7'); ents.ebullets.splice(i,1); } }
-    if (!online) {
+
       for (let i = ents.pickups.length - 1; i >= 0; i--){
         const p = ents.pickups[i];
         p.t += dt;
@@ -6095,7 +6081,7 @@ window.addEventListener('net:snapshot', (ev) => {
             case 'xp':
               state.essence += (p.v ?? 1);
 
-              // ðŸ’§ Mending Mist: heal on XP pickup (OFFLINE ONLY)
+              // 💧 Mending Mist: heal on XP pickup (OFFLINE ONLY)
               if (!online && isPath('water') && hasG('water','mendingMist')){
                 player.hp = Math.min(player.hpMax, player.hp + 5);
 
@@ -6116,7 +6102,7 @@ window.addEventListener('net:snapshot', (ev) => {
           ents.pickups.splice(i,1);
         }
       }
-    }
+
     for (const ch of world.chests){
       if (!ch || ch.opened) continue;
 
@@ -6174,18 +6160,18 @@ window.addEventListener('net:snapshot', (ev) => {
       if (e.vy) e.vy *= 0.98;
     }
     else if (e.type === 'mendingPulse'){
-      // ðŸŒŠ follow player while active
+      // 🌊 follow player while active
       e.x = player.x;
       e.y = player.y;
     }
-    // ðŸŒŠ TIDAL WAVE GAMEPLAY EFFECT (push + drench over lifetime)
+    // 🌊 TIDAL WAVE GAMEPLAY EFFECT (push + drench over lifetime)
     if (e.type === 'tidalWave') {
-      const p = e.t / e.life;        // 0 â†’ 1
+      const p = e.t / e.life;        // 0 → 1
       const curR = e.r * p;
       const ARC  = e.spread ?? Math.PI / 3;
 
       /* =======================
-        ENEMIES â€” carried
+        ENEMIES — carried
         ======================= */
       for (const en of ents.enemies) {
         const dx = en.x - e.x;
@@ -6211,7 +6197,7 @@ window.addEventListener('net:snapshot', (ev) => {
       }
 
       /* =======================
-        ENEMY BULLETS â€” carried
+        ENEMY BULLETS — carried
         (IDENTICAL LOGIC)
         ======================= */
       for (const b of ents.ebullets) {
@@ -6384,7 +6370,7 @@ window.addEventListener('net:snapshot', (ev) => {
       };
     }
 
-    // Corrected camera boundaries â€” keeps player visible at edges
+    // Corrected camera boundaries — keeps player visible at edges
     // Unclamped camera: always follow player (no boundary stop)
     updateCamera(dt);   
     if (player.hp <= 0){
@@ -6404,7 +6390,7 @@ window.addEventListener('net:snapshot', (ev) => {
       bestEl.textContent = best;
       showGameOver();
     }
-    // ðŸŒŠ Water: TIDAL WAVE â€” periodic cone knockback
+    // 🌊 Water: TIDAL WAVE — periodic cone knockback
     if (
       !isNetActive() &&
       isPath('water') &&
@@ -6427,7 +6413,7 @@ window.addEventListener('net:snapshot', (ev) => {
         });
       }
     }
-    // ðŸª¨ Earth: Quake periodic stomp
+    // 🪨 Earth: Quake periodic stomp
     if (!isNetActive() && isPath('earth') && hasG('earth','quake')){
       player._quakeCD = (player._quakeCD ?? 0) - dt;
       if (player._quakeCD <= 0){
@@ -6450,9 +6436,8 @@ window.addEventListener('net:snapshot', (ev) => {
     const online = isNetActive();
     const snap = online ? getInterpolatedSnapshot() : null;
     const snapRaw = online ? Net.state?.snapshot : null;
-    
 
-    // âœ… DEFINE BULLETS ONCE (used in multiple sections below)
+    // ✅ DEFINE BULLETS ONCE (used in multiple sections below)
     const allBullets =
       (online && snap && Array.isArray(snap.bullets))
         ? snap.bullets
@@ -6473,7 +6458,7 @@ window.addEventListener('net:snapshot', (ev) => {
       world.drawHazards();
 
       if (!isNetActive() || HAS_SERVER_WORLD) {
-        world.drawObstacles(); // âœ… always redraw on top of floor
+        world.drawObstacles(); // ✅ always redraw on top of floor
       }
 
 
@@ -6487,13 +6472,13 @@ window.addEventListener('net:snapshot', (ev) => {
     // ---------------------------
     const drawPickups =
       (online && snapRaw && Array.isArray(snapRaw.pickups))
-        ? snapRaw.pickups    // âœ… authoritative server pickups
-        : ents.pickups;      // âœ… offline or fallback if no snap
+        ? snapRaw.pickups    // ✅ authoritative server pickups
+        : ents.pickups;      // ✅ offline or fallback if no snap
 
     for (const p of drawPickups) {
 
-      // âœ… Boss telegraphed explosion warning
-      // âœ… Boss telegraph: red target marker
+      // ✅ Boss telegraphed explosion warning
+      // ✅ Boss telegraph: red target marker
       if (p.type === 'bossTarget') {
         const x = p.x - cam.x - cam.sx;
         const y = p.y - cam.y - cam.sy;
@@ -6521,7 +6506,7 @@ window.addEventListener('net:snapshot', (ev) => {
         continue;
       }
 
-      // âœ… Boss telegraph: blast radius warning circle (shown before explosion)
+      // ✅ Boss telegraph: blast radius warning circle (shown before explosion)
       if (p.type === 'bossWarn') {
         const x = p.x - cam.x - cam.sx;
         const y = p.y - cam.y - cam.sy;
@@ -6546,7 +6531,7 @@ window.addEventListener('net:snapshot', (ev) => {
         ctx.restore();
         continue;
       }
-      // âœ… Boss explosion VFX: expanding ring (not too big)
+      // ✅ Boss explosion VFX: expanding ring (not too big)
       if (p.type === 'bossBoom') {
         const x = p.x - cam.x - cam.sx;
         const y = p.y - cam.y - cam.sy;
@@ -6579,7 +6564,7 @@ window.addEventListener('net:snapshot', (ev) => {
         continue;
       }
 
-      // âœ… Normal pickups
+      // ✅ Normal pickups
       const col =
         p.type === 'xp'     ? '#ffffff' :
         p.type === 'health' ? '#7dffa3' :
@@ -6604,7 +6589,7 @@ window.addEventListener('net:snapshot', (ev) => {
     }
 
     // ---------------------------
-    // âœ… Bullets (player + enemy)
+    // ✅ Bullets (player + enemy)
     // ---------------------------
 
     // smoothed/interpolated snapshot bullets (once you add bullet smoothing into getInterpolatedSnapshot)
@@ -6625,7 +6610,7 @@ window.addEventListener('net:snapshot', (ev) => {
     // ===========================
     ctx.fillStyle = '#cfe5ff';
 
-    // âœ… OFFLINE: draw local player bullets
+    // ✅ OFFLINE: draw local player bullets
     if (!online) {
       for (const b of ents.bullets) {
         ctx.beginPath();
@@ -6640,9 +6625,9 @@ window.addEventListener('net:snapshot', (ev) => {
       }
     }
 
-    // âœ… ONLINE: draw RAW bullets in red (debug), then WALLâ€‘CLIPPED bullets in normal colour
+    // ✅ ONLINE: draw RAW bullets in red (debug), then WALL‑CLIPPED bullets in normal colour
     if (online) {
-      // raw (jumpy) â€” debug
+      // raw (jumpy) — debug
       if (rawBullets) {
         ctx.save();
         ctx.globalAlpha = 0.45;
@@ -6664,9 +6649,9 @@ window.addEventListener('net:snapshot', (ev) => {
         ctx.restore();
       }
 
-      // âœ… HARDâ€‘CLIPPED BULLETS (server walls are final)
-      // âœ… HARDâ€‘CLIPPED BULLETS (server walls are final)
-      // âœ… PLUS: client-only hit detection + hide bullet immediately + spawn hit FX
+      // ✅ HARD‑CLIPPED BULLETS (server walls are final)
+      // ✅ HARD‑CLIPPED BULLETS (server walls are final)
+      // ✅ PLUS: client-only hit detection + hide bullet immediately + spawn hit FX
       if (onlineBullets) {
         ctx.fillStyle = '#cfe5ff';
 
@@ -6715,7 +6700,7 @@ window.addEventListener('net:snapshot', (ev) => {
             y0 = prev[bestIdx].y;
             suppressed = !!prev[bestIdx].suppressed;
           } else {
-            // no match last frame â†’ backtrack along velocity so we still sweep across walls
+            // no match last frame → backtrack along velocity so we still sweep across walls
             // IMPORTANT: bullet snapshots can "jump", so a zero-length segment will miss walls.
             const BACKTRACK = 0.12; // seconds (matches your 120ms interp buffer)
             x0 = b.x - (b.vx ?? 0) * BACKTRACK;
@@ -6744,7 +6729,7 @@ window.addEventListener('net:snapshot', (ev) => {
             }
             if (hitWall) break;
           }
-          // âœ… If we hit a wall, draw ONLY at the impact point and stop forever
+          // ✅ If we hit a wall, draw ONLY at the impact point and stop forever
           if (hitWall) {
             // draw at wall contact (never beyond)
             ctx.beginPath();
@@ -6757,7 +6742,7 @@ window.addEventListener('net:snapshot', (ev) => {
             );
             ctx.fill();
 
-            // âœ… do NOT carry this bullet forward
+            // ✅ do NOT carry this bullet forward
             continue;
           }
           // ---- Client-only swept hit vs the SAME enemies you draw (drawEnemies is interpolated snapshot) ----
@@ -6793,29 +6778,29 @@ window.addEventListener('net:snapshot', (ev) => {
             }
 
             if (hitE) {
-              // âœ… Fire hit FX ONCE (first time we mark suppressed)
+              // ✅ Fire hit FX ONCE (first time we mark suppressed)
               addEffect(hitX, hitY, 'hit', 0.15, '#fff');
               cam.shake = Math.max(cam.shake, 1.5);
 
-              // âœ… Hide bullet immediately on client regardless of server â€œjumpsâ€
+              // ✅ Hide bullet immediately on client regardless of server “jumps”
               suppressed = true;
             }
           }
 
           // remember for next frame (even if suppressed)
           // remember for next frame
-          // âœ… IMPORTANT: bullets that hit a WALL are PERMANENTLY suppressed
+          // ✅ IMPORTANT: bullets that hit a WALL are PERMANENTLY suppressed
           if (!hitWall) {
             next.push({
-              x: fx, y: fy,       // âœ… store the drawn position
+              x: fx, y: fy,       // ✅ store the drawn position
               vx: b.vx, vy: b.vy,
               owner: b.owner ?? null,
               suppressed
             });
           }
-          // âœ… if hitWall === true â†’ do NOT carry it forward at all
+          // ✅ if hitWall === true → do NOT carry it forward at all
 
-          // âœ… If suppressed (client says it hit), do not draw it at all
+          // ✅ If suppressed (client says it hit), do not draw it at all
           if (suppressed) continue;
 
           // draw bullet (clamped if needed)
@@ -6829,7 +6814,7 @@ window.addEventListener('net:snapshot', (ev) => {
           );
           ctx.fill();
 
-          // âœ… do NOT render past the wall
+          // ✅ do NOT render past the wall
           if (hitWall) continue;
         }
 
@@ -6842,7 +6827,7 @@ window.addEventListener('net:snapshot', (ev) => {
     // ===========================
     ctx.fillStyle = '#ffadad';
 
-    // âœ… OFFLINE: enemy bullets
+    // ✅ OFFLINE: enemy bullets
     if (!online) {
       for (const b of ents.ebullets) {
         const rad = b.kind === 'bomb' ? 7 : (b.r ?? 4);
@@ -6858,9 +6843,9 @@ window.addEventListener('net:snapshot', (ev) => {
       }
     }
 
-    // âœ… ONLINE: draw RAW enemy bullets in magenta (debug), then smoothed in normal colour
+    // ✅ ONLINE: draw RAW enemy bullets in magenta (debug), then smoothed in normal colour
     if (online) {
-      // raw (jumpy) â€” debug
+      // raw (jumpy) — debug
       if (rawBullets) {
         ctx.save();
         ctx.globalAlpha = 0.45;
@@ -6883,7 +6868,7 @@ window.addEventListener('net:snapshot', (ev) => {
         ctx.restore();
       }
 
-      // smoothed (interpolated) â€” main
+      // smoothed (interpolated) — main
       if (onlineBullets) {
         ctx.fillStyle = '#ffadad';
         for (const b of onlineBullets) {
@@ -6932,7 +6917,7 @@ window.addEventListener('net:snapshot', (ev) => {
       const cy = e.y - cam.y - cam.sy;
       const rr = e.r ?? 16;
 
-      // âœ… Healer aura visual (draw behind sprite)
+      // ✅ Healer aura visual (draw behind sprite)
       if (e.type === 'healer') {
         ctx.save();
         ctx.globalAlpha = 0.22;
@@ -7054,8 +7039,8 @@ window.addEventListener('net:snapshot', (ev) => {
         if (!rp || rp.id === myId) continue;
 
         
-        // âœ… No advance: use the latest authoritative position/angle as-is
-        // âœ… Low-latency smoothing toward latest snapshot (NO TIME REWIND)
+        // ✅ No advance: use the latest authoritative position/angle as-is
+        // ✅ Low-latency smoothing toward latest snapshot (NO TIME REWIND)
         const id = rp.id;
 
         // persistent render state
@@ -7066,7 +7051,7 @@ window.addEventListener('net:snapshot', (ev) => {
         }
 
         // tuning (NO buffer delay)
-        const POS_SMOOTH = 0.22;   // position smoothing (0.15â€“0.35)
+        const POS_SMOOTH = 0.22;   // position smoothing (0.15–0.35)
         const ANG_SMOOTH = 0.30;   // angle smoothing
         const MAX_ERR = 100;       // snap distance for dashes / teleports
 
@@ -7109,14 +7094,14 @@ window.addEventListener('net:snapshot', (ev) => {
         ctx.translate(px, py);
         ctx.rotate(rang);
         
-        // âœ… BODY ONLY â€” no gun, no local state
+        // ✅ BODY ONLY — no gun, no local state
         drawDesign(
           design,
           col,
           performance.now() / 1000,
           rp.r ?? 16
         );
-        // âœ… draw remote gun skin (visual only)
+        // ✅ draw remote gun skin (visual only)
         const guns = rp.guns ?? { pistol: -1, rifle: -1, shotgun: -1 };
         const w = weapons[rp.weapon ?? 0];
 
@@ -7167,7 +7152,7 @@ window.addEventListener('net:snapshot', (ev) => {
         const dx = meSnap.x - lx;
         const dy = meSnap.y - ly;
 
-        const CORRECT_RATE = 0.18; // 0.12â€“0.25 sweet spot
+        const CORRECT_RATE = 0.18; // 0.12–0.25 sweet spot
         lx += dx * CORRECT_RATE;
         ly += dy * CORRECT_RATE;
       }
@@ -7308,11 +7293,11 @@ window.addEventListener('net:snapshot', (ev) => {
         const x = e.x - cam.x;
         const y = e.y - cam.y;
 
-        const p = e.t / e.life;        // 0 â†’ 1
+        const p = e.t / e.life;        // 0 → 1
         const fade = 1 - p;
 
-        // ðŸŒŠ expanding wave front
-        // ðŸŒŠ expanding wave front (SAFE)
+        // 🌊 expanding wave front
+        // 🌊 expanding wave front (SAFE)
         const frontR = Math.max(0.01, e.r * p);
         const thickness = e.r * 0.18;
         const innerR = Math.max(0, frontR - thickness);
@@ -7394,13 +7379,13 @@ window.addEventListener('net:snapshot', (ev) => {
         const x = e.x - cam.x;
         const y = e.y - cam.y;
 
-        const p = e.t / e.life;               // 0 â†’ 1
+        const p = e.t / e.life;               // 0 → 1
         const fade = Math.max(0, 1 - p);
         const depth = e.r * (0.9 + 0.1 * Math.sin(e.t * 3));
 
         ctx.save();
 
-        // ðŸŒŠ shadow base (grounded 3D depth)
+        // 🌊 shadow base (grounded 3D depth)
         ctx.globalCompositeOperation = 'multiply';
         const gShadow = ctx.createRadialGradient(
           x, y, depth * 0.3,
@@ -7413,7 +7398,7 @@ window.addEventListener('net:snapshot', (ev) => {
         ctx.arc(x, y, e.r * 1.15, 0, Math.PI * 2);
         ctx.fill();
 
-        // ðŸŒ« volumetric mist body
+        // 🌫 volumetric mist body
         ctx.globalCompositeOperation = 'screen';
         const gBody = ctx.createRadialGradient(x, y, 0, x, y, e.r);
         gBody.addColorStop(0, `rgba(140,220,255,${0.38 * fade})`);
@@ -7424,7 +7409,7 @@ window.addEventListener('net:snapshot', (ev) => {
         ctx.arc(x, y, e.r, 0, Math.PI * 2);
         ctx.fill();
 
-        // ðŸŒ€ slow swirling mist bands (3D illusion)
+        // 🌀 slow swirling mist bands (3D illusion)
         ctx.strokeStyle = `rgba(185,245,255,${0.45 * fade})`;
         ctx.lineWidth = e.r * 0.06;
         for (let i = 0; i < 4; i++){
@@ -7455,7 +7440,7 @@ window.addEventListener('net:snapshot', (ev) => {
         ctx.globalCompositeOperation = 'screen';
         ctx.translate(x, y);
 
-        // ðŸ‘» Core ghost body
+        // 👻 Core ghost body
         const g = ctx.createRadialGradient(0, 0, 2, 0, 0, baseR * 1.4 * scale);
         g.addColorStop(0, `rgba(220,180,255,${0.7 * pulse})`);
         g.addColorStop(1, 'rgba(0,0,0,0)');
@@ -7464,7 +7449,7 @@ window.addEventListener('net:snapshot', (ev) => {
         ctx.arc(0, 0, baseR * 1.4 * scale, 0, Math.PI * 2);
         ctx.fill();
 
-        // ðŸ‘» Shimmering arms
+        // 👻 Shimmering arms
         ctx.strokeStyle = `rgba(200,150,255,${0.35 * pulse})`;
         ctx.lineWidth = 3 * scale;
         for (let i = 0; i < 3; i++){
@@ -7476,7 +7461,7 @@ window.addEventListener('net:snapshot', (ev) => {
           ctx.stroke();
         }
 
-        // ðŸ‘‘ Crown for wraiths
+        // 👑 Crown for wraiths
         if (e.isWraith){
           ctx.strokeStyle = 'rgba(255,215,120,0.9)';
           ctx.lineWidth = 2.5;
@@ -7525,7 +7510,7 @@ window.addEventListener('net:snapshot', (ev) => {
   }
 
   function drawMinimap(){
-    // âœ… Use CSS-pixel space consistently
+    // ✅ Use CSS-pixel space consistently
     mctx.setTransform(MINI_DPR, 0, 0, MINI_DPR, 0, 0);
 
     const mw = MINI_VIEW.w;
@@ -7539,7 +7524,7 @@ window.addEventListener('net:snapshot', (ev) => {
     mctx.fillRect(0, 0, mw, mh);
 
     // ===============================
-    // âœ… UNIFORM WORLD â†’ MINIMAP SCALE
+    // ✅ UNIFORM WORLD → MINIMAP SCALE
     // ===============================
     const scale = Math.min(
       mw / world.w,
@@ -7695,7 +7680,7 @@ window.addEventListener('net:snapshot', (ev) => {
 
     // Slide force breathes a little so it feels alive
     const breath = 0.85 + 0.15 * Math.sin(t * 1.1 + seed * 2.3);
-    const slideSpeed = 200 * breath;   // adjust 180â€“260 to taste
+    const slideSpeed = 200 * breath;   // adjust 180–260 to taste
 
     const vx = Math.cos(dir) * slideSpeed;
     const vy = Math.sin(dir) * slideSpeed;
@@ -7880,7 +7865,7 @@ window.addEventListener('net:snapshot', (ev) => {
     audio.hurt();
     if (player.hp < 0) player.hp = 0;
   }
-  function showGameOver(){ ovPause.style.display='grid'; ovPause.querySelector('h2').textContent='ðŸ’€ Game Over'; }
+  function showGameOver(){ ovPause.style.display='grid'; ovPause.querySelector('h2').textContent='💀 Game Over'; }
 
   window.addEventListener('pointerdown', ()=>{ try{audio.ctx?.resume?.();}catch(e){} if(audio.musicOn) audio.startMusic(); }, {once:true});
   state.running=false; updateHUD();
@@ -7896,8 +7881,8 @@ window.__ASSETS__.loadImages = loadImages;
 window.__ASSETS__.loadGunImages = loadGunImages;
 window.__ASSETS__.loadMelee = () => Melee.loadAll();
 // ================================
-// ðŸ“± Mobile Dash & Melee Buttons
-// âœ… MUST RUN AFTER DOM IS READY
+// 📱 Mobile Dash & Melee Buttons
+// ✅ MUST RUN AFTER DOM IS READY
 // ================================
 window.addEventListener('DOMContentLoaded', () => {
 
@@ -7906,7 +7891,7 @@ window.addEventListener('DOMContentLoaded', () => {
   const btnDash  = document.getElementById('btnDash');
   const btnMelee = document.getElementById('btnMelee');
 
-  // DASH â†’ same as Space key
+  // DASH → same as Space key
   if (btnDash) {
     btnDash.addEventListener('touchstart', (e) => {
       e.preventDefault();
@@ -7977,7 +7962,7 @@ window.__dbg = {
   }
 };
 
-// âœ… PRELOAD ALL VISUAL ASSETS IMMEDIATELY
+// ✅ PRELOAD ALL VISUAL ASSETS IMMEDIATELY
 // ===== Glyph sprite preload =====
 const GlyphImages = {
   fire: [new Image(), new Image(), new Image()],
@@ -8007,7 +7992,7 @@ function loadGlyphImages() {
   return Promise.all(tasks);
 }
 
-// âœ… PRELOAD ALL VISUAL ASSETS IMMEDIATELY
+// ✅ PRELOAD ALL VISUAL ASSETS IMMEDIATELY
 (async () => {
   try {
     await loadImages();      // monsters
