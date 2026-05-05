@@ -5483,7 +5483,7 @@ window.addEventListener('net:snapshot', (ev) => {
         return;
       }
 
-      /if (typeof me.hp === 'number'){
+      if (typeof me.hp === 'number'){
         player.hp = me.hp;
       }
     }
