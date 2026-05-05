@@ -6450,30 +6450,6 @@ window.addEventListener('net:snapshot', (ev) => {
     const online = isNetActive();
     const snap = online ? getInterpolatedSnapshot() : null;
     const snapRaw = online ? Net.state?.snapshot : null;
-<<<<<<< HEAD
-=======
-    // ============================
-    // GLYPH PHASE â€” ALWAYS FOLLOW SERVER STATE
-    // ============================
-    if (online) {
-      const snap = Net.state?.snapshot;
-
-      if (snap && typeof snap.phase === 'string') {
-
-        // ENTER glyph
-        if (snap.phase === 'glyph' && state.phase !== 'glyph') {
-          state.phase = 'glyph';
-          openGlyphOverlay(15);
-        }
-
-        // EXIT glyph
-        if (snap.phase !== 'glyph' && state.phase === 'glyph') {
-          state.phase = 'combat';
-          closeGlyphOverlay();
-        }
-      }
-    }
->>>>>>> c3dcd7b28fb999e93b1a3f2585b580f42f124c3f
     
 
     // âœ… DEFINE BULLETS ONCE (used in multiple sections below)
