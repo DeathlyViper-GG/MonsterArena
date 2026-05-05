@@ -5492,6 +5492,23 @@ window.addEventListener('net:snapshot', (ev) => {
     if (online && hasFreshSnapshot()){
       const snap = Net.state?.snapshot;
       // ============================
+      // GLYPH PHASE — SERVER AUTHORITY
+      // ============================
+      if (online && snap && typeof snap.phase === 'string') {
+
+        // ENTER glyph phase
+        if (snap.phase === 'glyph' && state.phase !== 'glyph') {
+          state.phase = 'glyph';
+          openGlyphOverlay(15);
+        }
+
+        // EXIT glyph phase
+        if (snap.phase !== 'glyph' && state.phase === 'glyph') {
+          state.phase = 'combat';
+          closeGlyphOverlay();
+        }
+      }
+      // ============================
       // GLYPH TIMER — SERVER AUTHORITATIVE (EVERY TICK)
       // ============================
       
