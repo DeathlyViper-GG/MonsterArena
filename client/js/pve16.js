@@ -1513,22 +1513,25 @@
   window.addEventListener('mouseup', ()=> input.mouse.down=false);
 
   // Resize --------------------------------------------------------------------
-  function resize(){
+  function resize() {
     const dpr = Math.max(1, window.devicePixelRatio || 1);
 
-    // Backing store in device pixels
-    canvas.width  = Math.floor(window.innerWidth  * dpr);
-    canvas.height = Math.floor(window.innerHeight * dpr);
+    const rect = canvas.getBoundingClientRect();
 
-    // Draw in CSS pixel coordinates
+    // ✅ Use ACTUAL visible size (fixes mobile rotation bug)
+    const w = rect.width;
+    const h = rect.height;
+
+    canvas.width = Math.floor(w * dpr);
+    canvas.height = Math.floor(h * dpr);
+
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-    // ✅ Store CSS viewport size for camera math
-    const rect = canvas.getBoundingClientRect();
-    VIEW.w = rect.width;
-    VIEW.h = rect.height;
+    VIEW.w = w;
+    VIEW.h = h;
     VIEW.dpr = dpr;
   }
+
   window.addEventListener('resize', resize);
   resize();
 
@@ -6487,10 +6490,23 @@ window.addEventListener('net:snapshot', (ev) => {
     // Pickups (XP / loot / telegraphs)
     // IMPORTANT: pickups are NEVER interpolated
     // ---------------------------
-    const drawPickups =
-      (online && snapRaw && Array.isArray(snapRaw.pickups))
-        ? snapRaw.pickups    // ✅ authoritative server pickups
-        : ents.pickups;      // ✅ offline or fallback if no snap
+    let drawPickups = [];
+
+    if (online && snapRaw && Array.isArray(snapRaw.pickups)) {
+      // ✅ server pickups (ammo, health, etc)
+      drawPickups = [...snapRaw.pickups];
+
+      // ✅ ALSO include local XP orbs
+      for (const p of ents.pickups) {
+        if (p.type === 'xp') {
+          drawPickups.push(p);
+        }
+      }
+    }
+    else {
+      // offline
+      drawPickups = ents.pickups;
+    }
 
     for (const p of drawPickups) {
 
