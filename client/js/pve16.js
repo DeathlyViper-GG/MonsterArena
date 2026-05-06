@@ -24,7 +24,7 @@
 
   const IS_MOBILE = /Mobi|Android|iPad|iPhone/i.test(navigator.userAgent);
 
-  let mobileAim = null;
+  let mobileAim = { active:false, x:0, y:0 };
   // ================================
   // 📱 Mobile Dash & Melee Buttons
   // ================================
@@ -5659,15 +5659,10 @@ window.addEventListener('net:snapshot', (ev) => {
     // Mouse screen → world (same space your world is drawn in)
     let aimX, aimY;
 
-    if (IS_MOBILE && mobileAim.active) {
-      aimX = mobileAim.x;
-      aimY = mobileAim.y;
-    } else {
-      aimX = cam.x + cam.sx + mx_css;
-      aimY = cam.y + cam.sy + my_css;
-    }
+    // ✅ MOBILE: angle controlled ONLY by right joystick// ✅ MOBILE: angle controlled ONLYif (!IS_MOBILE) {
+    aimX = cam.x + cam.sx + mx_css;
+    aimY = cam.y + cam.sy + my_css;
 
-    // ✅ Compute angle from the SAME position you render the player at
     const { x: ax, y: ay } = getVisualPlayerPos();
 
     player.angle = lerpAngle(
@@ -5675,14 +5670,8 @@ window.addEventListener('net:snapshot', (ev) => {
       angleTo(ax, ay, aimX, aimY),
       0.28 * sens
     );
-    // 📱 Mobile tap-to-aim override (fires towards tap crosshair)
-    if (IS_MOBILE && mobileAim.active) {
-      player.angle = lerpAngle(
-        player.angle,
-        angleTo(player.x, player.y, mobileAim.x, mobileAim.y),
-        0.4
-      );
-    }
+
+
     if (player.reloading){ player.reloadT -= dt; if (player.reloadT <= 0){ const w = weapons[player.weapon]; const need = w.ammo - player.ammo; const give = Math.min(need, player.reserve); player.ammo += give; player.reserve -= give; player.reloading = false; } }
     player.inSand = false;
     player.onIce  = false; // <-- add this reset
