@@ -1516,20 +1516,38 @@
   function resize() {
     const dpr = Math.max(1, window.devicePixelRatio || 1);
 
+    // ✅ TRUE visible size (fixes rotation bugs)
     const rect = canvas.getBoundingClientRect();
-
-    // ✅ Use ACTUAL visible size (fixes mobile rotation bug)
     const w = rect.width;
     const h = rect.height;
 
+    // ✅ Set canvas backing resolution
     canvas.width = Math.floor(w * dpr);
     canvas.height = Math.floor(h * dpr);
 
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-
+    // ✅ Store viewport (CSS space)
     VIEW.w = w;
     VIEW.h = h;
     VIEW.dpr = dpr;
+
+    // =========================
+    // ✅ MOBILE ZOOM FIX
+    // =========================
+    const aspect = w / h;
+
+    if (IS_MOBILE) {
+      // Landscape → zoom OUT
+      if (aspect > 1.4) {
+        cam.zoom = 0.75;   // 🔧 tweak this if needed
+      } else {
+        cam.zoom = 1.0;    // portrait normal
+      }
+    } else {
+      cam.zoom = 1.0;      // desktop
+    }
+
+    // ✅ Apply zoom + DPR together
+    ctx.setTransform(dpr * cam.zoom, 0, 0, dpr * cam.zoom, 0, 0);
   }
 
   window.addEventListener('resize', resize);
@@ -1566,7 +1584,7 @@
 
 
   // Camera --------------------------------------------------------------------
-  const cam = { x:0, y:0, shake:0, sx:0, sy:0 };
+  const cam = { x:0, y:0, shake:0, sx:0, sy:0, zoom:1 };
   function updateCamera(dt){
     const online = isNetActive();
 
@@ -1581,8 +1599,8 @@
       py += (meSnap.y - py) * 0.18;
     }
     // ✅ Use CSS viewport size (NOT canvas.width/height which are device pixels)
-    const targetX = px - VIEW.w / 2;
-    const targetY = py - VIEW.h / 2;
+    const targetX = px - (VIEW.w / cam.zoom) / 2;
+    const targetY = py - (VIEW.h / cam.zoom) / 2;
 
     cam.x = lerp(cam.x, targetX, 0.12);
     cam.y = lerp(cam.y, targetY, 0.12);
