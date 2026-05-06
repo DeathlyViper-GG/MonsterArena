@@ -4087,11 +4087,11 @@ if (btnHomeCustomize){
 
   if (btnFire) {
     btnFire.addEventListener('touchstart', () => {
-      mouse.down = true;
+      input.mouse.down = true;
     });
 
     btnFire.addEventListener('touchend', () => {
-      mouse.down = false;
+      input.mouse.down = false;
     });
   }
   touch.init();
@@ -5663,13 +5663,16 @@ window.addEventListener('net:snapshot', (ev) => {
     aimX = cam.x + cam.sx + mx_css;
     aimY = cam.y + cam.sy + my_css;
 
-    const { x: ax, y: ay } = getVisualPlayerPos();
+    // ✅ Desktop only — mobile uses joystick
+    if (!IS_MOBILE) {
+      const { x: ax, y: ay } = getVisualPlayerPos();
 
-    player.angle = lerpAngle(
-      player.angle,
-      angleTo(ax, ay, aimX, aimY),
-      0.28 * sens
-    );
+      player.angle = lerpAngle(
+        player.angle,
+        angleTo(ax, ay, aimX, aimY),
+        0.28 * sens
+      );
+    }
 
 
     if (player.reloading){ player.reloadT -= dt; if (player.reloadT <= 0){ const w = weapons[player.weapon]; const need = w.ammo - player.ammo; const give = Math.min(need, player.reserve); player.ammo += give; player.reserve -= give; player.reloading = false; } }
