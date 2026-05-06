@@ -108,25 +108,25 @@
   </div>
 </div>
 
-<div class="minimap" id="minimapWrap">
-  <canvas id="mini" width="150" height="150"></canvas>
-</div>
+<div class="minimap" id="minimapWrap" style="bottom:120px;">
+  <canvas id="mini" width="150" height="150" aria-label="Minimap"></canvas>
 
-<!-- ✅ MOVE ACTION BUTTONS OUTSIDE MINIMAP -->
-<div class="mobile-actions" id="mobileActions">
-  <button class="mob-btn" id="btnDash">DASH</button>
-  <button class="mob-btn" id="btnMelee">MELEE</button>
+  <!-- 📱 Mobile action buttons (overlay on minimap) -->
+  <div class="mobile-actions" id="mobileActions">
+    <button class="mob-btn" id="btnDash">DASH</button>
+    <button class="mob-btn" id="btnMelee">MELEE</button>
+  </div>
 </div>
 <style>
 /* 📱 Mobile-only minimap overlay buttons */
 .mobile-actions {
-  position: fixed;
-  right: 20px;
-  bottom: 300px; /* ✅ ABOVE WPN button */
-  display: flex;
+  position: absolute;
+  bottom: 6px;
+  right: 6px;
+  display: none;
   flex-direction: column;
-  gap: 8px;
-  z-index: 6;
+  gap: 6px;
+  z-index: 5;
 }
 
 .mob-btn {
@@ -403,14 +403,12 @@
     <div class="nub" id="nubL"></div>
   </div>
 
+  <!-- ✅ RIGHT AIM STICK -->
   <div class="stick" id="stickR">
     <div class="nub" id="nubR"></div>
   </div>
 
-  <!-- ✅ WEAPON SWAP (REQUIRED) -->
-  <div class="kpad" id="btnSwap">WPN</div>
-
-  <!-- ✅ FIRE -->
+  <!-- ✅ FIRE BUTTON -->
   <div id="btnFire" class="fire">FIRE</div>
 </div>
 
