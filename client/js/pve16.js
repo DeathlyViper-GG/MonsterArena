@@ -24,52 +24,7 @@
 
   const IS_MOBILE = /Mobi|Android|iPad|iPhone/i.test(navigator.userAgent);
 
-  let mobileAim = { active:false, x:0, y:0 };
-
-  if (IS_MOBILE) {
-
-    window.addEventListener('touchstart', (e) => {
-
-      const target = e.target;
-
-      // ✅ BLOCK ALL UI CONTROLS FROM FIRING
-      if (
-        target.closest('#stickL') ||
-        target.closest('#stickR') ||
-        target.closest('#btnFire') ||
-        target.closest('#btnSwap') ||
-        target.closest('#btnDash') ||
-        target.closest('#btnMelee')
-      ) {
-        return;
-      }
-
-      const t = e.changedTouches[0];
-      const rect = canvas.getBoundingClientRect();
-
-      mobileAim.active = true;
-      mobileAim.x = cam.x + (t.clientX - rect.left);
-      mobileAim.y = cam.y + (t.clientY - rect.top);
-
-      input.mouse.down = true; // ✅ ONLY fires when tapping game area
-
-    }, { passive:true });
-
-    window.addEventListener('touchmove', (e) => {
-      if (!mobileAim.active) return;
-
-      const t = e.changedTouches[0];
-      const rect = canvas.getBoundingClientRect()
-
-      mobileAim.x = cam.x + (t.clientX - rect.left);
-      mobileAim.y = cam.y + (t.clientY - rect.top);
-    }, { passive:true });
-
-    window.addEventListener('touchend', () => {
-      mobileAim.active = false;
-      input.mouse.down = false;
-    });
-  }
+  let mobileAim = null;
   // ================================
   // 📱 Mobile Dash & Melee Buttons
   // ================================
@@ -4079,37 +4034,53 @@ if (btnHomeCustomize){
 
   let aimDX = 0, aimDY = 0;
 
+  let idR = null;
+
   if (stickR) {
 
-    stickR.addEventListener('touchmove', e => {
-      const t = e.touches[0];
-      const r = stickR.getBoundingClientRect();
-
-      const x = t.clientX - (r.left + r.width/2);
-      const y = t.clientY - (r.top + r.height/2);
-
-      const dx = x;
-      const dy = y;
-
-      const dist = Math.hypot(dx, dy);
-
-      // ✅ Clamp stick movement visually
-      const max = 40;
-      const clamp = Math.min(dist, max);
-      const nx = dist ? dx / dist : 0;
-      const ny = dist ? dy / dist : 0;
-
-      nubR.style.transform = `translate(${nx * clamp}px, ${ny * clamp}px)`;
-
-      // ✅ Only update angle if moved enough
-      if (dist > 5) {
-        player.angle = Math.atan2(dy, dx);
+    stickR.addEventListener('touchstart', e => {
+      for (const t of e.changedTouches) {
+        if (idR === null) {
+          idR = t.identifier;
+        }
       }
-    });
+    }, { passive:false });
 
-    stickR.addEventListener('touchend', () => {
-      nubR.style.transform = `translate(0,0)`;
-    });
+    stickR.addEventListener('touchmove', e => {
+      for (const t of e.changedTouches) {
+        if (t.identifier === idR) {
+
+          const r = stickR.getBoundingClientRect();
+
+          const x = t.clientX - (r.left + r.width/2);
+          const y = t.clientY - (r.top + r.height/2);
+
+          const dist = Math.hypot(x, y);
+
+          const max = 44;
+          const clamped = Math.min(dist, max);
+
+          const nx = dist ? x / dist : 0;
+          const ny = dist ? y / dist : 0;
+
+          nubR.style.transform = `translate(${nx * clamped}px, ${ny * clamped}px)`;
+
+          if (dist > 5) {
+            player.angle = Math.atan2(y, x);
+          }
+
+        }
+      }
+    }, { passive:false });
+
+    stickR.addEventListener('touchend', e => {
+      for (const t of e.changedTouches) {
+        if (t.identifier === idR) {
+          idR = null;
+          nubR.style.transform = `translate(0,0)`;
+        }
+      }
+    }, { passive:false });
 
   }
   const btnFire = document.getElementById('btnFire');
