@@ -29,16 +29,30 @@
   if (IS_MOBILE) {
 
     window.addEventListener('touchstart', (e) => {
-      if (e.target.closest('#stickL')) return;
+
+      const target = e.target;
+
+      // ✅ BLOCK ALL UI CONTROLS FROM FIRING
+      if (
+        target.closest('#stickL') ||
+        target.closest('#stickR') ||
+        target.closest('#btnFire') ||
+        target.closest('#btnSwap') ||
+        target.closest('#btnDash') ||
+        target.closest('#btnMelee')
+      ) {
+        return;
+      }
 
       const t = e.changedTouches[0];
-      const rect = canvas.getBoundingClientRect()
+      const rect = canvas.getBoundingClientRect();
 
       mobileAim.active = true;
       mobileAim.x = cam.x + (t.clientX - rect.left);
       mobileAim.y = cam.y + (t.clientY - rect.top);
 
-      input.mouse.down = true; // ✅ fire immediately on tap
+      input.mouse.down = true; // ✅ ONLY fires when tapping game area
+
     }, { passive:true });
 
     window.addEventListener('touchmove', (e) => {
@@ -4082,7 +4096,9 @@ if (btnHomeCustomize){
       nubR.style.transform = `translate(${aimDX*30}px, ${aimDY*30}px)`;
 
       // ✅ AIM PLAYER
-      player.angle = Math.atan2(aimDY, aimDX);
+      if (!IS_MOBILE) {
+        player.angle = Math.atan2(aimDY, aimDX);
+      }
     });
 
     stickR.addEventListener('touchend', () => {
