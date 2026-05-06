@@ -4088,16 +4088,22 @@ if (btnHomeCustomize){
       const x = t.clientX - (r.left + r.width/2);
       const y = t.clientY - (r.top + r.height/2);
 
-      const len = Math.hypot(x, y) || 1;
+      const dx = x;
+      const dy = y;
 
-      aimDX = x / len;
-      aimDY = y / len;
+      const dist = Math.hypot(dx, dy);
 
-      nubR.style.transform = `translate(${aimDX*30}px, ${aimDY*30}px)`;
+      // ✅ Clamp stick movement visually
+      const max = 40;
+      const clamp = Math.min(dist, max);
+      const nx = dist ? dx / dist : 0;
+      const ny = dist ? dy / dist : 0;
 
-      // ✅ AIM PLAYER
-      if (!IS_MOBILE) {
-        player.angle = Math.atan2(aimDY, aimDX);
+      nubR.style.transform = `translate(${nx * clamp}px, ${ny * clamp}px)`;
+
+      // ✅ Only update angle if moved enough
+      if (dist > 5) {
+        player.angle = Math.atan2(dy, dx);
       }
     });
 
