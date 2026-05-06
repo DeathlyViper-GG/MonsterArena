@@ -4059,6 +4059,48 @@ if (btnHomeCustomize){
     } 
   // Touch controls ------------------------------------------------------------
   const touch = { idL:null, init(){ const rel=(el,e)=>{ const r=el.getBoundingClientRect(); return {x:e.clientX-r.left, y:e.clientY-r.top}; }; stickL.addEventListener('touchstart', e=>{ e.preventDefault(); for(const t of e.changedTouches){ if(!this.idL){ const p=rel(stickL,t); if(p.x>=0&&p.y>=0&&p.x<=stickL.clientWidth&&p.y<=stickL.clientHeight){ this.idL=t.identifier; } } } }, {passive:false}); stickL.addEventListener('touchmove', e=>{ e.preventDefault(); for(const t of e.changedTouches){ if(t.identifier===this.idL){ const r=stickL.getBoundingClientRect(); const x=t.clientX-(r.left+r.width/2), y=t.clientY-(r.top+r.height/2), m=Math.hypot(x,y), lim=44; const nx=(m>lim? x/m*lim:x), ny=(m>lim? y/m*lim:y); nubL.style.transform=`translate(${nx}px,${ny}px)`; input.touch.stick.dx=nx/lim; input.touch.stick.dy=ny/lim; input.touch.stick.active=true; } } }, {passive:false}); stickL.addEventListener('touchend', e=>{ e.preventDefault(); for(const t of e.changedTouches){ if(t.identifier===this.idL){ this.idL=null; input.touch.stick={dx:0,dy:0,active:false}; nubL.style.transform='translate(0px,0px)'; } } }, {passive:false}); btnSwap.addEventListener('touchstart', e=>{ e.preventDefault(); swapWeapon(1); }, {passive:false}); } };
+  // ✅ RIGHT STICK (AIM)
+  const stickR = document.getElementById('stickR');
+  const nubR = document.getElementById('nubR');
+
+  let aimDX = 0, aimDY = 0;
+
+  if (stickR) {
+
+    stickR.addEventListener('touchmove', e => {
+      const t = e.touches[0];
+      const r = stickR.getBoundingClientRect();
+
+      const x = t.clientX - (r.left + r.width/2);
+      const y = t.clientY - (r.top + r.height/2);
+
+      const len = Math.hypot(x, y) || 1;
+
+      aimDX = x / len;
+      aimDY = y / len;
+
+      nubR.style.transform = `translate(${aimDX*30}px, ${aimDY*30}px)`;
+
+      // ✅ AIM PLAYER
+      player.angle = Math.atan2(aimDY, aimDX);
+    });
+
+    stickR.addEventListener('touchend', () => {
+      nubR.style.transform = `translate(0,0)`;
+    });
+
+  }
+  const btnFire = document.getElementById('btnFire');
+
+  if (btnFire) {
+    btnFire.addEventListener('touchstart', () => {
+      mouse.down = true;
+    });
+
+    btnFire.addEventListener('touchend', () => {
+      mouse.down = false;
+    });
+  }
   touch.init();
 
   // Settings ------------------------------------------------------------------

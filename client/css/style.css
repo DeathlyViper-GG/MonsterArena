@@ -36,6 +36,25 @@
 
   .touch{ position:fixed; inset:0; pointer-events:none; z-index:1; }
   .stick{ position:absolute; left:20px; bottom:20px; width:120px; height:120px; border-radius:50%; background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.12); pointer-events:auto; }
+  /* ✅ Right aim stick position */
+  #stickR {
+    left: auto;
+    right: 20px;
+    bottom: 40px;
+  }
+
+  /* ✅ Fire button clean positioning */
+  #btnFire {
+    position:absolute;
+    right: 20px;
+    bottom: 150px;
+    width: 84px;
+    height: 84px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    font-weight: 900;
+  }
   .stick .nub{ position:absolute; left:50%; top:50%; width:56px; height:56px; margin:-28px; border-radius:50%; background:rgba(255,255,255,.2); border:1px solid rgba(255,255,255,.35); }
   .fire{ position:absolute; right:20px; bottom:36px; width:84px; height:84px; border-radius:50%; background:rgba(255,255,255,.07); border:1px solid rgba(255,255,255,.18); pointer-events:auto; }
   .kpad{ position:absolute; right:20px; bottom:130px; width:84px; height:84px; border-radius:14px; background:rgba(255,255,255,.07); border:1px solid rgba(255,255,255,.18); pointer-events:auto; display:grid; place-items:center; font-weight:800; }
