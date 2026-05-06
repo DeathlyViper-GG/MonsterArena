@@ -1557,25 +1557,22 @@
   let MINI_DPR = 1;
   const MINI_VIEW = { w: 0, h: 0 };
 
-  function resizeMini(){
-    MINI_DPR = Math.max(1, window.devicePixelRatio || 1);
+  function resize() {
+    const dpr = Math.max(1, window.devicePixelRatio || 1);
 
-    const r = mini.getBoundingClientRect();
+    const rect = canvas.getBoundingClientRect();
+    const w = rect.width;
+    const h = rect.height;
 
-    // ✅ CSS size (VISIBLE AREA)
-    MINI_VIEW.w = r.width;
-    MINI_VIEW.h = r.height;
+    canvas.width = Math.floor(w * dpr);
+    canvas.height = Math.floor(h * dpr);
 
-    // ✅ FORCE CSS SIZE (critical!)
-    mini.style.width  = MINI_VIEW.w + 'px';
-    mini.style.height = MINI_VIEW.h + 'px';
+    VIEW.w = w;
+    VIEW.h = h;
+    VIEW.dpr = dpr;
 
-    // ✅ Backing store (DEVICE PIXELS)
-    mini.width  = Math.floor(MINI_VIEW.w * MINI_DPR);
-    mini.height = Math.floor(MINI_VIEW.h * MINI_DPR);
-
-    // ✅ Draw in CSS pixel space
-    mctx.setTransform(MINI_DPR, 0, 0, MINI_DPR, 0, 0);
+    // ✅ no cam here
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   }
 
   window.addEventListener('resize', resizeMini);
@@ -1587,6 +1584,7 @@
   const cam = { x:0, y:0, shake:0, sx:0, sy:0, zoom:1 };
   function updateCamera(dt){
     const online = isNetActive();
+    cam.zoom = (IS_MOBILE && VIEW.w > VIEW.h) ? 0.75 : 1;
 
     // Use authoritative-me when online (prevents drift)
     const meSnap = online ? mySnapshotPlayer() : null;
@@ -1964,6 +1962,7 @@
 
   function drawWorldVfx(ctx){
     for (const v of worldVfx){
+      ctx.setTransform(VIEW.dpr * cam.zoom, 0, 0, VIEW.dpr * cam.zoom, 0, 0);
       const sx = v.x - cam.x - cam.sx;
       const sy = v.y - cam.y - cam.sy;
 
