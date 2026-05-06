@@ -29,7 +29,20 @@
   .select,.range{ background:#0e1322; border:1px solid #273059; color:var(--text); border-radius:8px; padding:8px 10px; min-width:160px; font-weight:600; }
   .range{ width:220px; }
 
-  .minimap{ position:fixed; right:12px; bottom:12px; width:150px; height:150px; background:#0d111b; border:1px solid #1c2238; border-radius:10px; box-shadow: 0 8px 20px var(--shadow); overflow:hidden; pointer-events:none; z-index:2;}
+  .minimap{
+    position:fixed;
+    right:12px;
+    bottom:120px; /* ✅ ABOVE controls */
+    width:150px;
+    height:150px;
+    background:#0d111b;
+    border:1px solid #1c2238;
+    border-radius:10px;
+    box-shadow: 0 8px 20px var(--shadow);
+    overflow:hidden;
+    pointer-events:none;
+    z-index:2;
+  }
   .help{ position:fixed; left:12px; bottom:12px; background:#0f1423; border:1px solid #1f2742; border-radius:10px; padding:10px 12px; pointer-events:auto;
     max-width:min(92vw, 540px); box-shadow: 0 8px 20px var(--shadow); z-index:2; }
   code.k{ background:#10162b; border:1px solid #1e2a4a; padding:1px 6px; border-radius:6px; }
@@ -38,27 +51,40 @@
   .stick{ position:absolute; left:20px; bottom:20px; width:120px; height:120px; border-radius:50%; background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.12); pointer-events:auto; }
   /* ✅ Right aim stick position */
   #stickR {
-    left: auto;
-    right: 20px;
-    bottom: 40px;
+    left:auto;
+    right:20px;
+    bottom:20px; /* ✅ align with left stick */
   }
 
   /* ✅ Fire button clean positioning */
   #btnFire {
     position:absolute;
     right: 20px;
-    bottom: 150px;
+    bottom: 200px; /* ✅ move higher above aim stick */
     width: 84px;
     height: 84px;
     border-radius: 50%;
     display: grid;
     place-items: center;
     font-weight: 900;
+    pointer-events:auto;
   }
   .stick .nub{ position:absolute; left:50%; top:50%; width:56px; height:56px; margin:-28px; border-radius:50%; background:rgba(255,255,255,.2); border:1px solid rgba(255,255,255,.35); }
   .fire{ position:absolute; right:20px; bottom:36px; width:84px; height:84px; border-radius:50%; background:rgba(255,255,255,.07); border:1px solid rgba(255,255,255,.18); pointer-events:auto; }
-  .kpad{ position:absolute; right:20px; bottom:130px; width:84px; height:84px; border-radius:14px; background:rgba(255,255,255,.07); border:1px solid rgba(255,255,255,.18); pointer-events:auto; display:grid; place-items:center; font-weight:800; }
-
+  .kpad{
+    position:absolute;
+    right:20px;
+    bottom:300px; /* ✅ clearly above minimap */
+    width:84px;
+    height:84px;
+    border-radius:14px;
+    background:rgba(255,255,255,.07);
+    border:1px solid rgba(255,255,255,.18);
+    pointer-events:auto;
+    display:grid;
+    place-items:center;
+    font-weight:800;
+  }
   /* ===================================================== */
   /* SINGLE PLAYER — PROFESSIONAL LEVEL SELECT LAYOUT      */
   /* ===================================================== */
