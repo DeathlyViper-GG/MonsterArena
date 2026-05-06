@@ -1513,43 +1513,22 @@
   window.addEventListener('mouseup', ()=> input.mouse.down=false);
 
   // Resize --------------------------------------------------------------------
-  function resize() {
+  function resize(){
     const dpr = Math.max(1, window.devicePixelRatio || 1);
 
-    // ✅ TRUE visible size (fixes rotation bugs)
+    // Backing store in device pixels
+    canvas.width  = Math.floor(window.innerWidth  * dpr);
+    canvas.height = Math.floor(window.innerHeight * dpr);
+
+    // Draw in CSS pixel coordinates
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    // ✅ Store CSS viewport size for camera math
     const rect = canvas.getBoundingClientRect();
-    const w = rect.width;
-    const h = rect.height;
-
-    // ✅ Set canvas backing resolution
-    canvas.width = Math.floor(w * dpr);
-    canvas.height = Math.floor(h * dpr);
-
-    // ✅ Store viewport (CSS space)
-    VIEW.w = w;
-    VIEW.h = h;
+    VIEW.w = rect.width;
+    VIEW.h = rect.height;
     VIEW.dpr = dpr;
-
-    // =========================
-    // ✅ MOBILE ZOOM FIX
-    // =========================
-    const aspect = w / h;
-
-    if (IS_MOBILE) {
-      // Landscape → zoom OUT
-      if (aspect > 1.4) {
-        cam.zoom = 0.75;   // 🔧 tweak this if needed
-      } else {
-        cam.zoom = 1.0;    // portrait normal
-      }
-    } else {
-      cam.zoom = 1.0;      // desktop
-    }
-
-    // ✅ Apply zoom + DPR together
-    ctx.setTransform(dpr * cam.zoom, 0, 0, dpr * cam.zoom, 0, 0);
   }
-
   window.addEventListener('resize', resize);
   resize();
 
@@ -1557,22 +1536,25 @@
   let MINI_DPR = 1;
   const MINI_VIEW = { w: 0, h: 0 };
 
-  function resize() {
-    const dpr = Math.max(1, window.devicePixelRatio || 1);
+  function resizeMini(){
+    MINI_DPR = Math.max(1, window.devicePixelRatio || 1);
 
-    const rect = canvas.getBoundingClientRect();
-    const w = rect.width;
-    const h = rect.height;
+    const r = mini.getBoundingClientRect();
 
-    canvas.width = Math.floor(w * dpr);
-    canvas.height = Math.floor(h * dpr);
+    // ✅ CSS size (VISIBLE AREA)
+    MINI_VIEW.w = r.width;
+    MINI_VIEW.h = r.height;
 
-    VIEW.w = w;
-    VIEW.h = h;
-    VIEW.dpr = dpr;
+    // ✅ FORCE CSS SIZE (critical!)
+    mini.style.width  = MINI_VIEW.w + 'px';
+    mini.style.height = MINI_VIEW.h + 'px';
 
-    // ✅ no cam here
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    // ✅ Backing store (DEVICE PIXELS)
+    mini.width  = Math.floor(MINI_VIEW.w * MINI_DPR);
+    mini.height = Math.floor(MINI_VIEW.h * MINI_DPR);
+
+    // ✅ Draw in CSS pixel space
+    mctx.setTransform(MINI_DPR, 0, 0, MINI_DPR, 0, 0);
   }
 
   window.addEventListener('resize', resizeMini);
@@ -1581,10 +1563,9 @@
 
 
   // Camera --------------------------------------------------------------------
-  const cam = { x:0, y:0, shake:0, sx:0, sy:0, zoom:1 };
+  const cam = { x:0, y:0, shake:0, sx:0, sy:0 };
   function updateCamera(dt){
     const online = isNetActive();
-    cam.zoom = (IS_MOBILE && VIEW.w > VIEW.h) ? 0.75 : 1;
 
     // Use authoritative-me when online (prevents drift)
     const meSnap = online ? mySnapshotPlayer() : null;
@@ -1597,8 +1578,8 @@
       py += (meSnap.y - py) * 0.18;
     }
     // ✅ Use CSS viewport size (NOT canvas.width/height which are device pixels)
-    const targetX = px - (VIEW.w / cam.zoom) / 2;
-    const targetY = py - (VIEW.h / cam.zoom) / 2;
+    const targetX = px - VIEW.w / 2;
+    const targetY = py - VIEW.h / 2;
 
     cam.x = lerp(cam.x, targetX, 0.12);
     cam.y = lerp(cam.y, targetY, 0.12);
@@ -1962,7 +1943,6 @@
 
   function drawWorldVfx(ctx){
     for (const v of worldVfx){
-      ctx.setTransform(VIEW.dpr * cam.zoom, 0, 0, VIEW.dpr * cam.zoom, 0, 0);
       const sx = v.x - cam.x - cam.sx;
       const sy = v.y - cam.y - cam.sy;
 
