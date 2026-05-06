@@ -108,25 +108,25 @@
   </div>
 </div>
 
-<div class="minimap" id="minimapWrap" style="bottom:120px;">
-  <canvas id="mini" width="150" height="150" aria-label="Minimap"></canvas>
+<div class="minimap" id="minimapWrap">
+  <canvas id="mini" width="150" height="150"></canvas>
+</div>
 
-  <!-- 📱 Mobile action buttons (overlay on minimap) -->
-  <div class="mobile-actions" id="mobileActions">
-    <button class="mob-btn" id="btnDash">DASH</button>
-    <button class="mob-btn" id="btnMelee">MELEE</button>
-  </div>
+<!-- ✅ MOVE ACTION BUTTONS OUTSIDE MINIMAP -->
+<div class="mobile-actions" id="mobileActions">
+  <button class="mob-btn" id="btnDash">DASH</button>
+  <button class="mob-btn" id="btnMelee">MELEE</button>
 </div>
 <style>
 /* 📱 Mobile-only minimap overlay buttons */
 .mobile-actions {
-  position: absolute;
-  bottom: 6px;
-  right: 6px;
-  display: none;
+  position: fixed;
+  right: 20px;
+  bottom: 300px; /* ✅ ABOVE WPN button */
+  display: flex;
   flex-direction: column;
-  gap: 6px;
-  z-index: 5;
+  gap: 8px;
+  z-index: 6;
 }
 
 .mob-btn {
