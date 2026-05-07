@@ -4087,12 +4087,12 @@ if (btnHomeCustomize){
 
   if (btnFire) {
     btnFire.addEventListener('touchstart', () => {
-    input.mouse.down = true;
-  });
+      input.mouse.down = true;
+    });
 
-  btnFire.addEventListener('touchend', () => {
-    input.mouse.down = false;
-  });
+    btnFire.addEventListener('touchend', () => {
+      input.mouse.down = false;
+    });
   }
   touch.init();
 
