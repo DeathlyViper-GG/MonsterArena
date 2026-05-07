@@ -108,15 +108,7 @@
   </div>
 </div>
 
-<div class="minimap" id="minimapWrap">
-  <canvas id="mini" width="150" height="150" aria-label="Minimap"></canvas>
 
-  <!-- 📱 Mobile action buttons (overlay on minimap) -->
-  <div class="mobile-actions" id="mobileActions">
-    <button class="mob-btn" id="btnDash">DASH</button>
-    <button class="mob-btn" id="btnMelee">MELEE</button>
-  </div>
-</div>
 <style>
 /* 📱 Mobile-only minimap overlay buttons */
 .mobile-actions {
@@ -399,9 +391,21 @@
 
 <!-- Touch controls -->
 <div class="touch" id="touchLayer" aria-hidden="true">
-  <div class="stick" id="stickL"><div class="nub" id="nubL"></div></div>
+  <div class="stick" id="stickL">
+    <div class="nub" id="nubL"></div>
+  </div>
+
+  <div class="stick" id="stickR">
+    <div class="nub" id="nubR"></div>
+  </div>
+
+  <!-- ✅ WEAPON SWAP (REQUIRED) -->
   <div class="kpad" id="btnSwap">WPN</div>
+
+  <!-- ✅ FIRE -->
+  <div id="btnFire" class="fire">FIRE</div>
 </div>
+
 
 <div class="help" id="helpOverlay">
   <strong>Controls:</strong> <code class="k">WASD</code> move • <code class="k">Mouse</code> aim+shoot • <code class="k">R</code> reload • <code class="k">Q/E</code> swap • <code class="k">Space</code> dash • <code class="k">Esc</code> pause • <code class="k">H</code> help.
