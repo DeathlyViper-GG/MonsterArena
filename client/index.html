@@ -108,7 +108,37 @@
   </div>
 </div>
 
-<div class="minimap"><canvas id="mini" width="150" height="150" aria-label="Minimap"></canvas></div>
+<div class="minimap" id="minimapWrap">
+  <canvas id="mini" width="150" height="150" aria-label="Minimap"></canvas>
+
+  <!-- 📱 Mobile action buttons (overlay on minimap) -->
+  <div class="mobile-actions" id="mobileActions">
+    <button class="mob-btn" id="btnDash">DASH</button>
+    <button class="mob-btn" id="btnMelee">MELEE</button>
+  </div>
+</div>
+<style>
+/* 📱 Mobile-only minimap overlay buttons */
+.mobile-actions {
+  position: absolute;
+  bottom: 6px;
+  right: 6px;
+  display: none;
+  flex-direction: column;
+  gap: 6px;
+  z-index: 5;
+}
+
+.mob-btn {
+  background: rgba(20,30,50,0.8);
+  border: 1px solid rgba(140,200,255,0.35);
+  color: #eaf6ff;
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 11px;
+  font-weight: bold;
+}
+</style>
 <div id="netStatus" class="net-status" title="Network status"></div>
 
 <!-- MAIN INTRO -->
@@ -370,13 +400,18 @@
 <!-- Touch controls -->
 <div class="touch" id="touchLayer" aria-hidden="true">
   <div class="stick" id="stickL"><div class="nub" id="nubL"></div></div>
-  <div class="fire" id="btnFire"></div>
   <div class="kpad" id="btnSwap">WPN</div>
 </div>
 
 <div class="help" id="helpOverlay">
   <strong>Controls:</strong> <code class="k">WASD</code> move • <code class="k">Mouse</code> aim+shoot • <code class="k">R</code> reload • <code class="k">Q/E</code> swap • <code class="k">Space</code> dash • <code class="k">Esc</code> pause • <code class="k">H</code> help.
 </div>
+<script>
+  if (/Mobi|Android|iPad|iPhone/i.test(navigator.userAgent)) {
+    const el = document.getElementById('mobileActions');
+    if (el) el.style.display = 'flex';
+  }
+</script>
 
 <script>
   const boot = document.getElementById('overlayBoot');
