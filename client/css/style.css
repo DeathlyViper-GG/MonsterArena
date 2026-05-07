@@ -48,10 +48,10 @@
   code.k{ background:#10162b; border:1px solid #1e2a4a; padding:1px 6px; border-radius:6px; }
 
   .touch {
-    position:fixed;
-    inset:0;
-    pointer-events:auto;
-    z-index:10; /* ✅ ABOVE canvas and UI */
+    position: fixed;
+    inset: 0;
+    pointer-events: auto;  /* ✅ FIX */
+    z-index: 1;
   }
   .stick{ position:absolute; left:20px; bottom:20px; width:120px; height:120px; border-radius:50%; background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.12); pointer-events:auto; }
   /* ✅ Right aim stick position */

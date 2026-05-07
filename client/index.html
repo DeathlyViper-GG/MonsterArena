@@ -110,12 +110,12 @@
 
 <div class="minimap" id="minimapWrap">
   <canvas id="mini" width="150" height="150" aria-label="Minimap"></canvas>
+</div>
 
-  <!-- 📱 Mobile action buttons (overlay on minimap) -->
-  <div class="mobile-actions" id="mobileActions">
-    <button class="mob-btn" id="btnDash">DASH</button>
-    <button class="mob-btn" id="btnMelee">MELEE</button>
-  </div>
+<!-- ✅ Mobile action buttons (NOT on minimap anymore) -->
+<div class="mobile-actions" id="mobileActions">
+  <button class="mob-btn" id="btnDash">DASH</button>
+  <button class="mob-btn" id="btnMelee">MELEE</button>
 </div>
 <div id="netStatus" class="net-status" title="Network status"></div>
 
@@ -376,9 +376,23 @@
 
 
 <!-- Touch controls -->
+<!-- Touch controls -->
 <div class="touch" id="touchLayer" aria-hidden="true">
-  <div class="stick" id="stickL"><div class="nub" id="nubL"></div></div>
+  <!-- LEFT MOVE STICK -->
+  <div class="stick" id="stickL">
+    <div class="nub" id="nubL"></div>
+  </div>
+
+  <!-- RIGHT AIM STICK (THIS WAS MISSING) -->
+  <div class="stick" id="stickR">
+    <div class="nub" id="nubR"></div>
+  </div>
+
+  <!-- WEAPON SWAP -->
   <div class="kpad" id="btnSwap">WPN</div>
+
+  <!-- FIRE BUTTON (THIS WAS MISSING) -->
+  <div class="fire" id="btnFire">FIRE</div>
 </div>
 
 <div class="help" id="helpOverlay">
