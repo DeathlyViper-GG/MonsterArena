@@ -4065,8 +4065,14 @@ if (btnHomeCustomize){
 
           nubR.style.transform = `translate(${nx * clamped}px, ${ny * clamped}px)`;
 
+          // ✅ ALWAYS remember last stick direction
           if (dist > 5) {
-            player.angle = Math.atan2(y, x);
+            input.touch.aimAngle = Math.atan2(y, x);
+          }
+
+          // ✅ ALWAYS apply it every frame
+          if (IS_MOBILE && typeof input.touch.aimAngle === 'number') {
+            player.angle = input.touch.aimAngle;
           }
 
         }
