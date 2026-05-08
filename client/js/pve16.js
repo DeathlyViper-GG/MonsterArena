@@ -5522,6 +5522,10 @@ window.addEventListener('net:snapshot', (ev) => {
       if (typeof me.hp === 'number'){
         player.hp = me.hp;
       }
+      // ✅ Only apply server angle on desktop
+      if (!IS_MOBILE && typeof me.ang === 'number') {
+        player.angle = me.ang;
+      }
     }
     // ✅ Online: spawn death VFX when enemies disappear from snapshot
     if (online && hasFreshSnapshot()){
@@ -5697,7 +5701,12 @@ window.addEventListener('net:snapshot', (ev) => {
     tickWisps(dt); // ✅ WISPS UPDATE (ANCHOR TO PLAYER)
 
     if (online) {
-      Net.sendInput(dx, dy, player.angle, player.x, player.y, player.weapon);
+      Net.sendInput(dx, dy,
+        IS_MOBILE ? null : player.angle,  // ✅ DO NOT SEND ANGLE FROM MOBILE
+        player.x,
+        player.y,
+        player.weapon
+      );
     }
   
 
