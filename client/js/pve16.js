@@ -1994,6 +1994,7 @@
     _linkA:null, _linkB:null, _linkT:0, // soul bind
   };
   // 🔍 DEBUG: detect illegal writes to player (lockstep / render bugs)
+  Object.seal(player);
   console.log('[DEBUG] player object sealed');
   // --- Melee damage helper: 1/3 of current gun's per-shot damage ---
   function meleeDamageForCurrentWeapon(){
