@@ -5659,20 +5659,22 @@ window.addEventListener('net:snapshot', (ev) => {
     // Mouse screen → world (same space your world is drawn in)
     let aimX, aimY;
 
-    // ✅ MOBILE: angle controlled ONLY by right joystick// ✅ MOBILE: angle controlled ONLYif (!IS_MOBILE) {
-    aimX = cam.x + cam.sx + mx_css;
-    aimY = cam.y + cam.sy + my_css;
+   // ✅ DESKTOP AIM ONLY (mobile uses joystick)
+    if (!IS_MOBILE) {
 
-      // ✅ Desktop aim only (mouse)
-      if (!IS_MOBILE) {
-        const { x: ax, y: ay } = getVisualPlayerPos();
+      aimX = cam.x + cam.sx + mx_css;
+      aimY = cam.y + cam.sy + my_css;
 
-        player.angle = lerpAngle(
-          player.angle,
-          angleTo(ax, ay, aimX, aimY),
-          0.28 * sens
-        );
-      }
+      const { x: ax, y: ay } = getVisualPlayerPos();
+
+      player.angle = lerpAngle(
+        player.angle,
+        angleTo(ax, ay, aimX, aimY),
+        0.28 * sens
+      );
+
+    }
+
 
     if (player.reloading){ player.reloadT -= dt; if (player.reloadT <= 0){ const w = weapons[player.weapon]; const need = w.ammo - player.ammo; const give = Math.min(need, player.reserve); player.ammo += give; player.reserve -= give; player.reloading = false; } }
     player.inSand = false;
