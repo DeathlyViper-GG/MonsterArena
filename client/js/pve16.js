@@ -5577,6 +5577,14 @@ window.addEventListener('net:snapshot', (ev) => {
             spawnTriangleBurst(prev.x, prev.y, baseCol, { big:6, small:22 });
             spawnGhostSilhouette(prev.x, prev.y, (prev.r ?? 16) + 10, currentTheme.accent);
             audio.hit();
+            // ✅ XP ORB SPAWN (MULTIPLAYER FIX)
+            const XP_VAL =
+              (prev.type === 'boss') ? 8 :
+              (prev.type === 'bomber') ? 4 :
+              (prev.type === 'healer') ? 3 :
+              (prev.type === 'tank' || prev.type === 'shooter' || prev.type === 'sniper') ? 2 : 1;
+
+            dropXpOrb(prev.x, prev.y, XP_VAL);
             
             // ✅ PvE leaderboard (online)
               const typeKey =
