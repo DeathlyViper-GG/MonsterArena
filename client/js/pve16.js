@@ -5571,13 +5571,21 @@ window.addEventListener('net:snapshot', (ev) => {
           nowE.set(e.id, { x:e.x, y:e.y, type:e.type, r:e.r ?? 16 });
         }
 
+        // ✅ initialise once
+        if (!window._deadOnce) window._deadOnce = new Set();
+
         for (const [id, prev] of _prevSnapEnemies){
-          if (!nowE.has(id)){
+          if (!nowE.has(id) && !window._deadOnce.has(id)){
+
+            // ✅ mark this enemy as already processed
+            window._deadOnce.add(id);
+
             const baseCol = sampleSpriteColor(prev.type);
             spawnTriangleBurst(prev.x, prev.y, baseCol, { big:6, small:22 });
             spawnGhostSilhouette(prev.x, prev.y, (prev.r ?? 16) + 10, currentTheme.accent);
             audio.hit();
-            // ✅ XP ORB SPAWN (MULTIPLAYER FIX)
+
+            // ✅ XP ORB
             const XP_VAL =
               (prev.type === 'boss') ? 8 :
               (prev.type === 'bomber') ? 4 :
@@ -5585,19 +5593,18 @@ window.addEventListener('net:snapshot', (ev) => {
               (prev.type === 'tank' || prev.type === 'shooter' || prev.type === 'sniper') ? 2 : 1;
 
             dropXpOrb(prev.x, prev.y, XP_VAL);
-            
-            // ✅ PvE leaderboard (online)
-              const typeKey =
-                (prev.type === 'chaser' || prev.type === 'swarm')
-                  ? 'ravener'
-                  : prev.type;
 
-              const pts = PVE_POINTS[typeKey] || 0;
-              const killer = prev.killerId || 'unknown';
+            // ✅ leaderboard
+            const typeKey =
+              (prev.type === 'chaser' || prev.type === 'swarm')
+                ? 'ravener'
+                : prev.type;
 
-              if (!pveLeaderboard[killer]) pveLeaderboard[killer] = 0;
-              pveLeaderboard[killer] += pts;
+            const pts = PVE_POINTS[typeKey] || 0;
+            const killer = prev.killerId || 'unknown';
 
+            if (!pveLeaderboard[killer]) pveLeaderboard[killer] = 0;
+            pveLeaderboard[killer] += pts;
           }
         }
 
