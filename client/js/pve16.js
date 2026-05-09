@@ -173,7 +173,6 @@
   let stickRCenter = { x: 0, y: 0 };
 
   // ✅ persistent aim storage
-  input.touch.aimAngle = 0;
 
   if (stickR) {
 
@@ -1488,6 +1487,7 @@
 
   // Input ---------------------------------------------------------------------
   const input = { keys:new Set(), mouse:{x:0,y:0,down:false}, touch:{mx:0,my:0, fire:false, stick:{dx:0,dy:0,active:false}} };
+  input.touch.aimAngle = 0;
   window.addEventListener('keydown', e=>{
     input.keys.add(e.key.toLowerCase());
     if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].includes(e.key)) e.preventDefault();
