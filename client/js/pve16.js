@@ -163,55 +163,6 @@
   const stickL = document.getElementById('stickL');
   const nubL = document.getElementById('nubL');
   const btnSwap = document.getElementById('btnSwap');
-  // ===============================
-  // ✅ RIGHT STICK (AIM CONTROL)
-  // ===============================
-  const stickR = document.getElementById('stickR');
-  const nubR   = document.getElementById('nubR');
-
-  let stickRActive = false;
-  let stickRCenter = { x: 0, y: 0 };
-
-  // ✅ persistent aim storage
-
-  if (stickR) {
-
-    stickR.addEventListener('touchstart', (e) => {
-      e.preventDefault();
-
-      const t = e.touches[0];
-      const r = stickR.getBoundingClientRect();
-
-      stickRCenter.x = r.left + r.width / 2;
-      stickRCenter.y = r.top + r.height / 2;
-
-      stickRActive = true;
-    }, { passive: false });
-
-    stickR.addEventListener('touchmove', (e) => {
-      if (!stickRActive) return;
-
-      e.preventDefault();
-
-      const t = e.touches[0];
-
-      const dx = t.clientX - stickRCenter.x;
-      const dy = t.clientY - stickRCenter.y;
-
-      const dist = Math.hypot(dx, dy);
-
-      if (dist > 5) {
-        // ✅ STORE AIM (DO NOT TOUCH player.angle HERE)
-        input.touch.aimAngle = Math.atan2(dy, dx);
-      }
-
-    }, { passive: false });
-
-    stickR.addEventListener('touchend', () => {
-      stickRActive = false;
-      // ✅ DO NOT RESET ANGLE
-    });
-  }
   const Melee = /** @type {any} */ (window).Melee;
   const online = () => !!(window.Net && Net.state && Net.state.lobbyId);
   const HTTP_MODE = true;
@@ -1486,17 +1437,7 @@
   };
 
   // Input ---------------------------------------------------------------------
-  const input = { keys:new Set(), mouse:{x:0,y:0,down:false}, touch:{
-    mx:0,
-    my:0,
-    fire:false,
-    stick:{dx:0,dy:0,active:false},
-
-    // ✅ ADD THIS
-    rdx:0,
-    rdy:0
-  } };
-  input.touch.aimAngle = 0;
+  const input = { keys:new Set(), mouse:{x:0,y:0,down:false}, touch:{mx:0,my:0, fire:false, stick:{dx:0,dy:0,active:false}} };
   window.addEventListener('keydown', e=>{
     input.keys.add(e.key.toLowerCase());
     if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].includes(e.key)) e.preventDefault();
@@ -4088,6 +4029,8 @@ if (btnHomeCustomize){
   // Touch controls ------------------------------------------------------------
   const touch = { idL:null, init(){ const rel=(el,e)=>{ const r=el.getBoundingClientRect(); return {x:e.clientX-r.left, y:e.clientY-r.top}; }; stickL.addEventListener('touchstart', e=>{ e.preventDefault(); for(const t of e.changedTouches){ if(!this.idL){ const p=rel(stickL,t); if(p.x>=0&&p.y>=0&&p.x<=stickL.clientWidth&&p.y<=stickL.clientHeight){ this.idL=t.identifier; } } } }, {passive:false}); stickL.addEventListener('touchmove', e=>{ e.preventDefault(); for(const t of e.changedTouches){ if(t.identifier===this.idL){ const r=stickL.getBoundingClientRect(); const x=t.clientX-(r.left+r.width/2), y=t.clientY-(r.top+r.height/2), m=Math.hypot(x,y), lim=44; const nx=(m>lim? x/m*lim:x), ny=(m>lim? y/m*lim:y); nubL.style.transform=`translate(${nx}px,${ny}px)`; input.touch.stick.dx=nx/lim; input.touch.stick.dy=ny/lim; input.touch.stick.active=true; } } }, {passive:false}); stickL.addEventListener('touchend', e=>{ e.preventDefault(); for(const t of e.changedTouches){ if(t.identifier===this.idL){ this.idL=null; input.touch.stick={dx:0,dy:0,active:false}; nubL.style.transform='translate(0px,0px)'; } } }, {passive:false}); btnSwap.addEventListener('touchstart', e=>{ e.preventDefault(); swapWeapon(1); }, {passive:false}); } };
   // ✅ RIGHT STICK (AIM)
+  const stickR = document.getElementById('stickR');
+  const nubR = document.getElementById('nubR');
 
   let aimDX = 0, aimDY = 0;
 
@@ -4122,14 +4065,8 @@ if (btnHomeCustomize){
 
           nubR.style.transform = `translate(${nx * clamped}px, ${ny * clamped}px)`;
 
-          // ✅ ALWAYS remember last stick direction
           if (dist > 5) {
-            input.touch.aimAngle = Math.atan2(y, x);
-          }
-
-          // ✅ ALWAYS apply it every frame
-          if (IS_MOBILE && typeof input.touch.aimAngle === 'number') {
-            player.angle = input.touch.aimAngle;
+            player.angle = Math.atan2(y, x);
           }
 
         }
@@ -5711,23 +5648,7 @@ window.addEventListener('net:snapshot', (ev) => {
     meleeCooldown = Math.max(0, meleeCooldown - dt);
     for (let i = noiseEvents.length - 1; i >= 0; i--){ noiseEvents[i].t -= dt; if (noiseEvents[i].t <= 0) noiseEvents.splice(i, 1); }
     const k = input.keys 
-    if (k.has('w') || k.has('arrowup'))    dy -= 1; if (k.has('s') || k.has('arrowdown'))  dy += 1; if (k.has('a') || k.has('arrowleft'))  dx -= 1; if (k.has('d') || k.has('arrowright')) dx += 1 
-    dx += input.touch.stick.dx * 1.2 
-    dy += input.touch.stick.dy * 1.2 
-    // ===============================
-    // ✅ RIGHT STICK → AIM (REAL FIX)
-    // ===============================
-    const rdx = input.touch.rdx || 0;
-    const rdy = input.touch.rdy || 0;
-
-    if (IS_MOBILE) {
-      const mag = Math.hypot(rdx, rdy);
-
-      if (mag > 0.2) {
-        player.angle = Math.atan2(rdy, rdx);
-      }
-    }
-    const mag = Math.hypot(dx, dy) || 1; dx /= mag; dy /= mag;
+    if (k.has('w') || k.has('arrowup'))    dy -= 1; if (k.has('s') || k.has('arrowdown'))  dy += 1; if (k.has('a') || k.has('arrowleft'))  dx -= 1; if (k.has('d') || k.has('arrowright')) dx += 1; dx += input.touch.stick.dx * 1.2; dy += input.touch.stick.dy * 1.2; const mag = Math.hypot(dx, dy) || 1; dx /= mag; dy /= mag;
     // ✅ GLYPH PHASE: hard-disable player control
     if (!online && state.phase === 'glyph') {
       dx = 0; dy = 0;
@@ -5743,13 +5664,8 @@ window.addEventListener('net:snapshot', (ev) => {
     let aimX, aimY;
 
    // ✅ DESKTOP AIM ONLY (mobile uses joystick)
-    // ===============================
-    // ✅ AIM CONTROL (FINAL FIX)
-    // ===============================
-    let aimApplied = false;
-
-    // ✅ DESKTOP AIM
     if (!IS_MOBILE) {
+
       aimX = cam.x + cam.sx + mx_css;
       aimY = cam.y + cam.sy + my_css;
 
@@ -5761,21 +5677,7 @@ window.addEventListener('net:snapshot', (ev) => {
         0.28 * sens
       );
 
-      aimApplied = true;
     }
-
-    // ✅ MOBILE AIM (RIGHT STICK)
-    if (IS_MOBILE) {
-      const rdx = input.touch.rdx || 0;
-      const rdy = input.touch.rdy || 0;
-
-      const mag = Math.hypot(rdx, rdy);
-
-      if (mag > 0.15) {
-        player.angle = Math.atan2(rdy, rdx);
-        aimApplied = true;
-      }
-}
 
 
     if (player.reloading){ player.reloadT -= dt; if (player.reloadT <= 0){ const w = weapons[player.weapon]; const need = w.ammo - player.ammo; const give = Math.min(need, player.reserve); player.ammo += give; player.reserve -= give; player.reloading = false; } }
@@ -5951,7 +5853,7 @@ window.addEventListener('net:snapshot', (ev) => {
     
     if (melee) Melee.update(melee, dt);
     // --- Single‑player enemy updates only ---
-    if (true) {
+    if (!online) {
       for (let i = ents.enemies.length - 1; i >= 0; i--) {
         const e = ents.enemies[i];
         // 👻 Check Dread Bloom aura
@@ -6525,13 +6427,6 @@ window.addEventListener('net:snapshot', (ev) => {
     // Corrected camera boundaries — keeps player visible at edges
     // Unclamped camera: always follow player (no boundary stop)
     updateCamera(dt);   
-    // ===============================
-    // ✅ FINAL MOBILE AIM OVERRIDE (CRITICAL)
-    // ===============================
-    if (IS_MOBILE && typeof input.touch.aimAngle === 'number') {
-      player.angle = input.touch.aimAngle;
-    }
-
     if (player.hp <= 0){
       // one-time VFX trigger
       if (!state.playerExploded){
