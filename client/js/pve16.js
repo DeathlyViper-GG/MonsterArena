@@ -5702,7 +5702,23 @@ window.addEventListener('net:snapshot', (ev) => {
     meleeCooldown = Math.max(0, meleeCooldown - dt);
     for (let i = noiseEvents.length - 1; i >= 0; i--){ noiseEvents[i].t -= dt; if (noiseEvents[i].t <= 0) noiseEvents.splice(i, 1); }
     const k = input.keys 
-    if (k.has('w') || k.has('arrowup'))    dy -= 1; if (k.has('s') || k.has('arrowdown'))  dy += 1; if (k.has('a') || k.has('arrowleft'))  dx -= 1; if (k.has('d') || k.has('arrowright')) dx += 1; dx += input.touch.stick.dx * 1.2; dy += input.touch.stick.dy * 1.2; const mag = Math.hypot(dx, dy) || 1; dx /= mag; dy /= mag;
+    if (k.has('w') || k.has('arrowup'))    dy -= 1; if (k.has('s') || k.has('arrowdown'))  dy += 1; if (k.has('a') || k.has('arrowleft'))  dx -= 1; if (k.has('d') || k.has('arrowright')) dx += 1 
+    dx += input.touch.stick.dx * 1.2 
+    dy += input.touch.stick.dy * 1.2 
+    // ===============================
+    // ✅ RIGHT STICK → AIM (REAL FIX)
+    // ===============================
+    const rdx = input.touch.rdx || 0;
+    const rdy = input.touch.rdy || 0;
+
+    if (IS_MOBILE) {
+      const mag = Math.hypot(rdx, rdy);
+
+      if (mag > 0.2) {
+        player.angle = Math.atan2(rdy, rdx);
+      }
+    }
+    const mag = Math.hypot(dx, dy) || 1; dx /= mag; dy /= mag;
     // ✅ GLYPH PHASE: hard-disable player control
     if (!online && state.phase === 'glyph') {
       dx = 0; dy = 0;
