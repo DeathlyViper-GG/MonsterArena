@@ -5571,14 +5571,16 @@ window.addEventListener('net:snapshot', (ev) => {
           nowE.set(e.id, { x:e.x, y:e.y, type:e.type, r:e.r ?? 16 });
         }
 
-        // ✅ initialise once
-        if (!window._deadOnce) window._deadOnce = new Set();
+        // ✅ initialise once (GLOBAL SAFE — small, no growth issue)
+        if (!window._deadIds) window._deadIds = new Set();
 
         for (const [id, prev] of _prevSnapEnemies){
-          if (!nowE.has(id)){
 
-            // ✅ REMOVE this enemy immediately so it cannot repeat
-            _prevSnapEnemies.delete(id);
+          const key = id + '_' + Math.floor(prev.x) + '_' + Math.floor(prev.y);
+
+          if (!nowE.has(id) && !window._deadIds.has(key)){
+
+            window._deadIds.add(key);
 
             const baseCol = sampleSpriteColor(prev.type);
             spawnTriangleBurst(prev.x, prev.y, baseCol, { big:6, small:22 });
