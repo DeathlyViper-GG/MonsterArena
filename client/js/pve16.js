@@ -5522,10 +5522,6 @@ window.addEventListener('net:snapshot', (ev) => {
       if (typeof me.hp === 'number'){
         player.hp = me.hp;
       }
-      // ✅ Only apply server angle on desktop
-      if (!IS_MOBILE && typeof me.ang === 'number') {
-        player.angle = me.ang;
-      }
     }
     // ✅ Online: spawn death VFX when enemies disappear from snapshot
     if (online && hasFreshSnapshot()){
@@ -5663,12 +5659,12 @@ window.addEventListener('net:snapshot', (ev) => {
     // Mouse screen → world (same space your world is drawn in)
     let aimX, aimY;
 
-   // ✅ DESKTOP AIM ONLY (mobile uses joystick)
+    // ✅ MOBILE: angle controlled ONLY by right joystick// ✅ MOBILE: angle controlled ONLYif (!IS_MOBILE) {
+    aimX = cam.x + cam.sx + mx_css;
+    aimY = cam.y + cam.sy + my_css;
+
+    // ✅ Desktop only — mobile uses joystick
     if (!IS_MOBILE) {
-
-      aimX = cam.x + cam.sx + mx_css;
-      aimY = cam.y + cam.sy + my_css;
-
       const { x: ax, y: ay } = getVisualPlayerPos();
 
       player.angle = lerpAngle(
@@ -5676,7 +5672,6 @@ window.addEventListener('net:snapshot', (ev) => {
         angleTo(ax, ay, aimX, aimY),
         0.28 * sens
       );
-
     }
 
 
@@ -5701,12 +5696,7 @@ window.addEventListener('net:snapshot', (ev) => {
     tickWisps(dt); // ✅ WISPS UPDATE (ANCHOR TO PLAYER)
 
     if (online) {
-      Net.sendInput(dx, dy,
-        IS_MOBILE ? null : player.angle,  // ✅ DO NOT SEND ANGLE FROM MOBILE
-        player.x,
-        player.y,
-        player.weapon
-      );
+      Net.sendInput(dx, dy, player.angle, player.x, player.y, player.weapon);
     }
   
 
@@ -5853,7 +5843,7 @@ window.addEventListener('net:snapshot', (ev) => {
     
     if (melee) Melee.update(melee, dt);
     // --- Single‑player enemy updates only ---
-    if (!online) {
+    if (true) {
       for (let i = ents.enemies.length - 1; i >= 0; i--) {
         const e = ents.enemies[i];
         // 👻 Check Dread Bloom aura
