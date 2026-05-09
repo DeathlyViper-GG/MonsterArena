@@ -1486,7 +1486,16 @@
   };
 
   // Input ---------------------------------------------------------------------
-  const input = { keys:new Set(), mouse:{x:0,y:0,down:false}, touch:{mx:0,my:0, fire:false, stick:{dx:0,dy:0,active:false}} };
+  const input = { keys:new Set(), mouse:{x:0,y:0,down:false}, touch:{
+    mx:0,
+    my:0,
+    fire:false,
+    stick:{dx:0,dy:0,active:false},
+
+    // ✅ ADD THIS
+    rdx:0,
+    rdy:0
+  } };
   input.touch.aimAngle = 0;
   window.addEventListener('keydown', e=>{
     input.keys.add(e.key.toLowerCase());
@@ -5734,8 +5743,13 @@ window.addEventListener('net:snapshot', (ev) => {
     let aimX, aimY;
 
    // ✅ DESKTOP AIM ONLY (mobile uses joystick)
-    if (!IS_MOBILE) {
+    // ===============================
+    // ✅ AIM CONTROL (FINAL FIX)
+    // ===============================
+    let aimApplied = false;
 
+    // ✅ DESKTOP AIM
+    if (!IS_MOBILE) {
       aimX = cam.x + cam.sx + mx_css;
       aimY = cam.y + cam.sy + my_css;
 
@@ -5747,7 +5761,21 @@ window.addEventListener('net:snapshot', (ev) => {
         0.28 * sens
       );
 
+      aimApplied = true;
     }
+
+    // ✅ MOBILE AIM (RIGHT STICK)
+    if (IS_MOBILE) {
+      const rdx = input.touch.rdx || 0;
+      const rdy = input.touch.rdy || 0;
+
+      const mag = Math.hypot(rdx, rdy);
+
+      if (mag > 0.15) {
+        player.angle = Math.atan2(rdy, rdx);
+        aimApplied = true;
+      }
+}
 
 
     if (player.reloading){ player.reloadT -= dt; if (player.reloadT <= 0){ const w = weapons[player.weapon]; const need = w.ammo - player.ammo; const give = Math.min(need, player.reserve); player.ammo += give; player.reserve -= give; player.reloading = false; } }
