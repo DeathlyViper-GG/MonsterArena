@@ -5575,17 +5575,16 @@ window.addEventListener('net:snapshot', (ev) => {
         if (!window._deadOnce) window._deadOnce = new Set();
 
         for (const [id, prev] of _prevSnapEnemies){
-          if (!nowE.has(id) && !window._deadOnce.has(id)){
+          if (!nowE.has(id)){
 
-            // ✅ mark this enemy as already processed
-            window._deadOnce.add(id);
+            // ✅ REMOVE this enemy immediately so it cannot repeat
+            _prevSnapEnemies.delete(id);
 
             const baseCol = sampleSpriteColor(prev.type);
             spawnTriangleBurst(prev.x, prev.y, baseCol, { big:6, small:22 });
             spawnGhostSilhouette(prev.x, prev.y, (prev.r ?? 16) + 10, currentTheme.accent);
             audio.hit();
 
-            // ✅ XP ORB
             const XP_VAL =
               (prev.type === 'boss') ? 8 :
               (prev.type === 'bomber') ? 4 :
@@ -5594,7 +5593,6 @@ window.addEventListener('net:snapshot', (ev) => {
 
             dropXpOrb(prev.x, prev.y, XP_VAL);
 
-            // ✅ leaderboard
             const typeKey =
               (prev.type === 'chaser' || prev.type === 'swarm')
                 ? 'ravener'
