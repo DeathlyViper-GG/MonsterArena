@@ -5951,7 +5951,7 @@ window.addEventListener('net:snapshot', (ev) => {
     
     if (melee) Melee.update(melee, dt);
     // --- Single‑player enemy updates only ---
-    if (!online) {
+    if (true) {
       for (let i = ents.enemies.length - 1; i >= 0; i--) {
         const e = ents.enemies[i];
         // 👻 Check Dread Bloom aura
