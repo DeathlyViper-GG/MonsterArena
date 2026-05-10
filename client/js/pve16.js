@@ -6029,7 +6029,35 @@ window.addEventListener('net:snapshot', (ev) => {
       }
     }
 
-    for (let i = ents.bullets.length - 1; i >= 0; i--){ const b = ents.bullets[i]; const kill = lineWallHit(b.x, b.y, b.vx, b.vy, dt, b.r); b.x += b.vx * dt; b.y += b.vy * dt; b.life -= dt; if (kill || b.life <= 0){ ents.bullets.splice(i,1); continue; } let hit = -1; for (let j = 0; j < ents.enemies.length; j++){ const e = ents.enemies[j]; const r = e.r + b.r; if (dist2(b.x,b.y,e.x,e.y) < r*r){ hit = j; break; } } if (hit >= 0){ const e = ents.enemies[hit] 
+    for (let i = ents.bullets.length - 1; i >= 0; i--){ 
+      const b = ents.bullets[i]
+      // ✅ HARD SNAP SERVER BULLET TO CLIENT BULLET (NO DELAY EVER)
+      if (online && Net.state?.snapshot?.bullets) {
+
+        for (const sb of Net.state.snapshot.bullets) {
+
+          if (!sb || sb.kind === 'enemy' || sb.kind === 'enemyBomb') continue;
+          if (sb.owner !== Net.state.peerId) continue;
+
+          const dx = b.x - sb.x;
+          const dy = b.y - sb.y;
+
+          // ✅ if they are close, FORCE server bullet forward to client
+          if ((dx*dx + dy*dy) < 2500) {
+
+            // ✅ MOVE SERVER TO CLIENT POSITION (NOT THE OTHER WAY AROUND)
+            sb.x = b.x;
+            sb.y = b.y;
+
+            // ✅ also sync velocity so server logic matches
+            sb.vx = b.vx;
+            sb.vy = b.vy;
+
+            break;
+          }
+        }
+      }
+      const kill = lineWallHit(b.x, b.y, b.vx, b.vy, dt, b.r); b.x += b.vx * dt; b.y += b.vy * dt; b.life -= dt; if (kill || b.life <= 0){ ents.bullets.splice(i,1); continue; } let hit = -1; for (let j = 0; j < ents.enemies.length; j++){ const e = ents.enemies[j]; const r = e.r + b.r; if (dist2(b.x,b.y,e.x,e.y) < r*r){ hit = j; break; } } if (hit >= 0){ const e = ents.enemies[hit] 
       
       const base = b.dmg * (1 + state.wave * 0.02);
       let dmg = b.dmg;
@@ -6707,7 +6735,7 @@ window.addEventListener('net:snapshot', (ev) => {
       // ✅ MATCH + RECONCILE
       for (const sb of snapBullets) {
 
-        if (!sb || sb.kind === 'enemy' || sb.kind === 'enemyBomb') continue;
+        if (!sb || sb.kind === 'enemy' || sb.kind === 'enemyBomb' || sb.owner === Net.state.peerId) continue;
 
         let best = -1;
         let bestD = 999999;
