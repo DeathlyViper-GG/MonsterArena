@@ -53,6 +53,7 @@
   let STATIC_WORLD_CANVAS = null;
   let STATIC_WORLD_CTX = null;
   let STATIC_WORLD_KEY = '';
+  let _reconPrev = [];
   let _lastHUDUpdate = 0;
   const HUD_INTERVAL = 100; // ms (10 times per second)
   async function leaveMultiplayerAndReturnHome() {
