@@ -5508,12 +5508,21 @@ window.addEventListener('net:snapshot', (ev) => {
     }
     if (online && hasFreshSnapshot()) {
       // ✅ Preserve local XP orbs before snapshot overwrite
-      const localXp = ents.pickups.filter(p => p.type === 'xp');
-
       applyServerWorldFromSnapshot();
 
-      // ✅ Restore XP orbs AFTER snapshot overwrite
-      ents.pickups.push(...localXp);
+      // ✅ REMOVE duplicates instead of stacking
+      const seen = new Set();
+
+      ents.pickups = ents.pickups.filter(p => {
+        if (p.type !== 'xp') return true;
+
+        const key = Math.floor(p.x) + '_' + Math.floor(p.y);
+
+        if (seen.has(key)) return false;
+
+        seen.add(key);
+        return true;
+      });
     }
     // ✅ Online: authoritative death handling
     if (online && hasFreshSnapshot()){
