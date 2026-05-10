@@ -5565,22 +5565,19 @@ window.addEventListener('net:snapshot', (ev) => {
         }
 
       }
-      if (snap && Array.isArray(snap.enemies)){
-        const nowE = new Map();
-        for (const e of snap.enemies){
-          nowE.set(e.id, { x:e.x, y:e.y, type:e.type, r:e.r ?? 16 });
-        }
+      if (snap && Array.isArray(snap.enemies)) {
 
-        // ✅ initialise once (GLOBAL SAFE — small, no growth issue)
-        if (!window._deadIds) window._deadIds = new Set();
+        const currentIds = new Set(snap.enemies.map(e => e.id));
 
-        for (const [id, prev] of _prevSnapEnemies){
+        // ✅ initialise storage ONCE
+        if (!updateFixed._seenEnemies) updateFixed._seenEnemies = new Set();
 
-          const key = id + '_' + Math.floor(prev.x) + '_' + Math.floor(prev.y);
+        // ✅ detect deaths (ids that were seen before but are now gone)
+        for (const oldId of updateFixed._seenEnemies) {
+          if (!currentIds.has(oldId)) {
 
-          if (!nowE.has(id) && !window._deadIds.has(key)){
-
-            window._deadIds.add(key);
+            const prev = _prevSnapEnemies.get(oldId);
+            if (!prev) continue;
 
             const baseCol = sampleSpriteColor(prev.type);
             spawnTriangleBurst(prev.x, prev.y, baseCol, { big:6, small:22 });
@@ -5605,42 +5602,23 @@ window.addEventListener('net:snapshot', (ev) => {
 
             if (!pveLeaderboard[killer]) pveLeaderboard[killer] = 0;
             pveLeaderboard[killer] += pts;
+
+            // ✅ remove from seen so it NEVER triggers again
+            updateFixed._seenEnemies.delete(oldId);
           }
         }
 
-        _prevSnapEnemies = nowE;
-        // ✅ Online: spawn chest drops when a chest becomes opened (snapshot diff)
-        // ✅ Online: spawn chest drops on transition unopened -> opened (supports respawn)
-        if (online && hasFreshSnapshot()) {
-          const snap = Net.state?.snapshot;
-          const chests = snap?.world?.chests;
-
-          if (Array.isArray(chests)) {
-            const alive = new Set();
-
-            for (const ch of chests) {
-              if (!ch || typeof ch.id !== 'number') continue;
-              alive.add(ch.id);
-
-              const prevOpen = _prevChestOpenState.get(ch.id) || false;
-              const nowOpen = !!ch.opened;
-
-              if (!prevOpen && nowOpen) {
-                if (Array.isArray(ch.drops)) {
-                  for (const d of ch.drops) dropPickup(d.x, d.y, d.type);
-                }
-                audio.chest();
-              }
-
-              _prevChestOpenState.set(ch.id, nowOpen);
-            }
-
-            // prune removed ids
-            for (const id of _prevChestOpenState.keys()) {
-              if (!alive.has(id)) _prevChestOpenState.delete(id);
-            }
-          }
+        // ✅ then update seen list
+        for (const e of snap.enemies) {
+          updateFixed._seenEnemies.add(e.id);
         }
+
+        // ✅ update snapshot record AFTER everything
+        const nextMap = new Map();
+        for (const e of snap.enemies) {
+          nextMap.set(e.id, { x:e.x, y:e.y, type:e.type, r:e.r ?? 16 });
+        }
+        _prevSnapEnemies = nextMap;
       }
     }
     // ✅ Online authoritative: bullets come from snapshot
