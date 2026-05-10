@@ -53,7 +53,6 @@
   let STATIC_WORLD_CANVAS = null;
   let STATIC_WORLD_CTX = null;
   let STATIC_WORLD_KEY = '';
-  let _reconPrev = [];
   let _lastHUDUpdate = 0;
   const HUD_INTERVAL = 100; // ms (10 times per second)
   async function leaveMultiplayerAndReturnHome() {
@@ -5123,15 +5122,8 @@ function drawGlyphOverlay(){
     // ❌ DO NOT call buildObstacles / buildHazards / buildChests
 
     // ✅ Server snapshot owns the world completely
-    if (online && hasFreshSnapshot()) {
-
-      // ✅ SAVE CLIENT BULLETS
-      const _clientBullets = ents.bullets.slice();
-
+    if (isNetActive() && hasFreshSnapshot()){
       applyServerWorldFromSnapshot();
-
-      // ✅ RESTORE CLIENT BULLETS (IMPORTANT)
-      ents.bullets = _clientBullets;
     }
   }
   // Build home cards ----------------------------------------------------------
@@ -5639,8 +5631,8 @@ window.addEventListener('net:snapshot', (ev) => {
       }
     }
     // ✅ Online authoritative: bullets come from snapshot
-    // ✅ KEEP local bullets (prediction), only clear enemy bullets
     if (online && hasFreshSnapshot()) {
+      ents.bullets.length = 0;
       ents.ebullets.length = 0;
     }
 
@@ -6036,35 +6028,7 @@ window.addEventListener('net:snapshot', (ev) => {
       }
     }
 
-    for (let i = ents.bullets.length - 1; i >= 0; i--){ 
-      const b = ents.bullets[i]
-      // ✅ HARD SNAP SERVER BULLET TO CLIENT BULLET (NO DELAY EVER)
-      if (online && Net.state?.snapshot?.bullets) {
-
-        for (const sb of Net.state.snapshot.bullets) {
-
-          if (!sb || sb.kind === 'enemy' || sb.kind === 'enemyBomb') continue;
-          if (sb.owner !== Net.state.peerId) continue;
-
-          const dx = b.x - sb.x;
-          const dy = b.y - sb.y;
-
-          // ✅ if they are close, FORCE server bullet forward to client
-          if ((dx*dx + dy*dy) < 2500) {
-
-            // ✅ MOVE SERVER TO CLIENT POSITION (NOT THE OTHER WAY AROUND)
-            sb.x = b.x;
-            sb.y = b.y;
-
-            // ✅ also sync velocity so server logic matches
-            sb.vx = b.vx;
-            sb.vy = b.vy;
-
-            break;
-          }
-        }
-      }
-      const kill = lineWallHit(b.x, b.y, b.vx, b.vy, dt, b.r); b.x += b.vx * dt; b.y += b.vy * dt; b.life -= dt; if (kill || b.life <= 0){ ents.bullets.splice(i,1); continue; } let hit = -1; for (let j = 0; j < ents.enemies.length; j++){ const e = ents.enemies[j]; const r = e.r + b.r; if (dist2(b.x,b.y,e.x,e.y) < r*r){ hit = j; break; } } if (hit >= 0){ const e = ents.enemies[hit] 
+    for (let i = ents.bullets.length - 1; i >= 0; i--){ const b = ents.bullets[i]; const kill = lineWallHit(b.x, b.y, b.vx, b.vy, dt, b.r); b.x += b.vx * dt; b.y += b.vy * dt; b.life -= dt; if (kill || b.life <= 0){ ents.bullets.splice(i,1); continue; } let hit = -1; for (let j = 0; j < ents.enemies.length; j++){ const e = ents.enemies[j]; const r = e.r + b.r; if (dist2(b.x,b.y,e.x,e.y) < r*r){ hit = j; break; } } if (hit >= 0){ const e = ents.enemies[hit] 
       
       const base = b.dmg * (1 + state.wave * 0.02);
       let dmg = b.dmg;
@@ -6712,17 +6676,215 @@ window.addEventListener('net:snapshot', (ev) => {
     ctx.fillStyle = '#cfe5ff';
 
     // ✅ OFFLINE: draw local player bullets
-    // ✅ DRAW LOCAL BULLETS FIRST (instant response, even online)
-    for (const b of ents.bullets){
-      ctx.beginPath();
-      ctx.arc(
-        b.x - cam.x - cam.sx,
-        b.y - cam.y - cam.sy,
-        b.r ?? 4,
-        0,
-        Math.PI * 2
-      );
-      ctx.fill();
+    if (!online) {
+      for (const b of ents.bullets) {
+        ctx.beginPath();
+        ctx.arc(
+          b.x - cam.x - cam.sx,
+          b.y - cam.y - cam.sy,
+          b.r ?? 4,
+          0,
+          Math.PI * 2
+        );
+        ctx.fill();
+      }
+    }
+
+    // ✅ ONLINE: draw RAW bullets in red (debug), then WALL‑CLIPPED bullets in normal colour
+    if (online) {
+      // raw (jumpy) — debug
+      if (rawBullets) {
+        ctx.save();
+        ctx.globalAlpha = 0.45;
+        ctx.fillStyle = '#ff4040'; // red
+        for (const b of rawBullets) {
+          if (!b) continue;
+          if (b.kind === 'enemy' || b.kind === 'enemyBomb') continue;
+
+          ctx.beginPath();
+          ctx.arc(
+            b.x - cam.x - cam.sx,
+            b.y - cam.y - cam.sy,
+            b.r ?? 4,
+            0,
+            Math.PI * 2
+          );
+          ctx.fill();
+        }
+        ctx.restore();
+      }
+
+      // ✅ HARD‑CLIPPED BULLETS (server walls are final)
+      // ✅ HARD‑CLIPPED BULLETS (server walls are final)
+      // ✅ PLUS: client-only hit detection + hide bullet immediately + spawn hit FX
+      if (onlineBullets) {
+        ctx.fillStyle = '#cfe5ff';
+
+        const prev = _prevDrawPlayerBullets;
+        const used = new Array(prev.length).fill(false);
+        const next = [];
+
+        for (const b of onlineBullets) {
+          if (!b) continue;
+          if (b.kind === 'enemy' || b.kind === 'enemyBomb') continue;
+
+          // ---- Match this snapshot bullet to a previous drawn bullet (nearest + similar velocity) ----
+          let bestIdx = -1;
+          let bestScore = Infinity;
+
+          for (let k = 0; k < prev.length; k++) {
+            if (used[k]) continue;
+            const p = prev[k];
+
+            // must match same owner (if present) and be a player bullet
+            if ((p.owner ?? null) !== (b.owner ?? null)) continue;
+
+            // velocity similarity (tolerant)
+            const dvx = (p.vx ?? 0) - (b.vx ?? 0);
+            const dvy = (p.vy ?? 0) - (b.vy ?? 0);
+            const vScore = dvx * dvx + dvy * dvy;
+
+            // position closeness
+            const dx = (p.x ?? b.x) - b.x;
+            const dy = (p.y ?? b.y) - b.y;
+            const dScore = dx * dx + dy * dy;
+
+            // weighted score: position dominates, velocity disambiguates
+            const score = dScore + vScore * 0.25;
+
+            if (score < bestScore) {
+              bestScore = score;
+              bestIdx = k;
+            }
+          }
+
+          let x0, y0, suppressed = false;
+          if (bestIdx >= 0) {
+            used[bestIdx] = true;
+            x0 = prev[bestIdx].x;
+            y0 = prev[bestIdx].y;
+            suppressed = !!prev[bestIdx].suppressed;
+          } else {
+            // no match last frame → backtrack along velocity so we still sweep across walls
+            // IMPORTANT: bullet snapshots can "jump", so a zero-length segment will miss walls.
+            const BACKTRACK = 0.12; // seconds (matches your 120ms interp buffer)
+            x0 = b.x - (b.vx ?? 0) * BACKTRACK;
+            y0 = b.y - (b.vy ?? 0) * BACKTRACK;
+            suppressed = false;
+          }
+
+          // ---- Clip against authoritative walls using the real segment (x0,y0) -> (b.x,b.y) ----
+          let hitWall = false;
+          let fx = b.x;
+          let fy = b.y;
+
+          for (const w of world.walls) {
+            const steps = Math.max(1, Math.ceil(Math.hypot(b.x - x0, b.y - y0) / 4));
+            for (let i = 1; i <= steps; i++) {
+              const t = i / steps;
+              const x = x0 + (b.x - x0) * t;
+              const y = y0 + (b.y - y0) * t;
+
+              if (x >= w.x && x <= w.x + w.w && y >= w.y && y <= w.y + w.h) {
+                fx = x;
+                fy = y;
+                hitWall = true;
+                break;
+              }
+            }
+            if (hitWall) break;
+          }
+          // ✅ If we hit a wall, draw ONLY at the impact point and stop forever
+          if (hitWall) {
+            // draw at wall contact (never beyond)
+            ctx.beginPath();
+            ctx.arc(
+              fx - cam.x - cam.sx,
+              fy - cam.y - cam.sy,
+              b.r ?? 4,
+              0,
+              Math.PI * 2
+            );
+            ctx.fill();
+
+            // ✅ do NOT carry this bullet forward
+            continue;
+          }
+          // ---- Client-only swept hit vs the SAME enemies you draw (drawEnemies is interpolated snapshot) ----
+          if (!suppressed && Array.isArray(drawEnemies) && drawEnemies.length) {
+            let hitE = false;
+            let hitX = fx, hitY = fy;
+
+            const segDx = fx - x0;
+            const segDy = fy - y0;
+            const segLen = Math.hypot(segDx, segDy);
+
+            // smaller step = fewer misses when bullets/enemies jump
+            const steps = Math.max(1, Math.ceil(segLen / 2)); // <= key change from /6
+
+            outer:
+            for (let s = 1; s <= steps; s++) {
+              const t = s / steps;
+              const sx = x0 + segDx * t;
+              const sy = y0 + segDy * t;
+
+              for (const e of drawEnemies) {
+                if (!e) continue;
+                const rr = (e.r ?? 16) + (b.r ?? 4);
+                const dx = sx - e.x;
+                const dy = sy - e.y;
+                if (dx * dx + dy * dy <= rr * rr) {
+                  hitE = true;
+                  hitX = sx;
+                  hitY = sy;
+                  break outer;
+                }
+              }
+            }
+
+            if (hitE) {
+              // ✅ Fire hit FX ONCE (first time we mark suppressed)
+              addEffect(hitX, hitY, 'hit', 0.15, '#fff');
+              cam.shake = Math.max(cam.shake, 1.5);
+
+              // ✅ Hide bullet immediately on client regardless of server “jumps”
+              suppressed = true;
+            }
+          }
+
+          // remember for next frame (even if suppressed)
+          // remember for next frame
+          // ✅ IMPORTANT: bullets that hit a WALL are PERMANENTLY suppressed
+          if (!hitWall) {
+            next.push({
+              x: fx, y: fy,       // ✅ store the drawn position
+              vx: b.vx, vy: b.vy,
+              owner: b.owner ?? null,
+              suppressed
+            });
+          }
+          // ✅ if hitWall === true → do NOT carry it forward at all
+
+          // ✅ If suppressed (client says it hit), do not draw it at all
+          if (suppressed) continue;
+
+          // draw bullet (clamped if needed)
+          ctx.beginPath();
+          ctx.arc(
+            fx - cam.x - cam.sx,
+            fy - cam.y - cam.sy,
+            b.r ?? 4,
+            0,
+            Math.PI * 2
+          );
+          ctx.fill();
+
+          // ✅ do NOT render past the wall
+          if (hitWall) continue;
+        }
+
+        _prevDrawPlayerBullets = next;
+      }
     }
 
     // ===========================
