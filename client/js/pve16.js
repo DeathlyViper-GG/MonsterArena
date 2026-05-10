@@ -5123,8 +5123,15 @@ function drawGlyphOverlay(){
     // ❌ DO NOT call buildObstacles / buildHazards / buildChests
 
     // ✅ Server snapshot owns the world completely
-    if (isNetActive() && hasFreshSnapshot()){
+    if (online && hasFreshSnapshot()) {
+
+      // ✅ SAVE CLIENT BULLETS
+      const _clientBullets = ents.bullets.slice();
+
       applyServerWorldFromSnapshot();
+
+      // ✅ RESTORE CLIENT BULLETS (IMPORTANT)
+      ents.bullets = _clientBullets;
     }
   }
   // Build home cards ----------------------------------------------------------
