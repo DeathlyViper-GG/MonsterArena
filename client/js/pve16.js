@@ -6677,21 +6677,22 @@ window.addEventListener('net:snapshot', (ev) => {
     ctx.fillStyle = '#cfe5ff';
 
     // ✅ OFFLINE: draw local player bullets
-    if (!online) {
-      for (const b of ents.bullets) {
-        ctx.beginPath();
-        ctx.arc(
-          b.x - cam.x - cam.sx,
-          b.y - cam.y - cam.sy,
-          b.r ?? 4,
-          0,
-          Math.PI * 2
-        );
-        ctx.fill();
-      }
+    // ✅ DRAW LOCAL BULLETS FIRST (instant response, even online)
+    for (const b of ents.bullets){
+      ctx.beginPath();
+      ctx.arc(
+        b.x - cam.x - cam.sx,
+        b.y - cam.y - cam.sy,
+        b.r ?? 4,
+        0,
+        Math.PI * 2
+      );
+      ctx.fill();
     }
 
     if (online) {
+      // ✅ DO NOT re-draw local bullets inside reconciliation
+      const localSet = new Set(ents.bullets);
 
       if (!_reconPrev) _reconPrev = [];
 
@@ -6770,17 +6771,8 @@ window.addEventListener('net:snapshot', (ev) => {
         }
 
         // ✅ draw only if no server bullet yet
+        // ✅ SKIP — already drawn as local bullet
         if (!matched) {
-          ctx.beginPath();
-          ctx.arc(
-            lb.x - cam.x - cam.sx,
-            lb.y - cam.y - cam.sy,
-            lb.r ?? 4,
-            0,
-            Math.PI * 2
-          );
-          ctx.fill();
-
           next.push({
             x: lb.x,
             y: lb.y,
