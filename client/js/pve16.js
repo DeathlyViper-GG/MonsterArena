@@ -3418,7 +3418,7 @@ if (btnHomeCustomize){
         }
       }
       // 🌊 Tidal Wave — activates every 5 shots (OFFLINE ONLY)
-      if (!online && hasG('water','tidalWave')){
+      if (hasG('water','tidalWave')){
         player._tidalWaveHits = (player._tidalWaveHits ?? 0) + 1;
 
         if (player._tidalWaveHits % 5 === 0){
@@ -5869,7 +5869,7 @@ window.addEventListener('net:snapshot', (ev) => {
 
         // AI tick
         // 💧 Drench slow (OFFLINE ONLY)
-        if (!online && e.drenchT > 0){
+        if (e.drenchT > 0){
           e.spdMul = 0.75;
         } else {
           e.spdMul = 1;
@@ -6077,7 +6077,7 @@ window.addEventListener('net:snapshot', (ev) => {
       e.lastHitBy = 'local';
       addEffect(b.x,b.y,'hit',0.15,'#fff') 
       // 💧 Mending Mist hit counter (OFFLINE ONLY)
-      if (!online && isPath('water') && hasG('water','mendingMist')){
+      if (isPath('water') && hasG('water','mendingMist')){
         player._mistHits = (player._mistHits ?? 0) + 1;
 
         if (player._mistHits >= 10){
@@ -6134,7 +6134,7 @@ window.addEventListener('net:snapshot', (ev) => {
               state.essence += (p.v ?? 1);
 
               // 💧 Mending Mist: heal on XP pickup (OFFLINE ONLY)
-              if (!online && isPath('water') && hasG('water','mendingMist')){
+              if (isPath('water') && hasG('water','mendingMist')){
                 player.hp = Math.min(player.hpMax, player.hp + 5);
 
                 ents.effects.push({
