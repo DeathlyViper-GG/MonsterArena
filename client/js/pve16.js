@@ -5764,6 +5764,7 @@ window.addEventListener('net:snapshot', (ev) => {
           addEffect(e.x, e.y, 'hit', 0.15, '#fff');
           cam.shake = Math.max(cam.shake, 2);
 
+          const mult = onHitGlyph(e, DMG, 'melee');
           if (isNetActive()) {
             // ✅ server authoritative melee damage
             Net.sendHit('enemy', e.x, e.y, DMG, 'melee');
@@ -5771,7 +5772,6 @@ window.addEventListener('net:snapshot', (ev) => {
             // offline damage
             
             // offline damage (glyph-aware)
-            const mult = onHitGlyph(e, DMG, 'melee');
             e.hp -= DMG * mult;
 
             // Soul Bind copy damage
