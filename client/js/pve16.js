@@ -5295,7 +5295,7 @@ function drawGlyphOverlay(){
           enemy.burnStacks = 0;
           enemy.burnT = 0;
 
-          Net.state.sendEvent({
+          Net.sendHit({
             kind: 'vfx',
             type: 'fireBurst',
             x: enemy.x,
@@ -5304,7 +5304,7 @@ function drawGlyphOverlay(){
         }
 
         if (g.fire?.napalm) {
-          Net.state.sendEvent({
+          Net.sendHit({
             kind: 'vfx',
             type: 'napalm',
             x: enemy.x,
@@ -5430,7 +5430,7 @@ function drawGlyphOverlay(){
         if (g.earth?.spikedBarrier) {
 
           for (let i = 0; i < 3; i++) {
-            Net.state.sendEvent({
+            Net.sendHit({
               kind: 'vfx',
               type: 'spike',
               x: enemy.x,
@@ -5939,7 +5939,7 @@ window.addEventListener('net:snapshot', (ev) => {
     if (!isNetActive()) {
       tickWisps(dt);
       } else {
-        Net.state.sendEvent({
+        Net.sendHit({
           kind: 'wisps',
           x: player.x,
           y: player.y
@@ -6282,7 +6282,7 @@ window.addEventListener('net:snapshot', (ev) => {
       if (!b.noGlyph){
         if (isNetActive()) {
 
-          Net.state.sendEvent({
+          Net.sendHit({
             kind: 'glyph_hit',
             enemyId: e.id,
             dmg: dmg,
