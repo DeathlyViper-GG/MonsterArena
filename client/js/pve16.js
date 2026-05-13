@@ -1577,7 +1577,6 @@
       v.life -= dt;
 
       // ===== Gameplay tick (offline only) =====
-      if (!isNetActive()){
         // Napalm: damage + refresh burn
         if (v.type === 'napalm'){
           const R = (v.r ?? 60);
@@ -1620,7 +1619,7 @@
             }
           }
         }
-      }
+      
 
       if (v.life <= 0) worldVfx.splice(i,1);
     }
@@ -5235,7 +5234,6 @@ function drawGlyphOverlay(){
   // Show remote events (muzzle flashes / melee pose / bullets)
   window.addEventListener('net:event', (ev) => {
    const e = ev.detail || {};
-   
 
    if (e.kind === 'shot') {
       // PvE: remote shot is VFX only (avoid RNG desync)
@@ -5261,240 +5259,6 @@ function drawGlyphOverlay(){
         noiseEvents.push({ x: e.x, y: e.y, r: 720, t: 1.2 });
       }
     }
-    else if (e.kind === 'glyph_hit'()) {
-
-      const enemy = ents.enemies.find(en => en.id === e.enemyId);
-      if (!enemy) return;
-
-      const path = e.glyphPath;
-      const g = e.glyph || {};
-      let dmg = e.dmg;
-
-      // =====================================================
-      // 🔥 FIRE
-      // =====================================================
-      if (path === 'fire') {
-
-        enemy.burnStacks = Math.min(3, (enemy.burnStacks || 0) + 1);
-        enemy.burnT = Math.max(enemy.burnT || 0, 3.6);
-
-        if (g.fire?.searingShots && enemy.burnStacks > 0) {
-          dmg *= 1.18;
-        }
-
-        if (g.fire?.detonate && enemy.burnStacks >= 3) {
-
-          for (const o of ents.enemies) {
-            const dx = o.x - enemy.x;
-            const dy = o.y - enemy.y;
-            if (dx*dx + dy*dy < 120*120) {
-              o.hp -= 24;
-            }
-          }
-
-          enemy.burnStacks = 0;
-          enemy.burnT = 0;
-
-          Net.sendHit({
-            kind: 'vfx',
-            type: 'fireBurst',
-            x: enemy.x,
-            y: enemy.y
-          });
-        }
-
-        if (g.fire?.napalm) {
-          Net.sendHit({
-            kind: 'vfx',
-            type: 'napalm',
-            x: enemy.x,
-            y: enemy.y
-          });
-        }
-      }
-
-      // =====================================================
-      // ⚡ LIGHTNING
-      // =====================================================
-      if (path === 'lightning') {
-
-        if (!enemy.staticPrimed) {
-          enemy.staticPrimed = true;
-        } else {
-
-          enemy.staticPrimed = false;
-
-          let extra = 14;
-          enemy.hp -= extra;
-
-          if (g.lightning?.thunderclap) {
-            for (const o of ents.enemies) {
-              const dx = o.x - enemy.x;
-              const dy = o.y - enemy.y;
-              if (dx*dx + dy*dy < 90*90) {
-                o.hp -= 10;
-                o.stunT = Math.max(o.stunT || 0, 0.25);
-              }
-            }
-          }
-
-          if (g.lightning?.arcJump) {
-
-            let last = enemy;
-
-            for (let i = 0; i < 1; i++) {
-
-              let best = null;
-              let bestD = 200*200;
-
-              for (const o of ents.enemies) {
-                if (o === last) continue;
-                const dx = o.x - last.x;
-                const dy = o.y - last.y;
-                const d = dx*dx + dy*dy;
-
-                if (d < bestD) {
-                  best = o;
-                  bestD = d;
-                }
-              }
-
-              if (best) {
-                best.hp -= 10;
-                last = best;
-              }
-            }
-          }
-        }
-      }
-
-      // =====================================================
-      // 🌊 WATER
-      // =====================================================
-      if (path === 'water') {
-
-        enemy.drenchStacks = Math.min(3, (enemy.drenchStacks || 0) + 1);
-        enemy.drenchT = Math.max(enemy.drenchT || 0, 4.2);
-
-        if (g.water?.rippleShot) {
-          const dx = enemy.x - e.px;
-          const dy = enemy.y - e.py;
-          const d = Math.hypot(dx, dy) || 1;
-          enemy.x += (dx / d) * 18;
-          enemy.y += (dy / d) * 18;
-        }
-
-        if (g.water?.chill && enemy.drenchStacks >= 3) {
-          enemy.freezeT = g.water?.permafrost ? 1.15 : 0.8;
-          enemy.drenchStacks = 0;
-        }
-      }
-
-      // =====================================================
-      // 👻 SPIRIT
-      // =====================================================
-      if (path === 'spirit') {
-
-        if (g.spirit?.haunt) {
-          enemy.hauntT = Math.max(enemy.hauntT || 0, 3.4);
-        }
-
-        if (g.spirit?.soulBind) {
-
-          if (!player._linkA) {
-            player._linkA = enemy;
-          } else if (!player._linkB && player._linkA !== enemy) {
-            player._linkB = enemy;
-          }
-
-          if (player._linkA && player._linkB) {
-            const a = player._linkA;
-            const b = player._linkB;
-            const shared = dmg * 0.35;
-
-            if (enemy === a) b.hp -= shared;
-            if (enemy === b) a.hp -= shared;
-          }
-        }
-      }
-
-      // =====================================================
-      // 🪨 EARTH
-      // =====================================================
-      if (path === 'earth') {
-
-        if (g.earth?.jaggedEarth) {
-          enemy.bleedT = Math.max(enemy.bleedT || 0, 2.8);
-        }
-
-        if (g.earth?.spikedBarrier) {
-
-          for (let i = 0; i < 3; i++) {
-            Net.sendHit({
-              kind: 'vfx',
-              type: 'spike',
-              x: enemy.x,
-              y: enemy.y
-            });
-          }
-        }
-      }
-
-      enemy.hp -= dmg;
-    }
-    
-  else if (e.kind === 'vfx') {
-
-    if (e.type === 'napalm') {
-      addWorldVfx({ type:'napalm', x:e.x, y:e.y, r:60, life:1.2 });
-    }
-
-    if (e.type === 'fireBurst') {
-      addWorldVfx({ type:'fireBurst', x:e.x, y:e.y, r:120, life:0.6 });
-    }
-
-    if (e.type === 'spike') {
-      ents.effects.push({
-        type:'spike',
-        x:e.x,
-        y:e.y,
-        life:0.4,
-        t:0
-      });
-    }
-  }
-
-  else if (e.kind === 'wisps') {
-
-    ents.wisps.push({
-      x: e.x,
-      y: e.y,
-      angle: Math.random()*Math.PI*2,
-      radius: 44,
-      shootCD: 0.5
-    });
-  }
-
-  else if (e.kind === 'ball') {
-
-    let best=null, bestD=420*420;
-
-    for (const en of ents.enemies) {
-      const dx = en.x - e.x;
-      const dy = en.y - e.y;
-      const d = dx*dx + dy*dy;
-      if (d < bestD) {
-        best=en;
-        bestD=d;
-      }
-    }
-
-    if (best) {
-      best.hp -= 10;
-      addEffect(best.x,best.y,'hit',0.18,'#9fe3ff');
-    }
-  }
-
    else if (e.kind === 'enemy_hit' && amHost()) {
       // Find closest enemy to hit point
       let best = -1;
@@ -5936,15 +5700,7 @@ window.addEventListener('net:snapshot', (ev) => {
     // (Optional legacy: you can remove sendInput; mesh uses state/event instead)
     // AFTER dx / dy are computed and normalized
     moveWithCollide(player, dx * speed * dt, dy * speed * dt);
-    if (!isNetActive()) {
-      tickWisps(dt);
-      } else {
-        Net.sendHit({
-          kind: 'wisps',
-          x: player.x,
-          y: player.y
-        });
-      }
+    tickWisps(dt); // ✅ WISPS UPDATE (ANCHOR TO PLAYER)
 
     if (online) {
       Net.sendInput(dx, dy, player.angle, player.x, player.y, player.weapon);
@@ -6188,9 +5944,7 @@ window.addEventListener('net:snapshot', (ev) => {
           }
         }
 
-        if (!isNetActive()) {
-          tickEnemyStatuses(e, dt);
-        }
+        tickEnemyStatuses(e, dt);
         // Death & loot
         if (e.hp <= 0) {
           const typeKey = (e.type === 'chaser' || e.type === 'swarm')
@@ -6252,7 +6006,6 @@ window.addEventListener('net:snapshot', (ev) => {
           }
           // 🌊 WATER — MAELSTROM (SINGLE‑PLAYER, 75% ON KILL)
           if (
-            !isNetActive() &&
             isPath('water') &&
             hasG('water', 'maelstrom') &&
             Math.random() < 0.75
@@ -6280,27 +6033,8 @@ window.addEventListener('net:snapshot', (ev) => {
 
       // 🚫 Skip glyph logic for plain bullets (wisps)
       if (!b.noGlyph){
-        if (isNetActive()) {
-
-          Net.sendHit({
-            kind: 'glyph_hit',
-            enemyId: e.id,
-            dmg: dmg,
-            hitKind: 'bullet',
-
-            glyphPath: player.glyphPath,
-            glyph: player.glyph,
-
-            px: player.x,
-            py: player.y,
-          });
-
-        } else {
-
-          const mult = onHitGlyph(e, dmg, 'bullet');
-          e.hp -= dmg * mult;
-
-        }
+        const mult = onHitGlyph(e, dmg, 'bullet');
+        dmg *= mult;
       }
 
       e.hp -= dmg;
@@ -6708,7 +6442,6 @@ window.addEventListener('net:snapshot', (ev) => {
     }
     // 🌊 Water: TIDAL WAVE — periodic cone knockback
     if (
-      !isNetActive() &&
       isPath('water') &&
       hasG('water','tidalWave')
     ){
@@ -6730,7 +6463,7 @@ window.addEventListener('net:snapshot', (ev) => {
       }
     }
     // 🪨 Earth: Quake periodic stomp
-    if (!isNetActive() && isPath('earth') && hasG('earth','quake')){
+    if (isPath('earth') && hasG('earth','quake')){
       player._quakeCD = (player._quakeCD ?? 0) - dt;
       if (player._quakeCD <= 0){
         player._quakeCD = 3.2;
