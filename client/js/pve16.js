@@ -3929,16 +3929,38 @@ if (btnHomeCustomize){
 
     // ✅ ONLINE: server authoritative bullets
     if (isNetActive()) {
+
       for (let i = 0; i < w.shots; i++){
+
         const a = base + rand(-w.spread, w.spread);
+
+        const sx = px0 + Math.cos(a) * player.r;
+        const sy = py0 + Math.sin(a) * player.r;
+
+        // ✅ LOCAL VISUAL + GLYPH BULLET (REAL SYSTEM)
+        ents.bullets.push({
+          x: sx,
+          y: sy,
+          vx: Math.cos(a) * w.speed,
+          vy: Math.sin(a) * w.speed,
+          r: 4,
+          dmg: w.dmg,
+          life: 1.1,
+          pierce: w.pierce ?? 0,
+          // ✅ IMPORTANT: DO NOT SET noGlyph
+        });
+
+        // ✅ STILL SEND TO SERVER
         Net.sendShoot(
-          px0 + Math.cos(a) * player.r,
-          py0 + Math.sin(a) * player.r,
+          sx,
+          sy,
           a,
           w.speed,
           w.dmg
         );
       }
+
+
       addEffect(px0 + Math.cos(base) * player.r, py0 + Math.sin(base) * player.r, 'muzzle', 0.1, '#fff');
       noiseEvents.push({ x: px0, y: py0, r: 720, t: 1.2 });
       return;
@@ -4144,10 +4166,10 @@ if (btnHomeCustomize){
 // ===============================
 // Glyph overlay system (client) — SCROLLABLE 3D TREE + FULL DESCRIPTIONS
 // ===============================
-const GLYPH_COST_CORE = 5;
-const GLYPH_COST_T1   = 10;
-const GLYPH_COST_T2   = 15;
-const GLYPH_COST_T3   = 20;
+const GLYPH_COST_CORE = 1;
+const GLYPH_COST_T1   = 1;
+const GLYPH_COST_T2   = 1;
+const GLYPH_COST_T3   = 1;
 
 // ---------- Data: full skill names + descriptions ----------
 const GLYPH_CORE = {
