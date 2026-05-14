@@ -5258,23 +5258,24 @@ function drawGlyphOverlay(){
    const e = ev.detail || {};
 
    if (e.kind === 'shot') {
-      // PvE: remote shot is VFX only (avoid RNG desync)
-      ents.effects.push({ x: e.x, y: e.y, type: 'muzzle', life: 0.12, t: 0, color: '#fff' });
 
-      // Visual-only remote bullet (moving dot), no collision/damage
-      const a = e.ang ?? 0;
-      const sp = 1200; // visual speed
-      ents.effects.push({
-        x: e.x,
-        y: e.y,
-        type: 'rb',
-        life: 0.35,
-        t: 0,
-        color: '#cfe5ff',
-        vx: Math.cos(a) * sp,
-        vy: Math.sin(a) * sp,
-        r: 3.5
-      });
+    // keep muzzle effect
+    ents.effects.push({ x: e.x, y: e.y, type: 'muzzle', life: 0.12, t: 0, color: '#fff' });
+
+    const a = e.ang ?? 0;
+
+    // ✅ USE YOUR REAL BULLET SYSTEM (THIS IS THE FIX)
+    ents.bullets.push({
+      x: e.x,
+      y: e.y,
+      vx: Math.cos(a) * e.speed,
+      vy: Math.sin(a) * e.speed,
+      r: 4,
+      dmg: e.dmg,
+      life: 1.1,
+      pierce: 0
+    });
+
 
       // IMPORTANT: make host AI hear peer shots too
       if (isNetActive() && amHost()) {
