@@ -5259,8 +5259,8 @@ function drawGlyphOverlay(){
         noiseEvents.push({ x: e.x, y: e.y, r: 720, t: 1.2 });
       }
     }
-   else if (e.kind === 'enemy_hit' && amHost()) {
-      // Find closest enemy to hit point
+   else if (e.kind === 'enemy_hit') {
+
       let best = -1;
       let bestD2 = 40 * 40;
 
@@ -5276,7 +5276,13 @@ function drawGlyphOverlay(){
       }
 
       if (best >= 0) {
-        ents.enemies[best].hp -= e.dmg;
+        const en = ents.enemies[best];
+
+        // ✅ APPLY GLYPH LOGIC HERE (THIS WAS MISSING)
+        const mult = onHitGlyph(en, e.dmg, 'bullet');
+
+        // ✅ APPLY DAMAGE AFTER GLYPH MODIFIERS
+        en.hp -= e.dmg * mult;
       }
     }
    else if (e.kind === 'melee') {
