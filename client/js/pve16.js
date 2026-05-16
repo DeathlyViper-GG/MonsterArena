@@ -1,4 +1,3 @@
-import { bots, createBot, updateBotAI } from "./bots.js";
 (()=>{
 
   const canvas = document.getElementById('game');
