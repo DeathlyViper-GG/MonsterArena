@@ -4039,6 +4039,7 @@ if (btnHomeCustomize){
     // hit enemies — SWEPT test (bullet path vs enemy circle)
     // ✅ VISUAL hit test — ALWAYS remove bullet if its PATH touches an enemy
     let hit = false;
+    let hitEnemy = null;
     let hitX = b.x;
     let hitY = b.y;
 
@@ -4057,6 +4058,7 @@ if (btnHomeCustomize){
 
         if (dist2(sx, sy, e.x, e.y) <= rr * rr) {
           hit = true;
+          hitEnemy = e;
           hitX = sx;
           hitY = sy;
           break;
@@ -4066,22 +4068,30 @@ if (btnHomeCustomize){
     }
 
     if (hit) {
-      // ✅ visual feedback only
+
+      const e = hitEnemy;
+
+      const dmgBase = b.dmg ?? 10;
+      const mult = onHitGlyph(e, dmgBase, 'bullet');
+
+      e.hp -= dmgBase * mult;
+
       addEffect(hitX, hitY, 'hit', 0.15, '#fff');
       cam.shake = Math.max(cam.shake, 1.5);
 
-      // ✅ bullet ALWAYS disappears, no matter what server does
+      e.lastHitBy = 'local';
+
       ents.bullets.splice(i, 1);
       continue;
     }
-    } 
+  } 
 
     // effects timer so muzzle flashes don’t stick 
     for (let i = ents.effects.length - 1; i >= 0; i--){ 
-    const e = ents.effects[i]; 
-    e.t = (e.t || 0) + dt; 
-    if (e.t >= e.life) ents.effects.splice(i,1); 
-    } 
+      const e = ents.effects[i]; 
+      e.t = (e.t || 0) + dt; 
+      if (e.t >= e.life) ents.effects.splice(i,1); 
+      } 
     } 
   // Touch controls ------------------------------------------------------------
   const touch = { idL:null, init(){ const rel=(el,e)=>{ const r=el.getBoundingClientRect(); return {x:e.clientX-r.left, y:e.clientY-r.top}; }; stickL.addEventListener('touchstart', e=>{ e.preventDefault(); for(const t of e.changedTouches){ if(!this.idL){ const p=rel(stickL,t); if(p.x>=0&&p.y>=0&&p.x<=stickL.clientWidth&&p.y<=stickL.clientHeight){ this.idL=t.identifier; } } } }, {passive:false}); stickL.addEventListener('touchmove', e=>{ e.preventDefault(); for(const t of e.changedTouches){ if(t.identifier===this.idL){ const r=stickL.getBoundingClientRect(); const x=t.clientX-(r.left+r.width/2), y=t.clientY-(r.top+r.height/2), m=Math.hypot(x,y), lim=44; const nx=(m>lim? x/m*lim:x), ny=(m>lim? y/m*lim:y); nubL.style.transform=`translate(${nx}px,${ny}px)`; input.touch.stick.dx=nx/lim; input.touch.stick.dy=ny/lim; input.touch.stick.active=true; } } }, {passive:false}); stickL.addEventListener('touchend', e=>{ e.preventDefault(); for(const t of e.changedTouches){ if(t.identifier===this.idL){ this.idL=null; input.touch.stick={dx:0,dy:0,active:false}; nubL.style.transform='translate(0px,0px)'; } } }, {passive:false}); btnSwap.addEventListener('touchstart', e=>{ e.preventDefault(); swapWeapon(1); }, {passive:false}); } };
