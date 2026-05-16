@@ -5139,15 +5139,15 @@ function drawGlyphOverlay(){
     ents.pickups = [];
     noiseEvents.length = 0;
     // ===== CREATE BOTS =====
-    bots.length = 0;
+    window.bots.length = 0;
 
     for (let i = 0; i < 3; i++) {
-      const b = createBot("bot_" + i);
+      const b = window.createBot("bot_" + i);
 
       b.x = player.x + (Math.random() * 300 - 150);
       b.y = player.y + (Math.random() * 300 - 150);
 
-      bots.push(b);
+      window.bots.push(b);
     }
 
     // Rebuild map & nav
@@ -5716,9 +5716,9 @@ window.addEventListener('net:snapshot', (ev) => {
       }
     }
     // ===== UPDATE BOTS =====
-    for (const bot of bots) {
+    for (const bot of window.bots) {
 
-      updateBotAI(bot, [player], ents.enemies, world, dt);
+      window.updateBotAI(bot, [player], ents.enemies, world, dt);
 
       // movement
       const speed = 200;

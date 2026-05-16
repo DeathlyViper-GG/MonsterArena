@@ -2,12 +2,13 @@
 // SIMPLE BOT SYSTEM (PVE)
 // ===============================
 
-export const bots = [];
+const bots = [];
+window.bots = bots;
 
 // ------------------------
 // CREATE BOT
 // ------------------------
-export function createBot(id) {
+window.createBot = function(id) {
   return {
     id,
     name: "Bot_" + Math.floor(Math.random() * 999),
@@ -38,7 +39,7 @@ export function createBot(id) {
 // ------------------------
 // MAIN AI
 // ------------------------
-export function updateBotAI(bot, players, enemies, world, dt) {
+window.updateBotAI = function(bot, players, enemies, world, dt) {
 
   bot.brainTick -= dt;
   if (bot.brainTick > 0) return;
