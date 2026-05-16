@@ -344,6 +344,9 @@
     const path = player.glyphPath;
     if (!path) return;
 
+    const s = enemyStatus.get(target.id ?? target);
+    if (!s) return;
+
     if (path === 'fire')      drawFireVFX(ctx, target, sx, sy, t);
     if (path === 'lightning') drawLightningVFX(ctx, target, sx, sy, t);
     if (path === 'spirit')    drawSpiritVFX(ctx, target, sx, sy, t);
@@ -351,9 +354,9 @@
     if (path === 'earth')     drawEarthVFX(ctx, target, sx, sy, t);
   }
   function drawFireVFX(ctx, e, x, y, t){
-    if ((e.burnT ?? 0) <= 0) return;
-
-    const stacks = Math.min(e.burnStacks ?? 1, 3);
+    const s = enemyStatus.get(e.id ?? e);
+    if (!s || (s.burnT <= 0)) return;
+    const stacks = Math.min(s.burnStacks ?? 1, 3);
     const r = (e.r ?? 14) + 14 + stacks*4;
     const pulse = 0.6 + 0.4*Math.sin(t*6 + e.x*0.02);
 
@@ -384,7 +387,8 @@
     }
   }
   function drawLightningVFX(ctx, e, x, y, t){
-    if ((e.staticT ?? 0) <= 0) return;
+    const s = enemyStatus.get(e.id ?? e);
+    if (!s || (s.staticT <= 0)) return;
 
     const r = (e.r ?? 14) + 18;
     const flick = 0.7 + 0.3*Math.sin(t*10);
@@ -430,7 +434,8 @@
     });
   }
   function drawSpiritVFX(ctx, e, x, y, t){
-    if ((e.hauntT ?? 0) <= 0) return;
+    const s = enemyStatus.get(e.id ?? e);
+    if (!s || (s.hauntT <= 0)) return;
 
     const r = (e.r ?? 14) + 20;
     const pulse = 0.6 + 0.4*Math.sin(t*3);
@@ -461,7 +466,8 @@
     }
   }
   function drawWaterVFX(ctx, e, x, y, t){
-    if ((e.drenchT ?? 0) <= 0) return;
+    const s = enemyStatus.get(e.id ?? e);
+    if (!s || (s.drenchT <= 0)) return;
 
     const r = (e.r ?? 14) + 18;
 
@@ -1556,6 +1562,26 @@
 
   // Entities ------------------------------------------------------------------
   const ents = { bullets:[], ebullets:[], effects:[], enemies:[], pickups:[] };
+  // ✅ PERSISTENT STATUS (MULTIPLAYER FIX)
+  const enemyStatus = new Map();
+  
+  function getStatus(e){
+    const id = e.id ?? e;
+    let s = enemyStatus.get(id);
+    if (!s){
+      s = {
+        burnT:0, burnStacks:0,
+        staticT:0, staticPrimed:false,
+        drenchT:0, drenchStacks:0,
+        freezeT:0,
+        hauntT:0,
+        bleedT:0
+      };
+      enemyStatus.set(id, s);
+    }
+    return s;
+  }
+
   ents.wisps = [];
   window._ents = ents;
   // ===========================
@@ -3284,9 +3310,29 @@ if (btnHomeCustomize){
   }
 
   // ----- On-hit glyph logic (returns damage multiplier) -----
-  function onHitGlyph(e, baseDmg, hitKind){ // hitKind: 'bullet'|'melee'
+  function onHitGlyph(e, baseDmg, hitKind){
+
     let mult = 1;
-    // 🌊 Water — Tidal Wave (every 5 successful hits)
+
+    // ✅ persistent status
+    const id = e.id ?? e;
+    let s = enemyStatus.get(id);
+
+    if (!s){
+      s = {
+        burnT:0, burnStacks:0,
+        staticT:0, staticPrimed:false,
+        drenchT:0, drenchStacks:0,
+        freezeT:0,
+        hauntT:0,
+        bleedT:0
+      };
+      enemyStatus.set(id, s);
+    }
+
+    // =========================
+    // 🌊 WATER — TIDAL WAVE
+    // =========================
     if (isPath('water') && hasG('water','tidalWave')) {
       player._tidalWaveHits = (player._tidalWaveHits ?? 0) + 1;
 
@@ -3306,153 +3352,143 @@ if (btnHomeCustomize){
       }
     }
 
-    // FIRE core: Ignite
+    // =========================
+    // 🔥 FIRE
+    // =========================
     if (isPath('fire') && hasG('fire','ignite')){
-      applyBurn(e, 1, 3.6);
 
-      // Searing Shots: burned enemies take more damage
-      if (hasG('fire','searingShots') && (e.burnStacks||0) > 0){
+      s.burnStacks = Math.min(3, s.burnStacks + 1);
+      s.burnT = Math.max(s.burnT, 3.6);
+
+      if (hasG('fire','searingShots') && s.burnStacks > 0){
         mult *= 1.18;
       }
 
-      // Detonate at 3 stacks
-      if (hasG('fire','detonate') && (e.burnStacks||0) >= 3){
-        aoeDamage(e.x,e.y, 110, 24, { col:'#ff6a2a', burn:true });
-        e.burnStacks = 0; e.burnT = 0;
+      if (hasG('fire','detonate') && s.burnStacks >= 3){
+        aoeDamage(e.x,e.y,110,24,{col:'#ff6a2a',burn:true});
+        s.burnStacks = 0;
+        s.burnT = 0;
       }
     }
 
-    // LIGHTNING core: Static (mark + discharge on next hit)
+    // =========================
+    // ⚡ LIGHTNING
+    // =========================
     if (isPath('lightning') && hasG('lightning','static')){
-      if ((e.staticT||0) <= 0){
-        e.staticT = 2.6;
-        e.staticPrimed = true;
-      } else if (e.staticPrimed){
-        // discharge
-        e.staticPrimed = false;
-        e.staticT = 0;
-        const bonus = 14;
-        e.hp -= bonus;
+
+      if (s.staticT <= 0){
+        s.staticT = 2.6;
+        s.staticPrimed = true;
+      }
+      else if (s.staticPrimed){
+
+        s.staticPrimed = false;
+        s.staticT = 0;
+
+        e.hp -= 14;
         addEffect(e.x,e.y,'hit',0.18,'#9fe3ff');
 
-        // Thunderclap ring
         if (hasG('lightning','thunderclap')){
-          aoeDamage(e.x,e.y, 90, 10, { col:'#9fe3ff', stun:0.25 });
+          aoeDamage(e.x,e.y,90,10,{col:'#9fe3ff',stun:0.25});
         }
 
-        // Arc Jump / Forked Arc / Storm Conductor
         if (hasG('lightning','arcJump') || hasG('lightning','forkedArc') || hasG('lightning','stormConductor')){
           let jumps = hasG('lightning','stormConductor') ? 12 : (hasG('lightning','forkedArc') ? 2 : 1);
           let last = e;
+
           while (jumps-- > 0){
             let best=null, bestD2=220*220;
+
             for (const o of ents.enemies){
               if (o === last) continue;
               const d2 = dist2(last.x,last.y,o.x,o.y);
               if (d2 < bestD2){ bestD2=d2; best=o; }
             }
+
             if (!best) break;
+
             best.hp -= hasG('lightning','forkedArc') ? 7 : 10;
             addEffect(best.x,best.y,'hit',0.14,'#9fe3ff');
             last = best;
           }
         }
 
-        // Overload (crit stun)
         if (hasG('lightning','overload')){
-          stun(e, 0.35);
+          stun(e,0.35);
         }
       }
 
-      // Charged Rounds (build meter on hits)
       if (hasG('lightning','chargedRounds')){
-        player._charged = Math.min(1, (player._charged||0) + 0.08);
+        player._charged = Math.min(1,(player._charged||0)+0.08);
         player._lastHitT = performance.now()/1000;
         mult *= (1 + 0.10*player._charged);
       }
     }
 
-    // SPIRIT core: Soul Tap + Haunt / Soul Bind
+    // =========================
+    // 👻 SPIRIT
+    // =========================
     if (isPath('spirit') && hasG('spirit','soulTap')){
-      if (hasG('spirit','haunt')) applyHaunt(e, 3.4);
+
+      if (hasG('spirit','haunt')){
+        s.hauntT = Math.max(s.hauntT, 3.4);
+      }
 
       if (hasG('spirit','soulBind')){
-        // bind two enemies hit close together
         const now = performance.now()/1000;
+
         if (!player._linkA || (player._linkT||0) <= 0){
           player._linkA = e;
           player._linkB = null;
           player._linkT = 2.4;
-        } else if (!player._linkB && player._linkA !== e){
+        }
+        else if (!player._linkB && player._linkA !== e){
           player._linkB = e;
           player._linkT = 3.0;
         }
       }
     }
 
-    // WATER core: Drench + Ripple push + Ice Shards handled in shoot
+    // =========================
+    // 🌊 WATER
+    // =========================
     if (isPath('water') && hasG('water','drench')){
-      applyDrench(e, 1, 4.2);
+
+      s.drenchStacks = Math.min(3, s.drenchStacks + 1);
+      s.drenchT = Math.max(s.drenchT, 4.2);
+
       if (hasG('water','rippleShot')){
-        // small knockback away from player
         const dx = e.x - player.x, dy = e.y - player.y;
         const d = Math.hypot(dx,dy) || 1;
+
         e.x += (dx/d) * 18;
         e.y += (dy/d) * 18;
       }
+
       if (hasG('water','tidalRenewal')){
         player._tidalHits = (player._tidalHits||0) + 1;
+
         if (player._tidalHits % 10 === 0){
           player.hp = Math.min(player.hpMax, player.hp + 5);
 
-          // 🌊 replace old pop ring with proper 3D healing pulse
           ents.effects.push({
-            type: 'mendingPulse',
-            x: player.x,
-            y: player.y,
-            r: player.r * 3,
-            life: 1.4,
-            t: 0
-          });
-        }
-      }
-      // 🌊 Tidal Wave — activates every 5 shots (OFFLINE ONLY)
-      if (!online && hasG('water','tidalWave')){
-        player._tidalWaveHits = (player._tidalWaveHits ?? 0) + 1;
-
-        if (player._tidalWaveHits % 5 === 0){
-
-          // pushback cone
-          for (const en of ents.enemies){
-            const dx = en.x - player.x;
-            const dy = en.y - player.y;
-            const d = Math.hypot(dx,dy) || 1;
-            const ang = Math.atan2(dy,dx);
-            const diff = Math.abs(((ang - player.angle + Math.PI*3) % (Math.PI*2)) - Math.PI);
-
-            if (d < 260 && diff < Math.PI/6){
-              en.x += (dx/d) * 180;
-              en.y += (dy/d) * 180;
-            }
-          }
-
-          // visual travelling wave
-          ents.effects.push({
-            type:'tidalWave',
-            x: player.x,
-            y: player.y,
-            ang: player.angle,
-            r: 260,
-            spread: Math.PI/3,
-            life: 0.9,
-            t: 0
+            type:'mendingPulse',
+            x:player.x,
+            y:player.y,
+            r:player.r*3,
+            life:1.4,
+            t:0
           });
         }
       }
     }
 
-    // EARTH core: Stone Skin affects incoming damage in hurtPlayer()
-    // Earth on-hit offensive comes from spikes/quake etc elsewhere
+    // =========================
+    // 🪨 EARTH
+    // =========================
+    if (isPath('earth') && hasG('earth','jaggedEarth')){
+      s.bleedT = Math.max(s.bleedT,2.8);
+    }
 
     return mult;
   }
