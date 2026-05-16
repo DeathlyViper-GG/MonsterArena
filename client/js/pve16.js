@@ -1,3 +1,4 @@
+import { bots, createBot, updateBotAI } from "./bots.js";
 (()=>{
 
   const canvas = document.getElementById('game');
@@ -5138,6 +5139,17 @@ function drawGlyphOverlay(){
     ents.effects = [];
     ents.pickups = [];
     noiseEvents.length = 0;
+    // ===== CREATE BOTS =====
+    bots.length = 0;
+
+    for (let i = 0; i < 3; i++) {
+      const b = createBot("bot_" + i);
+
+      b.x = player.x + (Math.random() * 300 - 150);
+      b.y = player.y + (Math.random() * 300 - 150);
+
+      bots.push(b);
+    }
 
     // Rebuild map & nav
     // Rebuild map ONLY offline.
@@ -5703,6 +5715,21 @@ window.addEventListener('net:snapshot', (ev) => {
         }
         _prevSnapEnemies = nextMap;
       }
+    }
+    // ===== UPDATE BOTS =====
+    for (const bot of bots) {
+
+      updateBotAI(bot, [player], ents.enemies, world, dt);
+
+      // movement
+      const speed = 200;
+
+      bot.x += bot.input.ix * speed * dt;
+      bot.y += bot.input.iy * speed * dt;
+
+      // clamp inside map
+      bot.x = Math.max(30, Math.min(world.w - 30, bot.x));
+      bot.y = Math.max(30, Math.min(world.h - 30, bot.y));
     }
     // ✅ Online authoritative: bullets come from snapshot
     if (online && hasFreshSnapshot()) {
@@ -7226,6 +7253,22 @@ window.addEventListener('net:snapshot', (ev) => {
             : parseInt(rp.color, 10) || 0;
 
         const col = COLORS[colIdx]?.c ?? COLORS[0].c;
+        // ===== DRAW BOTS =====
+        for (const bot of bots) {
+          const x = bot.x - cam.x;
+          const y = bot.y - cam.y;
+
+          ctx.save();
+          ctx.translate(x, y);
+
+          // body
+          ctx.fillStyle = "#66aaff";
+          ctx.beginPath();
+          ctx.arc(0, 0, 16, 0, Math.PI * 2);
+          ctx.fill();
+
+          ctx.restore();
+        }
 
         ctx.save();
         ctx.translate(px, py);
