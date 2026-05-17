@@ -5148,6 +5148,12 @@ function drawGlyphOverlay(){
       b.y = player.y + (Math.random() * 300 - 150);
 
       window.bots.push(b);
+      if (window.Net && Net.state && Net.state.players) {
+        Net.state.players.push({
+          id: b.id,
+          name: b.name
+        });
+      }
     }
 
     // Rebuild map & nav
@@ -5729,6 +5735,15 @@ window.addEventListener('net:snapshot', (ev) => {
       // clamp inside map
       bot.x = Math.max(30, Math.min(world.w - 30, bot.x));
       bot.y = Math.max(30, Math.min(world.h - 30, bot.y));
+      if (bot.input.shoot) {
+        spawnPlainBullet(
+          bot.x,
+          bot.y,
+          bot.ang,
+          600,
+          10
+        );
+      }
     }
     // ✅ Online authoritative: bullets come from snapshot
     if (online && hasFreshSnapshot()) {
@@ -7390,6 +7405,24 @@ window.addEventListener('net:snapshot', (ev) => {
       }
 
       ctx.restore();
+    }
+
+    // ===== DRAW BOTS (ADD THIS BLOCK EXACTLY HERE) =====
+    for (const bot of window.bots) {
+      const bx = bot.x - cam.x - cam.sx;
+      const by = bot.y - cam.y - cam.sy;
+
+      // body
+      ctx.fillStyle = "#66aaff";
+      ctx.beginPath();
+      ctx.arc(bx, by, 16, 0, Math.PI * 2);
+      ctx.fill();
+
+      // name above head
+      ctx.fillStyle = "#ffffff";
+      ctx.font = "12px sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText(bot.name, bx, by - 22);
     }
 
     // ---------------------------
