@@ -535,6 +535,9 @@
     return me || null;
   }
   function renderLobbyPlayers(){
+    const overlay = document.getElementById('overlayLoading');
+    if (!overlay || overlay.style.display !== 'grid') return;
+
     const el = document.getElementById('lobbyPlayers');
     if (!el) return;
 
@@ -544,16 +547,21 @@
     }
 
     const snap = Net.state?.snapshot;
-    const peers = (snap && Array.isArray(snap.players))
-      ? snap.players.map(p => ({ id: p.id, label: (p.name || p.id) }))
-      : [];
-    const hostId = electedHostId();
+
+    if (!snap || !Array.isArray(snap.players)) {
+      el.textContent = '';
+      return;
+    }
+
     const me = Net.state?.peerId;
 
-    el.innerHTML = peers.map(p => {
+    let html = '';
+    for (const p of snap.players) {
       const tag = (p.id === me) ? ' <b>(YOU)</b>' : '';
-      return `<div>${p.label}${tag}</div>`;
-    }).join('');
+      html += `<div>${p.name || p.id}${tag}</div>`;
+    }
+
+    el.innerHTML = html;
   }
   let _lastServerWorldKey = '';
   let _lastServerHadBuildings = false;
