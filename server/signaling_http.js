@@ -8,6 +8,7 @@
 */
 
 import express from "express";
+import { initBots, updateBots, bakeBotsSnapshot } from "./bots.js";
 import cors from "cors";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -2159,6 +2160,7 @@ setInterval(() => {
     // Compute dt first (safe)
     // ✅ Fixed dt (prevents integration drift under load)
     const dt = TICK_MS / 1000;
+    updateBots(lobby, dt, TICK_MS, moveEnemyWithCollide);
     lobby.lastTick = t;
     // ============================
     // GLYPH PHASE TIMER (PER LOBBY)
@@ -2227,6 +2229,7 @@ setInterval(() => {
     // Start lobby when countdown ends
     // Start lobby when countdown ends
     if (!lobby.started && t >= lobby.startTime) {
+      initBots(lobby);
       // ✅ Do NOT auto-assign levels (especially for PvP)
       if (lobby.levelId == null || lobby.mapSeed == null) {
         continue; // wait until level is explicitly set
@@ -2636,6 +2639,8 @@ setInterval(() => {
       t: now(),
       mode: lobby.mode,
       wave: lobby.wave,
+
+      bots: bakeBotsSnapshot(lobby),
       
       phase: lobby.gamePhase,
       glyphTime: lobby.gamePhase === 'glyph' ? lobby.glyphTimer : 0,

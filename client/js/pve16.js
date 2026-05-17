@@ -5138,23 +5138,6 @@ function drawGlyphOverlay(){
     ents.effects = [];
     ents.pickups = [];
     noiseEvents.length = 0;
-    // ===== CREATE BOTS =====
-    window.bots.length = 0;
-
-    for (let i = 0; i < 3; i++) {
-      const b = window.createBot("bot_" + i);
-
-      b.x = player.x + (Math.random() * 300 - 150);
-      b.y = player.y + (Math.random() * 300 - 150);
-
-      window.bots.push(b);
-      if (window.Net && Net.state && Net.state.players) {
-        Net.state.players.push({
-          id: b.id,
-          name: b.name
-        });
-      }
-    }
 
     // Rebuild map & nav
     // Rebuild map ONLY offline.
@@ -5719,30 +5702,6 @@ window.addEventListener('net:snapshot', (ev) => {
           nextMap.set(e.id, { x:e.x, y:e.y, type:e.type, r:e.r ?? 16 });
         }
         _prevSnapEnemies = nextMap;
-      }
-    }
-    // ===== UPDATE BOTS =====
-    for (const bot of window.bots) {
-
-      window.updateBotAI(bot, [player], ents.enemies, world, dt);
-
-      // movement
-      const speed = 200;
-
-      bot.x += bot.input.ix * speed * dt;
-      bot.y += bot.input.iy * speed * dt;
-
-      // clamp inside map
-      bot.x = Math.max(30, Math.min(world.w - 30, bot.x));
-      bot.y = Math.max(30, Math.min(world.h - 30, bot.y));
-      if (bot.input.shoot) {
-        spawnPlainBullet(
-          bot.x,
-          bot.y,
-          bot.ang,
-          600,
-          10
-        );
       }
     }
     // ✅ Online authoritative: bullets come from snapshot
@@ -7267,22 +7226,6 @@ window.addEventListener('net:snapshot', (ev) => {
             : parseInt(rp.color, 10) || 0;
 
         const col = COLORS[colIdx]?.c ?? COLORS[0].c;
-        // ===== DRAW BOTS =====
-        for (const bot of window.bots) {
-          const x = bot.x - cam.x;
-          const y = bot.y - cam.y;
-
-          ctx.save();
-          ctx.translate(x, y);
-
-          // body
-          ctx.fillStyle = "#66aaff";
-          ctx.beginPath();
-          ctx.arc(0, 0, 16, 0, Math.PI * 2);
-          ctx.fill();
-
-          ctx.restore();
-        }
 
         ctx.save();
         ctx.translate(px, py);
@@ -7407,23 +7350,6 @@ window.addEventListener('net:snapshot', (ev) => {
       ctx.restore();
     }
 
-    // ===== DRAW BOTS (ADD THIS BLOCK EXACTLY HERE) =====
-    for (const bot of window.bots) {
-      const bx = bot.x - cam.x - cam.sx;
-      const by = bot.y - cam.y - cam.sy;
-
-      // body
-      ctx.fillStyle = "#66aaff";
-      ctx.beginPath();
-      ctx.arc(bx, by, 16, 0, Math.PI * 2);
-      ctx.fill();
-
-      // name above head
-      ctx.fillStyle = "#ffffff";
-      ctx.font = "12px sans-serif";
-      ctx.textAlign = "center";
-      ctx.fillText(bot.name, bx, by - 22);
-    }
 
     // ---------------------------
     // Effects
