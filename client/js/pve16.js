@@ -7253,7 +7253,7 @@ window.addEventListener('net:snapshot', (ev) => {
 
         const col = COLORS[colIdx]?.c ?? COLORS[0].c;
         // ===== DRAW BOTS =====
-        for (const bot of bots) {
+        for (const bot of window.bots) {
           const x = bot.x - cam.x;
           const y = bot.y - cam.y;
 
