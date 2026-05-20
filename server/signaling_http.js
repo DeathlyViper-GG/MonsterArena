@@ -2228,12 +2228,18 @@ setInterval(() => {
 
     // Start lobby when countdown ends
     // Start lobby when countdown ends
+    
     if (!lobby.started && t >= lobby.startTime) {
-      initBots(lobby);
-      // ✅ Do NOT auto-assign levels (especially for PvP)
+
+      // ✅ WAIT FIRST
       if (lobby.levelId == null || lobby.mapSeed == null) {
-        continue; // wait until level is explicitly set
+        continue;
       }
+
+      // ✅ ONLY INIT AFTER VALID WORLD
+      initBots(lobby);
+
+
 
       lobby.started = true;
 
