@@ -6926,40 +6926,7 @@ window.addEventListener('net:snapshot', (ev) => {
               // ============================
               // BOTS
               // ============================
-              for (const b of drawBots) {
-
-                const x = b.x - cam.x - cam.sx;
-                const y = b.y - cam.y - cam.sy;
-
-                ctx.save();
-                ctx.translate(x, y);
-                ctx.rotate(b.ang || 0);
-
-                // body
-                ctx.fillStyle = "#66ccff";
-                ctx.beginPath();
-                ctx.arc(0, 0, 16, 0, Math.PI * 2);
-                ctx.fill();
-
-                // simple direction indicator
-                ctx.fillStyle = "#ffffff";
-                ctx.fillRect(16, -2, 10, 4);
-
-                ctx.restore();
-
-                // HP ring
-                const hp = (b.hp ?? 100) / 100;
-
-                ctx.strokeStyle = "#000";
-                ctx.beginPath();
-                ctx.arc(x, y, 22, 0, Math.PI * 2);
-                ctx.stroke();
-
-                ctx.strokeStyle = "#66ff66";
-                ctx.beginPath();
-                ctx.arc(x, y, 22, -Math.PI/2, -Math.PI/2 + hp*2*Math.PI);
-                ctx.stroke();
-              }
+              
             }
 
             if (hitE) {
@@ -7178,6 +7145,43 @@ window.addEventListener('net:snapshot', (ev) => {
         ctx.stroke();
       }
     }
+    // ============================
+    // BOTS ✅ CORRECT PLACE
+    // ============================
+    for (const b of drawBots) {
+
+      const x = b.x - cam.x - cam.sx;
+      const y = b.y - cam.y - cam.sy;
+
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(b.ang || 0);
+
+      // body
+      ctx.fillStyle = "#66ccff";
+      ctx.beginPath();
+      ctx.arc(0, 0, 16, 0, Math.PI * 2);
+      ctx.fill();
+
+      // direction indicator
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(16, -2, 10, 4);
+
+      ctx.restore();
+
+      // HP ring
+      const hp = (b.hp ?? 100) / 100;
+
+      ctx.strokeStyle = "#000";
+      ctx.beginPath();
+      ctx.arc(x, y, 22, 0, Math.PI * 2);
+      ctx.stroke();
+
+      ctx.strokeStyle = "#66ff66";
+      ctx.beginPath();
+      ctx.arc(x, y, 22, -Math.PI/2, -Math.PI/2 + hp*2*Math.PI);
+      ctx.stroke();
+}
 
     // ---------------------------
     // Optional: AI debug visuals (local ents only)
