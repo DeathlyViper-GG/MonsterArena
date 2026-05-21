@@ -165,14 +165,18 @@ function updateSPBots(dt, player, ents, world){
       if (b.shootCD <= 0){
         b.shootCD = b.fireRate;
 
-        ents.pbullets.push({
-          x: b.x,
-          y: b.y,
-          vx: Math.cos(b.ang) * 600,
-          vy: Math.sin(b.ang) * 600,
-          life: 1.2,
-          team: "player"
-        });
+        if (!ents.bullets) ents.bullets = [];
+
+          ents.bullets.push({
+            x: b.x,
+            y: b.y,
+            vx: Math.cos(b.ang) * 600,
+            vy: Math.sin(b.ang) * 600,
+            life: 1.2,
+            r: 4,
+            dmg: 10,
+            team: "player"
+          });
       }
     }
 
