@@ -3,12 +3,18 @@
 // ===============================
 
 let SP_BOTS = [];
-// bring los function from main file
+// bring functions from main file
 let BOT_losBlocked = null;
+let BOT_moveWithCollide = null;
 
 function setBotLOS(fn){
   BOT_losBlocked = fn;
 }
+
+function setBotMove(fn){
+  BOT_moveWithCollide = fn;
+}
+
 
 
 // ===== INIT =====
@@ -125,7 +131,9 @@ function updateSPBots(dt, player, ents, world){
       b.vx = moveX * b.speed * speedMul;
       b.vy = moveY * b.speed * speedMul;
 
-      moveWithCollide(b, b.vx * dt, b.vy * dt);
+      if (BOT_moveWithCollide){
+        BOT_moveWithCollide(b, b.vx * dt, b.vy * dt);
+      }
 
       const aim = angleTo(b.x, b.y, target.x, target.y);
       const miss = 0.08 * (Math.random() - 0.5);

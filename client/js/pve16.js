@@ -5179,6 +5179,7 @@ function drawGlyphOverlay(){
     canvas.focus();
     initSPBots(player, COLORS, DESIGNS, gunSheets);
     setBotLOS(losBlocked);
+    setBotMove(moveWithCollide);
   }
   function applyTheme(theme){ currentTheme=theme; state.diff=parseFloat(selDiff.value||'1.0')||1.0; lvlEl.textContent=`${currentTheme.id} — ${currentTheme.name}` 
     if (!window.Net || !Net.state || !Net.state.lobbyId) {
