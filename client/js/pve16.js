@@ -1,3 +1,4 @@
+import { initSPBots, updateSPBots, drawSPBots } from "./bots_sp.js";
 (()=>{
 
   const canvas = document.getElementById('game');
@@ -1570,6 +1571,7 @@
 
   // Entities ------------------------------------------------------------------
   const ents = { bullets:[], ebullets:[], effects:[], enemies:[], pickups:[] };
+  
   // ✅ PERSISTENT STATUS (MULTIPLAYER FIX)
   const enemyStatus = new Map();
   
@@ -5176,6 +5178,7 @@ function drawGlyphOverlay(){
     updateHudButtonsForMode();                // ← lets update() run
     if (audio.musicOn) audio.startMusic();
     canvas.focus();
+    initSPBots(player, COLORS, DESIGNS, gunSheets);
   }
   function applyTheme(theme){ currentTheme=theme; state.diff=parseFloat(selDiff.value||'1.0')||1.0; lvlEl.textContent=`${currentTheme.id} — ${currentTheme.name}` 
     if (!window.Net || !Net.state || !Net.state.lobbyId) {
@@ -6554,6 +6557,7 @@ window.addEventListener('net:snapshot', (ev) => {
         addWorldVfx({ type:'quake', x: player.x, y: player.y, r: 160, life: 0.45, maxLife: 0.45 });
       }
     }
+    updateSPBots(dt, player, ents, world);
   }
   
   const SPRITE_ROT_OFF = {
@@ -6584,6 +6588,8 @@ window.addEventListener('net:snapshot', (ev) => {
       (online && snap && Array.isArray(snap.bots))
         ? snap.bots
         : [];
+    
+    drawSPBots(ctx, cam, COLORS, drawDesign, weapons, gunSheets);
     // World layers
     // Floor does not need 60Hz redraw
    
