@@ -183,12 +183,11 @@ function drawSPBots(ctx, cam, COLORS, drawDesign, weapons, gunSheets){
     ctx.translate(px, py);
     ctx.rotate(b.ang);
 
-    drawDesign(
-      b.design,
-      COLORS[b.color].c,
-      performance.now()/1000,
-      16
-    );
+    ctx.fillStyle = "#ff0000";
+    ctx.beginPath();
+    ctx.arc(0, 0, 16, 0, Math.PI * 2);
+    ctx.fill();
+
 
     const w = weapons[b.weapon];
 
