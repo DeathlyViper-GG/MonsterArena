@@ -176,8 +176,10 @@ function drawSPBots(ctx, cam, COLORS, drawDesign, weapons, gunSheets){
 
   for (const b of SP_BOTS){
 
-    const px = b.x;
-    const py = b.y;
+    
+    const px = b.x - cam.x - cam.sx;
+    const py = b.y - cam.y - cam.sy;
+
 
     ctx.save();
     ctx.translate(px, py);
