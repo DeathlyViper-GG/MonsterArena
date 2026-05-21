@@ -4222,10 +4222,10 @@ if (btnHomeCustomize){
 // ===============================
 // Glyph overlay system (client) — SCROLLABLE 3D TREE + FULL DESCRIPTIONS
 // ===============================
-const GLYPH_COST_CORE = 5;
-const GLYPH_COST_T1   = 10;
-const GLYPH_COST_T2   = 20;
-const GLYPH_COST_T3   = 20;
+const GLYPH_COST_CORE = 1;
+const GLYPH_COST_T1   = 1;
+const GLYPH_COST_T2   = 1;
+const GLYPH_COST_T3   = 1;
 
 // ---------- Data: full skill names + descriptions ----------
 const GLYPH_CORE = {
