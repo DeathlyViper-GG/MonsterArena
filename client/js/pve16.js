@@ -7162,19 +7162,27 @@ window.addEventListener('net:snapshot', (ev) => {
       ctx.translate(x, y);
       ctx.rotate(b.ang || 0);
 
-      // body
-      ctx.fillStyle = "#66ccff";
-      ctx.beginPath();
-      ctx.arc(0, 0, 16, 0, Math.PI * 2);
-      ctx.fill();
+      drawDesign(
+        b.design ?? 0,
+        COLORS[b.color ?? 0].c,
+        performance.now()/1000,
+        20
+      );
 
-      // direction indicator
-      ctx.fillStyle = "#ffffff";
-      ctx.fillRect(16, -2, 10, 4);
+      const w = weapons[b.weapon ?? 0];
+
+      let img = null;
+
+      if (w.kind === 'pistol') img = gunSheets.pistols[b.guns?.pistol ?? -1];
+      if (w.kind === 'rifle') img = gunSheets.rifles[b.guns?.rifle ?? -1];
+      if (w.kind === 'shotgun') img = gunSheets.shotguns[b.guns?.shotgun ?? -1];
+
+      if (img){
+        ctx.drawImage(img, 12, -5, 30, 20);
+      }
 
       ctx.restore();
 
-      // HP ring
       const hp = (b.hp ?? 100) / 100;
 
       ctx.strokeStyle = "#000";
@@ -7184,9 +7192,9 @@ window.addEventListener('net:snapshot', (ev) => {
 
       ctx.strokeStyle = "#66ff66";
       ctx.beginPath();
-      ctx.arc(x, y, 22, -Math.PI/2, -Math.PI/2 + hp*2*Math.PI);
+      ctx.arc(x, y, 22, -Math.PI/2, -Math.PI/2 + hp * 2 * Math.PI);
       ctx.stroke();
-}
+    }
 
     // ---------------------------
     // Optional: AI debug visuals (local ents only)

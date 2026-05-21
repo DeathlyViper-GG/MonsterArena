@@ -48,19 +48,31 @@ function updateSPBots(dt, player, ents, world){
 
   for (const b of SP_BOTS){
 
+    
+
     let target = null;
     let best = Infinity;
 
+    const MAX_DIST = 650;   // 👈 tweak (600–800 feels good)
+
     for (const e of ents.enemies){
+
       const dx = e.x - b.x;
       const dy = e.y - b.y;
-      const d = dx*dx + dy*dy;
+      const dist = dx*dx + dy*dy;
 
-      if (d < best){
-        best = d;
+      if (dist > MAX_DIST * MAX_DIST) continue;
+
+      if (losBlocked(b.x, b.y, e.x, e.y)) continue;
+
+      const bias = Math.random() * 200;
+
+      if (dist + bias < best){
+        best = dist + bias;
         target = e;
       }
     }
+
 
     b.target = target;
 
@@ -75,39 +87,64 @@ function updateSPBots(dt, player, ents, world){
     }
 
     if (target){
+
       const dx = target.x - b.x;
       const dy = target.y - b.y;
-      const dist = Math.hypot(dx,dy);
+      const d = Math.hypot(dx,dy) || 1;
 
-      b.ang = Math.atan2(dy,dx);
+      if (b.brave === undefined) b.brave = Math.random() < 0.5;
+      if (!b.side) b.side = Math.random() < 0.5 ? -1 : 1;
 
-      if (dist > 120){
-        b.x += Math.cos(b.ang)*b.speed*dt;
-        b.y += Math.sin(b.ang)*b.speed*dt;
+      let moveX = dx / d;
+      let moveY = dy / d;
+
+      if (d > 300){
+        // approach
+      }
+      else if (d < 160){
+        moveX *= -1;
+        moveY *= -1;
+      }
+      else{
+        const strafeX = -moveY * b.side;
+        const strafeY = moveX * b.side;
+
+        moveX = moveX * 0.3 + strafeX * 0.7;
+        moveY = moveY * 0.3 + strafeY * 0.7;
       }
 
-      if (dist < 80){
-        b.equip = "melee";
-      } else {
-        b.equip = "gun";
+      const speedMul = b.brave ? 1.2 : 0.85;
+
+      b.vx = moveX * b.speed * speedMul;
+      b.vy = moveY * b.speed * speedMul;
+
+      moveWithCollide(b, b.vx * dt, b.vy * dt);
+
+      const aim = angleTo(b.x, b.y, target.x, target.y);
+      const miss = 0.08 * (Math.random() - 0.5);
+
+      b.ang = lerpAngle(b.ang || 0, aim + miss, 0.2);
+    }
+    // ===== SHOOTING =====
+
+    if (target){
+
+      if (!b.fireRate){
+        b.fireRate = 0.4 + Math.random() * 0.6;
       }
 
       b.shootCD -= dt;
 
-      if (b.shootCD <= 0 && b.equip === "gun"){
-        b.shootCD = 0.45;
+      if (b.shootCD <= 0){
+        b.shootCD = b.fireRate;
 
-        const miss = Math.random() < 0.15;
-        const ang = b.ang + (Math.random()-0.5)*(miss ? 0.4 : 0.05);
-
-        ents.bullets.push({
+        ents.pbullets.push({
           x: b.x,
           y: b.y,
-          vx: Math.cos(ang)*800,
-          vy: Math.sin(ang)*800,
-          r: 4,
-          dmg: 12,
-          life: 1.2
+          vx: Math.cos(b.ang) * 600,
+          vy: Math.sin(b.ang) * 600,
+          life: 1.2,
+          team: "player"
         });
       }
     }
@@ -185,10 +222,12 @@ function drawSPBots(ctx, cam, COLORS, drawDesign, weapons, gunSheets){
     ctx.translate(px, py);
     ctx.rotate(b.ang);
 
-    ctx.fillStyle = "#ff0000";
-    ctx.beginPath();
-    ctx.arc(0, 0, 16, 0, Math.PI * 2);
-    ctx.fill();
+    drawDesign(
+      b.design,
+      COLORS[b.color].c,
+      performance.now()/1000,
+      20
+    );
 
 
     const w = weapons[b.weapon];
