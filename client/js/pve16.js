@@ -1,4 +1,3 @@
-import { initSPBots, updateSPBots, drawSPBots } from "./bots_sp.js";
 (()=>{
 
   const canvas = document.getElementById('game');

@@ -5,7 +5,7 @@
 export let SP_BOTS = [];
 
 // ===== INIT =====
-export function initSPBots(player, COLORS, DESIGNS, gunSheets){
+function initSPBots(player, COLORS, DESIGNS, gunSheets){
   SP_BOTS = [];
 
   for (let i = 0; i < 3; i++){
@@ -44,7 +44,7 @@ export function initSPBots(player, COLORS, DESIGNS, gunSheets){
 }
 
 // ===== UPDATE =====
-export function updateSPBots(dt, player, ents, world){
+function updateSPBots(dt, player, ents, world){
 
   for (const b of SP_BOTS){
 
@@ -172,7 +172,7 @@ export function updateSPBots(dt, player, ents, world){
 }
 
 // ===== DRAW =====
-export function drawSPBots(ctx, cam, COLORS, drawDesign, weapons, gunSheets){
+function drawSPBots(ctx, cam, COLORS, drawDesign, weapons, gunSheets){
 
   for (const b of SP_BOTS){
 
