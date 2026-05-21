@@ -7210,6 +7210,7 @@ window.addEventListener('net:snapshot', (ev) => {
           );
         }
       }
+      drawSPBots(ctx, cam, COLORS, drawDesign, weapons, gunSheets);
       ctx.restore();
     }
 
