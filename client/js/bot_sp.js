@@ -15,6 +15,18 @@ function setBotMove(fn){
   BOT_moveWithCollide = fn;
 }
 
+// ===== local helpers (fix missing functions) =====
+function angleTo(ax, ay, bx, by){
+  return Math.atan2(by - ay, bx - ax);
+}
+
+function lerpAngle(a, b, t){
+  let d = b - a;
+  while (d > Math.PI) d -= Math.PI * 2;
+  while (d < -Math.PI) d += Math.PI * 2;
+  return a + d * t;
+}
+
 
 
 // ===== INIT =====
