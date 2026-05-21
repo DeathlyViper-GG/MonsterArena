@@ -6585,8 +6585,8 @@ window.addEventListener('net:snapshot', (ev) => {
 
     const drawBots =
       (online && snap && Array.isArray(snap.bots))
-        ? snap.bots
-        : [];
+      ? snap.bots
+      : SP_BOTS;
     
     drawSPBots(ctx, cam, COLORS, drawDesign, weapons, gunSheets);
     // World layers
