@@ -3,6 +3,13 @@
 // ===============================
 
 let SP_BOTS = [];
+// bring los function from main file
+let BOT_losBlocked = null;
+
+function setBotLOS(fn){
+  BOT_losBlocked = fn;
+}
+
 
 // ===== INIT =====
 function initSPBots(player, COLORS, DESIGNS, gunSheets){
@@ -63,7 +70,7 @@ function updateSPBots(dt, player, ents, world){
 
       if (dist > MAX_DIST * MAX_DIST) continue;
 
-      if (losBlocked(b.x, b.y, e.x, e.y)) continue;
+      if (BOT_losBlocked && BOT_losBlocked(b.x, b.y, e.x, e.y)) continue;
 
       const bias = Math.random() * 200;
 
