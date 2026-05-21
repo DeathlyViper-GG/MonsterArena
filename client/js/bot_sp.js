@@ -2,7 +2,7 @@
 // SINGLEPLAYER BOT MODULE
 // ===============================
 
-export let SP_BOTS = [];
+let SP_BOTS = [];
 
 // ===== INIT =====
 function initSPBots(player, COLORS, DESIGNS, gunSheets){
