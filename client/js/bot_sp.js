@@ -43,6 +43,7 @@ function initSPBots(player, COLORS, DESIGNS, gunSheets){
 
       hp: 100,
       hpMax: 100,
+      r: 16,
 
       speed: 180,
 
@@ -145,6 +146,31 @@ function updateSPBots(dt, player, ents, world){
 
       if (BOT_moveWithCollide){
         BOT_moveWithCollide(b, b.vx * dt, b.vy * dt);
+      }
+
+      // ✅ EXACT same hazard system as enemies
+      const hz = world.getHazardAt(b.x, b.y, b.r * 0.9);
+
+      if (hz) {
+        if (hz.type === 'sand') {
+          applyQuicksand(b, hz, dt, { isPlayer:false });
+        }
+        else if (hz.type === 'ice') {
+          applyIceSlide(b, hz, dt);
+        }
+        else if (hz.type === 'lava') {
+          if (hz.phase === 'erupt') {
+            b.hp = 0;
+          } else if (hz.phase === 'after') {
+            b.hp -= 30 * dt;
+          }
+        }
+        else if (hz.type === 'void') {
+          const res = resolveVoid(b, hz, dt, false);
+          if (res.done && res.killed) {
+            b.hp = 0;
+          }
+        }
       }
 
       const aim = angleTo(b.x, b.y, target.x, target.y);
