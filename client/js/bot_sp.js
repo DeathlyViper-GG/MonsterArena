@@ -43,7 +43,12 @@ function initSPBots(player, COLORS, DESIGNS, gunSheets){
 
       hp: 100,
       hpMax: 100,
+
       r: 16,
+
+      // ✅ REQUIRED — THIS IS THE REAL FIX
+      vx: 0,
+      vy: 0,
 
       speed: 180,
 
@@ -107,8 +112,10 @@ function updateSPBots(dt, player, ents, world){
       const dx = b.x - player.x;
       const dy = b.y - player.y;
       b.ang = Math.atan2(dy, dx);
-      b.x += Math.cos(b.ang)*b.speed*dt;
-      b.y += Math.sin(b.ang)*b.speed*dt;
+      const rx = Math.cos(b.ang) * b.speed * dt;
+      const ry = Math.sin(b.ang) * b.speed * dt;
+
+      BOT_moveWithCollide(b, rx, ry);
       continue;
     }
 
@@ -141,14 +148,17 @@ function updateSPBots(dt, player, ents, world){
 
       const speedMul = b.brave ? 1.2 : 0.85;
 
-      b.vx = moveX * b.speed * speedMul;
-      b.vy = moveY * b.speed * speedMul;
+      // ✅ EXACT SAME MOVEMENT MODEL AS ENEMIES (FROM YOUR FILE)
 
-      if (BOT_moveWithCollide){
-        BOT_moveWithCollide(b, b.vx * dt, b.vy * dt);
-      }
+     // ✅ use direct movement like player (NOT velocity)
 
-      // ✅ EXACT same hazard system as enemies
+      let dxMove = moveX * b.speed * speedMul * dt;
+      let dyMove = moveY * b.speed * speedMul * dt;
+
+      // ✅ move using collision
+      BOT_moveWithCollide(b, dxMove, dyMove);
+
+      // ✅ apply hazard effects EXACTLY like your enemies
       const hz = world.getHazardAt(b.x, b.y, b.r * 0.9);
 
       if (hz) {
@@ -167,7 +177,7 @@ function updateSPBots(dt, player, ents, world){
         }
         else if (hz.type === 'void') {
           const res = resolveVoid(b, hz, dt, false);
-          if (res.done && res.killed) {
+          if (res && res.done && res.killed) {
             b.hp = 0;
           }
         }
@@ -231,8 +241,10 @@ function updateSPBots(dt, player, ents, world){
         b.ang = Math.random()*Math.PI*2;
       }
 
-      b.x += Math.cos(b.ang)*b.speed*0.6*dt;
-      b.y += Math.sin(b.ang)*b.speed*0.6*dt;
+      const wx = Math.cos(b.ang) * b.speed * 0.6 * dt;
+      const wy = Math.sin(b.ang) * b.speed * 0.6 * dt;
+
+      BOT_moveWithCollide(b, wx, wy);
     }
 
     // PICKUPS
@@ -255,10 +267,6 @@ function updateSPBots(dt, player, ents, world){
         }
         ents.pickups.splice(i,1);
       }
-    }
-
-    if (world.collideHazard(b.x, b.y, 16)){
-      b.hp = 0;
     }
   }
 
@@ -283,7 +291,7 @@ function drawSPBots(ctx, cam, COLORS, drawDesign, weapons, gunSheets){
       b.design,
       COLORS[b.color].c,
       performance.now()/1000,
-      20
+      16
     );
 
 
