@@ -131,6 +131,11 @@ function updateSPBots(dt, player, ents, world){
       let moveX = dx / d;
       let moveY = dy / d;
 
+      // ✅ slight sideways bias (prevents wall headbutting)
+      const sideBias = 0.3;
+      moveX += (-moveY) * sideBias * (b.side || 1);
+      moveY += ( moveX) * sideBias * (b.side || 1);
+
       if (d > 300){
         // approach
       }
@@ -155,8 +160,14 @@ function updateSPBots(dt, player, ents, world){
       let dxMove = moveX * b.speed * speedMul * dt;
       let dyMove = moveY * b.speed * speedMul * dt;
 
-      // ✅ move using collision
-      BOT_moveWithCollide(b, dxMove, dyMove);
+      // ✅ split into small steps (fixes door getting stuck)
+      const steps = 4;
+      const sx = dxMove / steps;
+      const sy = dyMove / steps;
+
+      for (let i = 0; i < steps; i++){
+        BOT_moveWithCollide(b, sx, sy);
+      }
 
       // ✅ apply hazard effects EXACTLY like your enemies
       const hz = world.getHazardAt(b.x, b.y, b.r * 0.9);
@@ -186,7 +197,7 @@ function updateSPBots(dt, player, ents, world){
       const aim = angleTo(b.x, b.y, target.x, target.y);
       const miss = 0.08 * (Math.random() - 0.5);
 
-      b.ang = lerpAngle(b.ang || 0, aim + miss, 0.2);
+      b.ang = lerpAngle(b.ang || 0, aim + miss, 0.08);
     }
     // ===== SHOOTING =====
 
@@ -303,7 +314,7 @@ function drawSPBots(ctx, cam, COLORS, drawDesign, weapons, gunSheets){
     if (w.kind === 'shotgun') img = gunSheets.shotguns[b.guns.shotgun];
 
     if (img){
-      ctx.drawImage(img, 10, -5, 28, 18);
+      ctx.drawImage(img, 14, -6, 36, 24);
     }
 
     ctx.restore();

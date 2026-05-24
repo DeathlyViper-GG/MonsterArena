@@ -5989,7 +5989,29 @@ window.addEventListener('net:snapshot', (ev) => {
 
         hurtPlayer(dmg * dt * 1.4);
           const d = Math.sqrt(d2) || 1;
-          moveWithCollide(player, (player.x - e.x)/d * 40 * dt, (player.y - e.y)/d * 40 * dt);
+          // ✅ choose player OR closest bot
+
+          let tx = player.x;
+          let ty = player.y;
+
+          let best = (player.x - e.x)*(player.x - e.x) + (player.y - e.y)*(player.y - e.y);
+
+          for (const b of SP_BOTS){
+            if (!b || b.hp <= 0) continue;
+
+            const dxb = b.x - e.x;
+            const dyb = b.y - e.y;
+            const d2b = dxb*dxb + dyb*dyb;
+
+            if (d2b < best){
+              best = d2b;
+              tx = b.x;
+              ty = b.y;
+            }
+          }
+
+          // ✅ move towards chosen target
+          moveWithCollide(player, (tx - e.x)/d * 40 * dt, (ty - e.y)/d * 40 * dt);
         }
 
         // Hazard interaction for this enemy
