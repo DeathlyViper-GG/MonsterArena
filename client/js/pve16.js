@@ -6207,8 +6207,54 @@ window.addEventListener('net:snapshot', (ev) => {
     
       cam.shake = Math.max(cam.shake,1.5); if (b.pierce > 0) b.pierce--; else ents.bullets.splice(i,1); e.alerted = true; e.alertT = Math.max(e.alertT, 3); broadcastAlertFrom(e.x,e.y); } }
 
-    for (let i = ents.ebullets.length - 1; i >= 0; i--){ const b = ents.ebullets[i]; b.x += b.vx * dt; b.y += b.vy * dt; b.life -= dt; if (b.kind === 'bomb'){ const hitWall = lineWallHit(b.x, b.y, b.vx, b.vy, 0, b.r); const timeUp=(b.life<=0); if (hitWall || timeUp){ const R=(b.splashR||110)+player.r; if(dist2(b.x,b.y,player.x,player.y) < R*R){ hurtPlayer(b.dmg); addEffect(b.x,b.y,'hit',0.12,'#ffd7d7'); } addEffect(b.x,b.y,'pop',0.55,'#ffb38a'); cam.shake=Math.max(cam.shake,5); ents.ebullets.splice(i, 1); continue; } continue; } if (lineWallHit(b.x,b.y,b.vy,b.vx,0,b.r) || b.life <= 0){ ents.ebullets.splice(i,1); continue; } const r = player.r + b.r; if (dist2(b.x,b.y,player.x,player.y) < r*r){ if (currentTheme.id === 3) player.slowT = Math.max(player.slowT, 1.6); hurtPlayer(b.dmg); addEffect(b.x,b.y,'hit',0.1,'#ffd7d7'); ents.ebullets.splice(i,1); } }
+    for (let i = ents.ebullets.length - 1; i >= 0; i--){ const b = ents.ebullets[i]; b.x += b.vx * dt; b.y += b.vy * dt; b.life -= dt; if (b.kind === 'bomb'){ const hitWall = lineWallHit(b.x, b.y, b.vx, b.vy, 0, b.r); const timeUp=(b.life<=0); if (hitWall || timeUp){ const R=(b.splashR||110)+player.r 
+      if(dist2(b.x,b.y,player.x,player.y) < R*R){
+        hurtPlayer(b.dmg); 
+        addEffect(b.x,b.y,'hit',0.12,'#ffd7d7'); 
+      }
 
+      // DAMAGE BOTS FROM SPLASH
+      for (const bot of SP_BOTS){
+        if (dist2(b.x,b.y,bot.x,bot.y) < R*R){
+          bot.hp -= b.dmg || 10;
+        }
+      }
+      addEffect(b.x,b.y,'pop',0.55,'#ffb38a'); cam.shake=Math.max(cam.shake,5); ents.ebullets.splice(i, 1); continue; } continue; } if (lineWallHit(b.x,b.y,b.vy,b.vx,0,b.r) || b.life <= 0){ ents.ebullets.splice(i,1); continue; } 
+      // ===== HIT PLAYER =====
+      const r = player.r + b.r; 
+
+      if (dist2(b.x,b.y,player.x,player.y) < r*r){ 
+        if (currentTheme.id === 3) player.slowT = Math.max(player.slowT, 1.6); 
+        hurtPlayer(b.dmg); 
+        addEffect(b.x,b.y,'hit',0.1,'#ffd7d7'); 
+        ents.ebullets.splice(i,1); 
+        continue;
+      }
+
+      // ===== HIT BOTS =====
+      for (const bot of SP_BOTS){
+
+        const rr = bot.r + b.r;
+
+        if (dist2(b.x,b.y,bot.x,bot.y) < rr * rr){
+
+          // apply damage
+          bot.hp -= b.dmg || 10;
+
+          // small knockback (optional but helps feel)
+          const dx = bot.x - b.x;
+          const dy = bot.y - b.y;
+          const len = Math.hypot(dx, dy) || 1;
+          bot.x += (dx / len) * 8;
+          bot.y += (dy / len) * 8;
+
+          addEffect(b.x,b.y,'hit',0.1,'#ffd7d7');
+
+          ents.ebullets.splice(i,1);
+          break;
+        }
+      } 
+    }
       for (let i = ents.pickups.length - 1; i >= 0; i--){
         const p = ents.pickups[i];
         p.t += dt;

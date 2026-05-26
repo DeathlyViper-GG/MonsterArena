@@ -26,6 +26,21 @@ function lerpAngle(a, b, t){
   while (d < -Math.PI) d += Math.PI * 2;
   return a + d * t;
 }
+function aimPredict(from, target, bulletSpeed = 600){
+  const dx = target.x - from.x;
+  const dy = target.y - from.y;
+
+  const dist = Math.hypot(dx, dy);
+  const t = dist / bulletSpeed;
+
+  const vx = target.vx || 0;
+  const vy = target.vy || 0;
+
+  return Math.atan2(
+    (target.y + vy * t) - from.y,
+    (target.x + vx * t) - from.x
+  );
+}
 
 
 
@@ -69,7 +84,13 @@ function initSPBots(player, COLORS, DESIGNS, gunSheets){
       dodgeCD: 0,
       wanderT: 0,
 
-      essence: 0
+      essence: 0,
+
+      // ===== NEW AI SYSTEM =====
+      state: "idle",
+      stateT: 0,
+      decisionCD: 0,
+      side: Math.random() < 0.5 ? -1 : 1
     });
   }
 }
@@ -120,55 +141,75 @@ function updateSPBots(dt, player, ents, world){
       continue;
     }
 
+    // ==========================
+    // STATE DECISION SYSTEM
+    // ==========================
+    b.decisionCD -= dt;
+
+    if (b.decisionCD <= 0){
+      b.decisionCD = 0.25 + Math.random() * 0.25;
+
+      if (b.hp < 30){
+        b.state = "retreat";
+      }
+      else if (!b.target){
+        b.state = "wander";
+      }
+      else{
+        const d = Math.hypot(b.target.x - b.x, b.target.y - b.y);
+
+        if (d > 320) b.state = "chase";
+        else if (d < 140) b.state = "evade";
+        else b.state = "attack";
+      }
+    }
+
+    // ==========================
+    // MOVEMENT
+    // ==========================
     if (target){
 
       const dx = target.x - b.x;
       const dy = target.y - b.y;
-      const d = Math.hypot(dx,dy) || 1;
-
-      if (b.brave === undefined) b.brave = Math.random() < 0.5;
-      if (!b.side) b.side = Math.random() < 0.5 ? -1 : 1;
+      const d = Math.hypot(dx, dy) || 1;
 
       let moveX = dx / d;
       let moveY = dy / d;
 
-      // ✅ slight sideways bias (prevents wall headbutting)
-      const sideBias = 0.3;
-      moveX += (-moveY) * sideBias * (b.side || 1);
-      moveY += ( moveX) * sideBias * (b.side || 1);
-
-      if (d > 300){
-        // approach
-      }
-      else if (d < 160){
+      if (b.state === "retreat"){
         moveX *= -1;
         moveY *= -1;
       }
-      else{
-        const strafeX = -moveY * b.side;
-        const strafeY = moveX * b.side;
 
-        moveX = moveX * 0.3 + strafeX * 0.7;
-        moveY = moveY * 0.3 + strafeY * 0.7;
+      else if (b.state === "evade"){
+        moveX *= -0.6;
+        moveY *= -0.6;
+
+        moveX += (-moveY) * b.side * 0.8;
+        moveY += ( moveX) * b.side * 0.8;
       }
 
-      const speedMul = b.brave ? 1.2 : 0.85;
+      else if (b.state === "attack"){
+        moveX *= 0.4;
+        moveY *= 0.4;
+      }
 
-      // ✅ EXACT SAME MOVEMENT MODEL AS ENEMIES (FROM YOUR FILE)
+      else if (b.state === "chase"){
+        // normal movement
+      }
 
-     // ✅ use direct movement like player (NOT velocity)
+      const len = Math.hypot(moveX, moveY) || 1;
+      moveX /= len;
+      moveY /= len;
 
-      let dxMove = moveX * b.speed * speedMul * dt;
-      let dyMove = moveY * b.speed * speedMul * dt;
+      let dxMove = moveX * b.speed * dt;
+      let dyMove = moveY * b.speed * dt;
 
-      // ✅ split into small steps (fixes door getting stuck)
       const steps = 4;
-      const sx = dxMove / steps;
-      const sy = dyMove / steps;
-
       for (let i = 0; i < steps; i++){
-        BOT_moveWithCollide(b, sx, sy);
+        BOT_moveWithCollide(b, dxMove/steps, dyMove/steps);
       }
+
 
       // ✅ apply hazard effects EXACTLY like your enemies
       const hz = world.getHazardAt(b.x, b.y, b.r * 0.9);
@@ -195,10 +236,13 @@ function updateSPBots(dt, player, ents, world){
         }
       }
 
-      const aim = angleTo(b.x, b.y, target.x, target.y);
-      const miss = 0.08 * (Math.random() - 0.5);
+      let aim = aimPredict(b, target);
 
-      b.ang = lerpAngle(b.ang || 0, aim + miss, 0.08);
+      // better accuracy
+      const ACCURACY = 0.12;
+      aim += (Math.random() - 0.5) * ACCURACY;
+
+      b.ang = lerpAngle(b.ang || 0, aim, 0.15);
     }
     // ===== SHOOTING =====
 
@@ -215,14 +259,16 @@ function updateSPBots(dt, player, ents, world){
 
         if (!ents.bullets) ents.bullets = [];
 
+          const speed = 700;
+
           ents.bullets.push({
             x: b.x,
             y: b.y,
-            vx: Math.cos(b.ang) * 600,
-            vy: Math.sin(b.ang) * 600,
+            vx: Math.cos(b.ang) * speed,
+            vy: Math.sin(b.ang) * speed,
             life: 1.2,
             r: 4,
-            dmg: 10,
+            dmg: 14,
             team: "player"
           });
       }
