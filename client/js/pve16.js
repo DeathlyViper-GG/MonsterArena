@@ -2967,21 +2967,32 @@ if (btnHomeCustomize){
   }
   // --- nearest player (local + remote snapshot) ------------------------------
   function nearestPlayerTo(x, y){
-    // Online: use snapshot players (includes remote peers) + include local player
-    if (isNetActive() && hasFreshSnapshot() && Net.state?.snapshot?.players?.length) {
-      let best = { x: player.x, y: player.y };
-      let bestD2 = dist2(x, y, player.x, player.y);
+    let best = { x: player.x, y: player.y };
+    let bestD2 = dist2(x, y, player.x, player.y);
 
-      for (const p of Net.state.snapshot.players) {
-        if (!p) continue;
-        const d2 = dist2(x, y, p.x, p.y);
-        if (d2 < bestD2) { bestD2 = d2; best = p; }
+    // ✅ include bots
+    for (const b of SP_BOTS){
+      if (!b || b.hp <= 0) continue;
+      const d2 = dist2(x, y, b.x, b.y);
+      if (d2 < bestD2){
+        bestD2 = d2;
+        best = b;
       }
-      return best;
     }
 
-    // offline fallback
-    return { x: player.x, y: player.y };
+    // ✅ include multiplayer players (unchanged logic)
+    if (isNetActive() && hasFreshSnapshot() && Net.state?.snapshot?.players){
+      for (const p of Net.state.snapshot.players){
+        if (!p) continue;
+        const d2 = dist2(x, y, p.x, p.y);
+        if (d2 < bestD2){
+          bestD2 = d2;
+          best = p;
+        }
+      }
+    }
+
+    return best;
   }
 
   // Nearest door (center) of building b to (x,y)
