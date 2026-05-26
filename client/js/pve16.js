@@ -5994,22 +5994,37 @@ window.addEventListener('net:snapshot', (ev) => {
           if (e._dread) dmg *= 0.66;
 
           // ✅ USE SAME TARGET THE AI ALREADY PICKED
-          const tgt = nearestPlayerTo(e.x, e.y);
+          // ===== DAMAGE PLAYER ALWAYS IF TOUCHING =====
+          hurtPlayer(dmg * dt * 1.4);
 
-          // ✅ APPLY DAMAGE TO CORRECT TARGET
-          if (tgt === player) {
-            hurtPlayer(dmg * dt * 1.4);
-          } else {
-            tgt.hp -= dmg * dt * 1.4;
+          // ===== ALSO DAMAGE BOTS IF TOUCHING =====
+          if (typeof SP_BOTS !== "undefined"){
+            for (const bot of SP_BOTS){
+
+              const d2b = dist2(e.x, e.y, bot.x, bot.y);
+              const rrb = e.r + bot.r;
+
+              if (d2b < rrb * rrb){
+                bot.hp -= dmg * dt * 1.4;
+
+                // push bot
+                const d = Math.sqrt(d2b) || 1;
+                moveWithCollide(
+                  bot,
+                  (bot.x - e.x) / d * 40 * dt,
+                  (bot.y - e.y) / d * 40 * dt
+                );
+              }
+            }
           }
 
-          // ✅ PUSH THAT SAME TARGET
+          // ===== PUSH PLAYER =====
           const d = Math.sqrt(d2) || 1;
 
           moveWithCollide(
-            tgt,
-            (tgt.x - e.x) / d * 40 * dt,
-            (tgt.y - e.y) / d * 40 * dt
+            player,
+            (player.x - e.x) / d * 40 * dt,
+            (player.y - e.y) / d * 40 * dt
           );
         }
 
