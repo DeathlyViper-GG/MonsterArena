@@ -111,7 +111,8 @@ function updateSPBots(dt, player, ents, world){
     if (b.hp < 30){
       const dx = b.x - player.x;
       const dy = b.y - player.y;
-      b.ang = Math.atan2(dy, dx);
+      const want = Math.atan2(dy, dx);
+      b.ang = lerpAngle(b.ang || 0, want, 0.06);
       const rx = Math.cos(b.ang) * b.speed * dt;
       const ry = Math.sin(b.ang) * b.speed * dt;
 
@@ -237,7 +238,7 @@ function updateSPBots(dt, player, ents, world){
 
         if (d < 220*220){
           b.dodgeCD = 1.2;
-          b.ang += Math.PI/2;
+          b.ang = lerpAngle(b.ang || 0, (b.ang || 0) + Math.PI/2, 0.18);
           break;
         }
       }
@@ -249,7 +250,8 @@ function updateSPBots(dt, player, ents, world){
 
       if (b.wanderT <= 0){
         b.wanderT = 2 + Math.random()*2;
-        b.ang = Math.random()*Math.PI*2;
+        const want = Math.random() * Math.PI * 2;
+        b.ang = lerpAngle(b.ang || 0, want, 0.06);
       }
 
       const wx = Math.cos(b.ang) * b.speed * 0.6 * dt;

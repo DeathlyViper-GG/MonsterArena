@@ -5971,47 +5971,35 @@ window.addEventListener('net:snapshot', (ev) => {
         const d2 = dist2(e.x, e.y, player.x, player.y);
         const rr = e.r + player.r;
         if (d2 < rr * rr) {
-          let dmg = ( e.type==='tank'?22
-          : e.type==='boss'?30
-          : e.type==='swarm'?6
-          : e.type==='healer'?0
-          : e.type==='bomber'?8
-          : 12 ) * state.diff;
+          let dmg =
+            (e.type === 'tank' ? 22 :
+            e.type === 'boss' ? 30 :
+            e.type === 'swarm' ? 6 :
+            e.type === 'healer' ? 0 :
+            e.type === 'bomber' ? 8 :
+            12) * state.diff;
 
-        // 👻 Haunt: enemies deal half damage
-        if (e.hauntT > 0){
-          dmg *= 0.5;
-        }
-        // 👻 Dread Bloom: reduce damage by 1/3
-        if (e._dread){
-          dmg *= 0.66;
-        }
+          if (e.hauntT > 0) dmg *= 0.5;
+          if (e._dread) dmg *= 0.66;
 
-        hurtPlayer(dmg * dt * 1.4);
-          const d = Math.sqrt(d2) || 1;
-          // ✅ choose player OR closest bot
+          // ✅ USE SAME TARGET THE AI ALREADY PICKED
+          const tgt = nearestPlayerTo(e.x, e.y);
 
-          let tx = player.x;
-          let ty = player.y;
-
-          let best = (player.x - e.x)*(player.x - e.x) + (player.y - e.y)*(player.y - e.y);
-
-          for (const b of SP_BOTS){
-            if (!b || b.hp <= 0) continue;
-
-            const dxb = b.x - e.x;
-            const dyb = b.y - e.y;
-            const d2b = dxb*dxb + dyb*dyb;
-
-            if (d2b < best){
-              best = d2b;
-              tx = b.x;
-              ty = b.y;
-            }
+          // ✅ APPLY DAMAGE TO CORRECT TARGET
+          if (tgt === player) {
+            hurtPlayer(dmg * dt * 1.4);
+          } else {
+            tgt.hp -= dmg * dt * 1.4;
           }
 
-          // ✅ move towards chosen target
-          moveWithCollide(player, (tx - e.x)/d * 40 * dt, (ty - e.y)/d * 40 * dt);
+          // ✅ PUSH THAT SAME TARGET
+          const d = Math.sqrt(d2) || 1;
+
+          moveWithCollide(
+            tgt,
+            (tgt.x - e.x) / d * 40 * dt,
+            (tgt.y - e.y) / d * 40 * dt
+          );
         }
 
         // Hazard interaction for this enemy
