@@ -97,15 +97,37 @@ function initSPBots(player, COLORS, DESIGNS, gunSheets){
 
 // ===== UPDATE =====
 function updateSPBots(dt, player, ents, world){
+  if (!window.BOTS_ENABLED) return;
 
   for (const b of SP_BOTS){
 
     
 
     let target = null;
-    let best = Infinity;
 
-    const MAX_DIST = 650;   // 👈 tweak (600–800 feels good)
+    // ===== PVP TARGET =====
+    if (window.PVP_MODE){
+
+      let bestObj = player;
+      let bestD = (player.x - b.x)*(player.x - b.x) + (player.y - b.y)*(player.y - b.y);
+
+      for (const other of SP_BOTS){
+        if (other === b || other.hp <= 0) continue;
+
+        const dx = other.x - b.x;
+        const dy = other.y - b.y;
+        const d = dx*dx + dy*dy;
+
+        if (d < bestD){
+          bestObj = other;
+          bestD = d;
+        }
+      }
+
+      target = bestObj;
+    }
+    const MAX_DIST = 650;
+    let best = Infinity;
 
     for (const e of ents.enemies){
 
@@ -255,7 +277,8 @@ function updateSPBots(dt, player, ents, world){
       b.shootCD -= dt;
 
       if (b.shootCD <= 0){
-        b.shootCD = b.fireRate;
+        const w = weapons[b.weapon];
+        b.shootCD = 1 / w.rof;
 
         if (!ents.bullets) ents.bullets = [];
 
@@ -316,8 +339,10 @@ function updateSPBots(dt, player, ents, world){
 
       if (d < 200){
         const a = Math.atan2(dy,dx);
-        b.x += Math.cos(a)*140*dt;
-        b.y += Math.sin(a)*140*dt;
+        const mx = Math.cos(a) * b.speed * dt;
+        const my = Math.sin(a) * b.speed * dt;
+
+        BOT_moveWithCollide(b, mx, my);
       }
 
       if (d < 20){

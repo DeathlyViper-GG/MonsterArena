@@ -130,9 +130,11 @@
     </p>
 
     <div class="row" style="justify-content:center; margin-top:18px;">
+      <button class="btn bigBtn" id="btnIntroOffline">💻 Offline</button>
       <button class="btn bigBtn" id="btnIntroSingle">🧍 Singleplayer</button>
       <button class="btn bigBtn" id="btnIntroMulti">👥 Multiplayer</button>
     </div>
+
 
     <div class="row" style="justify-content:center; margin-top:14px;">
       <button class="btn" id="introCustomize">🎨 Customize</button>
@@ -144,6 +146,23 @@
 
 <!-- SINGLE PLAYER -->
 <!-- SINGLE PLAYER -->
+ <!-- OFFLINE -->
+<div id="overlayOffline" class="overlay">
+  <div class="card">
+    <h2>Offline Mode</h2>
+
+    <div class="row" style="justify-content:center; margin-top:18px;">
+      <button class="btn bigBtn" id="btnOfflinePVE">PVE</button>
+      <button class="btn bigBtn" id="btnOfflinePVP">PVP</button>
+    </div>
+
+    <div class="level-strip" id="offlineLevelStrip"></div>
+
+    <div class="row" style="margin-top:12px;">
+      <button class="btn" id="backFromOffline">⬅ Back</button>
+    </div>
+  </div>
+</div>
 <div id="overlaySingle" class="overlay">
   <div class="card single-layout">
 
@@ -557,6 +576,19 @@
     showOverlay('overlaySingle');
     moveLevelsToSingle();
   });
+  document.getElementById('btnIntroOffline')?.addEventListener('click', () => {
+    window.MENU_CONTEXT = 'offline';
+    showOverlay('overlayOffline');
+
+    // move levels into offline strip
+    const grid = document.getElementById('levelsGrid');
+    const strip = document.getElementById('offlineLevelStrip');
+    if (grid && strip){
+      strip.innerHTML = '';
+      strip.appendChild(grid);
+    }
+  });
+
 
   document.getElementById('btnIntroMulti')?.addEventListener('click', () => {
     window.MENU_CONTEXT = 'multi';
@@ -572,6 +604,21 @@
   });
   document.getElementById('introSettings')?.addEventListener('click', () => {
     document.getElementById('homeSettings')?.click();
+  });
+  document.getElementById('backFromOffline')?.addEventListener('click', () => {
+    window.MENU_CONTEXT = 'intro';
+    showOverlay('overlayIntro');
+  });
+  window.OFFLINE_MODE_TYPE = "pve";
+
+  document.getElementById('btnOfflinePVE')?.addEventListener('click', () => {
+    OFFLINE_MODE_TYPE = "pve";
+    moveLevelsToSingle();
+  });
+
+  document.getElementById('btnOfflinePVP')?.addEventListener('click', () => {
+    OFFLINE_MODE_TYPE = "pvp";
+    moveLevelsToSingle();
   });
 
   /* ===================================================== */
@@ -691,7 +738,18 @@
       }
 
       if (window.MENU_CONTEXT === 'single') {
-        // hide menu overlays before level handler shows overlayLoading
+
+        window.BOTS_ENABLED = false;
+        window.PVP_MODE = false;
+
+        showOverlay('overlayLoading');
+      }
+
+      if (window.MENU_CONTEXT === 'offline') {
+
+        window.BOTS_ENABLED = true;
+        window.PVP_MODE = (window.OFFLINE_MODE_TYPE === "pvp");
+
         showOverlay('overlayLoading');
       }
     }, true);

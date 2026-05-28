@@ -4,6 +4,11 @@
 // Requires overlayBoot + progress bar in HTML
 
 (() => {
+  let MAIN_MODE = "single";   // single / offline / multi
+  let GAME_TYPE = "pve";      // pve / pvp
+
+  window.BOTS_ENABLED = false;
+  window.PVP_MODE = false;
   // --------------------------------------------------
   // Boot UI elements
   // --------------------------------------------------
@@ -15,6 +20,30 @@
 
   function delay(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
+  }
+  window.setMainMode = function(mode){
+
+    MAIN_MODE = mode;
+    window.MENU_CONTEXT = mode;
+
+    if (mode === "single"){
+      GAME_TYPE = "pve";
+      showOverlay('overlaySingle');
+      moveLevelsToSingle();
+    }
+
+    else if (mode === "offline"){
+      showOverlay('overlayOffline');
+    }
+
+    else if (mode === "multi"){
+      showOverlay('overlayHome');
+    }
+  }
+
+
+  window.setOfflineMode = function(type){
+    GAME_TYPE = type;
   }
 
   function updateProgress(label) {

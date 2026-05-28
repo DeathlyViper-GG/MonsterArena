@@ -5356,17 +5356,19 @@ function drawGlyphOverlay(){
       let best = -1;
       let bestD2 = 40 * 40;
 
-      for (let i = 0; i < ents.enemies.length; i++) {
-        const en = ents.enemies[i];
-        const dx = en.x - e.x;
-        const dy = en.y - e.y;
-        const d2 = dx*dx + dy*dy;
-        if (d2 < bestD2) {
-          bestD2 = d2;
-          best = i;
+      if (!window.PVP_MODE){
+        for (let i = 0; i < ents.enemies.length; i++){
+
+          const en = ents.enemies[i];
+          const dx = en.x - e.x;
+          const dy = en.y - e.y;
+          const d2 = dx*dx + dy*dy;
+          if (d2 < bestD2) {
+            bestD2 = d2;
+            best = i;
+          }
         }
       }
-
       if (best >= 0) {
         const en = ents.enemies[best];
 
@@ -6244,6 +6246,22 @@ window.addEventListener('net:snapshot', (ev) => {
         addEffect(b.x,b.y,'hit',0.1,'#ffd7d7'); 
         ents.ebullets.splice(i,1); 
         continue;
+      }
+      // ===== HIT BOTS =====
+      if (window.PVP_MODE){
+
+        for (const bot of SP_BOTS){
+
+          const rr = bot.r + b.r;
+
+          if (dist2(b.x,b.y,bot.x,bot.y) < rr*rr){
+
+            bot.hp -= b.dmg || 10;
+
+            ents.bullets.splice(i,1);
+            break;
+          }
+        }
       }
 
       // ===== HIT BOTS =====
