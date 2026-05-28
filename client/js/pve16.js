@@ -6658,7 +6658,7 @@ window.addEventListener('net:snapshot', (ev) => {
         addWorldVfx({ type:'quake', x: player.x, y: player.y, r: 160, life: 0.45, maxLife: 0.45 });
       }
     }
-    updateSPBots(dt, player, ents, world);
+    updateSPBots(dt, player, ents, world, weapons);
   }
   
   const SPRITE_ROT_OFF = {

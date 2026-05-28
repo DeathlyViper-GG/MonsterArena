@@ -96,7 +96,7 @@ function initSPBots(player, COLORS, DESIGNS, gunSheets){
 }
 
 // ===== UPDATE =====
-function updateSPBots(dt, player, ents, world){
+function updateSPBots(dt, player, ents, world, weapons){
   if (!window.BOTS_ENABLED) return;
 
   for (const b of SP_BOTS){
